@@ -1,0 +1,699 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /etc/nginx/paidssl ]; then
+mkdir -p /etc/nginx/paidssl
+fi
+if [ ! -d /home/$mainsite/private_html/paidssl ]; then
+mkdir -p /home/$mainsite/private_html/paidssl
+fi
+rm -rf /etc/dsnvps/.tmp/klaoxcy
+rm -rf /etc/dsnvps/.tmp/klaoxcypark
+rm -rf /etc/dsnvps/.tmp/kl0zx
+rm -rf /etc/dsnvps/.tmp/$website.conf_HTTPS
+######################################################
+#lay Danh Sách Website Trên Server####################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+# Xóa file cũ nếu tồn tại
+> "$output_file"
+# Duyệt qua tất cả các file .conf trong thư mục cấu hình Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+
+    # Kiểm tra nếu domain có thư mục public_html trong /home và vhost trong /etc/nginx/conf.d/
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+# Kiểm tra nếu không có domain nào được tìm thấy
+if [[ ! -s "$output_file" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 2
+clear
+echo "========================================================================= "
+echo "Không tìm thấy website trên server"
+echo "-------------------------------------------------------------------------"
+echo "Bạn cần thêm Website Vào Server trước khi chạy chức năng này."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+########################################################
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+nginx_conf_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+# Xóa file kết quả cũ nếu tồn tại
+> "$output_file"
+
+if [[ -s "$klaoxcy_file" ]]; then
+    while IFS= read -r domain; do
+        domain_conf_folder="$nginx_conf_folder/$domain/conf.d"
+        if [[ "$domain" != "$mainsite" && -d "$domain_conf_folder" ]]; then
+            # Kiểm tra nếu thư mục có file .conf
+            if compgen -G "$domain_conf_folder"/*.conf > /dev/null; then
+                for vhost in "$domain_conf_folder"/*.conf; do
+                    subdomain=$(basename "$vhost" .conf)
+                    # Kiểm tra nếu subdomain không phải domain chính
+                    if [[ "$subdomain" != "$domain" ]]; then
+                        # Kiểm tra độ dài file vhost
+                        vhost_length=$(wc -c < "$vhost")
+                        if (( vhost_length > 200 )); then
+                            echo "$subdomain**" >> "$output_file"
+                        fi
+                    fi
+                done
+            fi
+        fi
+    done < "$klaoxcy_file"
+fi
+# Kiểm tra và thông báo kết quả
+if [[ -s "$output_file" ]]; then
+cat /etc/dsnvps/.tmp/klaoxcypark >> /etc/dsnvps/.tmp/klaoxcy
+fi
+echo "========================================================================= "
+echo "Sử dụng chức năng này để cài đặt PaidSSL cho website. Bạn cần phải tạo"
+echo "-------------------------------------------------------------------------"
+echo "domain key & csr file và đã nhận chứng chỉ SSL cho domain từ nhà đăng ký"
+echo "-------------------------------------------------------------------------"
+echo "chứng chỉ trước khi dùng chức năng này."
+echo "-------------------------------------------------------------------------"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1944"
+echo "========================================================================= "
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/klaoxcy
+echo "Danh sách các website & Park domains trên server:  | ** : Park Domains"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+
+    left_db="${danh_sach_website[i]:- }"                    
+
+    if (( right_index <= total )); then           
+        right_db="${danh_sach_website[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=$(echo "${danh_sach_website[lua_chon-1]}" | sed 's/**$//')
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] ; then
+sed -i 's/\*\*$//' /etc/dsnvps/.tmp/klaoxcypark
+fi
+
+
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaoxcypark; then   #  Tim Main  Domain
+home_folder="/home"
+for domain in "$home_folder"/*; do
+    domain_name=$(basename "$domain")
+    park_vhost="$domain/conf.d/$website.conf"
+    if [[ -f "$park_vhost" ]]; then
+        echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+        break
+    fi
+done
+mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+else
+mainwebsite=$website
+fi
+if [ -f /home/$mainwebsite/conf.d/$website.conf ]; then
+if [ -f /etc/nginx/paidssl/$website/$website.crt ] && grep -q "/etc/nginx/paidssl/$website/$website.crt" /home/$mainwebsite/conf.d/$website.conf; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 2
+clear
+echo "========================================================================="
+echo "$website là Park Domain của $mainwebsite"
+echo "-------------------------------------------------------------------------"
+echo "$website đã cài thành công Paid / Origin SSL."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+fi
+
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+if [ -f /etc/nginx/paidssl/$website/$website.crt ] && grep -q "/etc/nginx/paidssl/$website/$website.crt" /etc/nginx/conf.d/$website.conf; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 2
+clear
+echo "========================================================================="
+echo "$website đã cài thành công Paid / Origin SSL."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+fi
+
+################################################################################################################################################
+if [ ! -f /etc/nginx/paidssl/$website/$website.key ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 2
+clear
+echo "========================================================================="
+echo "CSR File của $website chưa tạo trên server."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy tạo Domain key và CSR file trước, rồi dùng file CSR để đăng ký"
+echo "-------------------------------------------------------------------------"
+echo "chứng chỉ SSL cho domain, sau đó chạy lại chức năng này."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+else
+echo "========================================================================="
+echo "$website đã tạo Domain key và CSR file."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy upload chứng chỉ SSL và chứng chỉ trung gian vào:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainwebsite/"
+echo "-------------------------------------------------------------------------"
+echo "Đường dẫn file chứng chỉ SSL và chứng chỉ trung gian:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainwebsite/$website.crt"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainwebsite/$website.ca"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ sử dụng file này để tạo Vhost sử dụng Paid SSL cho website."
+echo "========================================================================="
+echo "XÁC NHẬN ĐÃ ĐĂNG KÝ CHỨNG CHỈ SSL VÀ HOÀN THÀNH THEO YÊU CẦU CỦA DSNVPS"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn xác nhận đã hoàn thành yêu cầu của DSNVPS? [y/N] " response
+
+if [[ "${response,,}" != "y" ]]; then
+clear
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 3
+echo "========================================================================="
+echo "Bạn hãy hoàn thành yêu cầu của DSNVPS rồi làm lại !"; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+fi
+
+if [ ! -f /home/$mainwebsite/$website.crt ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 3
+clear
+echo "========================================================================="
+echo "Không tìm thấy file chứng chỉ SSL của $website:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainwebsite/$website.crt"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy hoàn thành yêu cầu của DSNVPS và chạy lại chức năng này."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+if [ ! -f /home/$mainwebsite/$website.ca ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 3
+clear
+echo "========================================================================="
+echo "Không tìm thấy file chứng chỉ trung gian của $website:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainwebsite/$website.ca"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy hoàn thành yêu cầu của DSNVPS và chạy lại chức năng này."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện: /home/$mainwebsite/$website.crt"; sleep 2
+echo "-------------------------------------------------------------------------"; sleep 2
+echo "Phát hiện: /home/$mainwebsite/$website.ca"; sleep 2
+echo "-------------------------------------------------------------------------"; sleep 2
+echo "Kiểm tra chứng chỉ ..."; sleep 3
+
+# Đường dẫn đến file chứng chỉ .crt
+CERT_FILE="/home/$mainwebsite/$website.crt"
+
+# Kiểm tra file chứng chỉ hợp lệ
+if ! openssl x509 -in "$CERT_FILE" -noout > /dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ bạn sử dụng cho $website không hợp lệ"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy kiểm tra lại !"; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra tính tương thích giữa private key và chứng chỉ
+key_modulus=$(openssl rsa -noout -modulus -in "/etc/nginx/paidssl/$website/$website.key" 2>/dev/null | openssl md5)
+cert_modulus=$(openssl x509 -noout -modulus -in "$CERT_FILE" 2>/dev/null | openssl md5)
+if [ "$key_modulus" != "$cert_modulus" ]; then
+    clear
+    echo "========================================================================="
+    echo "Private key và chứng chỉ SSL của $website không tương thích"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy kiểm tra lại !"; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Hàm kiểm tra wildcard
+check_wildcard() {
+    local domain="$1"
+    local pattern="$2"
+    if [[ "$pattern" == "*."* ]]; then
+        local base_domain="${pattern#*.}"
+        if [[ "$domain" == *."$base_domain" ]]; then
+            return 0  # Hợp lệ
+        fi
+    fi
+    return 1  # Không hợp lệ
+}
+
+# Lấy Common Name (CN) và danh sách SAN từ chứng chỉ
+CN=$(openssl x509 -in "$CERT_FILE" -noout -subject | grep -o "CN=[^,]*" | sed 's/CN=//')
+SAN=$(openssl x509 -in "$CERT_FILE" -noout -text | grep -A1 "Subject Alternative Name" | grep -oE "DNS:[^, ]+" | sed 's/DNS://g')
+
+# Kiểm tra tính hợp lệ của chứng chỉ
+valid_cert=false
+if [ "$website" == "$CN" ]; then
+    valid_cert=true
+elif echo "$SAN" | grep -qw "$website"; then
+    valid_cert=true
+else
+    # Kiểm tra wildcard trong CN
+    if check_wildcard "$website" "$CN"; then
+        valid_cert=true
+    else
+        # Kiểm tra wildcard trong SAN
+        while IFS= read -r san_entry; do
+            if check_wildcard "$website" "$san_entry"; then
+                valid_cert=true
+                break
+            fi
+        done <<< "$SAN"
+    fi
+fi
+
+if [ "$valid_cert" = true ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Chứng chỉ SSL hợp lệ."
+else
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ SSL bạn sử dụng cho $website không hợp lệ"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy kiểm tra lại !"; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Đường dẫn đến file chứng chỉ trung gian .ca
+INTERMEDIATE_CERT_FILE="/home/$mainwebsite/$website.ca"
+
+# Kiểm tra file chứng chỉ trung gian hợp lệ
+if ! openssl x509 -in "$INTERMEDIATE_CERT_FILE" -noout > /dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ trung gian bạn sử dụng cho $website không hợp lệ"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy kiểm tra lại !"; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Lấy thông tin về người cấp chứng chỉ (Issuer) và thời gian hiệu lực
+ISSUER=$(openssl x509 -in "$INTERMEDIATE_CERT_FILE" -noout -issuer | sed 's/issuer= //')
+VALID_FROM=$(openssl x509 -in "$INTERMEDIATE_CERT_FILE" -noout -startdate | sed 's/notBefore=//')
+VALID_TO=$(openssl x509 -in "$INTERMEDIATE_CERT_FILE" -noout -enddate | sed 's/notAfter=//')
+
+echo "-------------------------------------------------------------------------"
+echo "Thông tin chứng chỉ trung gian:"; sleep 2
+echo "-------------------------------------------------------------------------"; sleep 3
+echo "Bên cấp: $ISSUER"; sleep 6
+echo "-------------------------------------------------------------------------"; sleep 3
+echo "Thời gian hiệu lực: Từ $VALID_FROM đến $VALID_TO"; sleep 6
+echo "-------------------------------------------------------------------------"; sleep 3
+
+# Kiểm tra thời hạn của chứng chỉ trung gian
+CURRENT_DATE=$(date -u "+%Y-%m-%d %H:%M:%S")
+if [[ "$CURRENT_DATE" < "$(date -u -d "$VALID_TO" "+%Y-%m-%d %H:%M:%S")" ]]; then
+    echo "Chứng chỉ trung gian hợp lệ thời gian."; sleep 5
+    echo "-------------------------------------------------------------------------"; sleep 2
+else
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ trung gian của $website đã hết hạn"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy kiểm tra lại !"; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ cài đặt SSL theo 2 file bạn cung cấp !"; sleep 4
+#################################################################################################################
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaoxcypark; then   # Park Domains
+##########################################################################################################################
+home_folder="/home"
+for domain in "$home_folder"/*; do
+    domain_name=$(basename "$domain")
+    park_vhost="$domain/conf.d/$website.conf"
+    if [[ -f "$park_vhost" ]]; then
+        echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+        break
+    fi
+done
+mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+rm -rf /etc/dsnvps/.tmp/servername
+grep "server_name\ $website" /home/$mainwebsite/conf.d/$website.conf > /etc/dsnvps/.tmp/servername
+servername=$(cat /etc/dsnvps/.tmp/servername)
+
+if [ ! -f /etc/dsnvps/.tmp/servername ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+
+if [ "`grep "block.conf;" /home/$mainwebsite/conf.d/$website.conf`" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+cp -r /home/$mainwebsite/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf.txt
+
+# replace from 1 to server_name
+sed -i "1,/${servername}/d" /etc/dsnvps/.tmp/$website.conf.txt
+# Tao vhost ssl
+rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt   
+################### Lay WWW hoac Non_WWW
+if [[ "$website" == www.* ]]; then
+    # Nếu $website bắt đầu bằng "www."
+    website_redirect="${website#www.}"
+else
+    # Nếu $website không bắt đầu bằng "www."
+    website_redirect="www.$website"
+fi
+#################################
+
+cat > "/etc/dsnvps/.tmp/SSL-$website.conf.txt" <<END
+server {
+listen 80;
+server_name $website $website_redirect;
+return       301 https://$website\$request_uri;
+}
+
+server {
+listen 443 ssl;
+http2 on;
+http3 on;
+server_name  $website_redirect;
+return       301 https://$website\$request_uri;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+}
+
+server {
+listen 443 ssl;
+http2 on;
+http3 on;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+ssl_session_timeout 4h;
+ssl_session_cache shared:SSL:20m;
+ssl_session_tickets off;  
+ssl_prefer_server_ciphers on;
+include /etc/nginx/conf/ssl-protocol-cipherV2.conf;
+ssl_ecdh_curve X25519:P-256:P-384:P-224:P-521;
+ssl_buffer_size 1400;
+add_header Alt-Svc 'h3-23=":443"';  # Advertise HTTP/3 support
+add_header QUIC-Status "OK";
+add_header Strict-Transport-Security "max-age=31536000; preload" always;
+#ssl_stapling on;
+#ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 10s;
+access_log off;
+#access_log   /home/$mainwebsite/logs/${website}_access_log;
+error_log off;
+#error_log /home/$mainwebsite/logs/${website}_error.log;
+#add_header X-Frame-Options SAMEORIGIN;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+root /home/$mainwebsite/public_html;
+include /etc/nginx/conf/ddos2.conf;
+index index.php index.html index.htm;
+$servername
+END
+cd /etc/dsnvps/.tmp/
+cat SSL-$website.conf.txt $website.conf.txt > $website.conf_HTTPS
+rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+cd
+
+if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+    mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+fi
+mkdir -p /etc/dsnvps/Backup.Vhost.SSL/$website
+if [ ! -d /home/$mainwebsite/Backup.Vhost ]; then
+    mkdir -p /home/$mainwebsite/Backup.Vhost 
+fi
+
+#Backup Vhost.Conf
+yes | cp -rf /home/$mainwebsite/conf.d/$website.conf /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf
+yes | cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf_HTTPS
+yes | cp -rf /home/$mainwebsite/conf.d/$website.conf /home/$mainwebsite/Backup.Vhost/$website.conf_HTTP
+yes | cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$mainwebsite/Backup.Vhost/$website.conf_HTTPS
+yes | cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$mainwebsite/conf.d/$website.conf
+
+yes | cp -r /home/$mainwebsite/$website.crt /etc/nginx/paidssl/$website/
+yes | cp -r /home/$mainwebsite/$website.ca /etc/nginx/paidssl/$website/
+#########  CHECK CAI DAT THANH CONG HAY KHONG ##############
+if ! nginx -t &>/dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Quá trình cài đặt tự động Paid SSL cho $website"
+    echo "-------------------------------------------------------------------------"
+    echo "Theo cấu hình Vhost hiện tại thất bại."
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS sẽ tiến hành tạo file Vhost để bạn tự cài đặt."
+    echo "-------------------------------------------------------------------------"
+    echo "Nếu cài đặt thành công SSL, bạn cần chỉnh sửa lại thông tin Vhost theo những"
+    echo "-------------------------------------------------------------------------"
+    echo "cấu hình bạn đã chỉnh sửa."
+    echo "-------------------------------------------------------------------------"
+    echo "File Vhost: /home/$mainwebsite/conf.d/$website.conf"
+    echo "-------------------------------------------------------------------------"
+    echo "Backup Vhost: /home/$mainwebsite/Backup.Vhost/$website.conf_HTTP"
+    echo "-------------------------------------------------------------------------"
+    echo "Backup SSL Vhost (failed): /home/$mainwebsite/Backup.Vhost/$website.conf_HTTPS"
+    echo "-------------------------------------------------------------------------"
+    read -p "Nhấn [Enter] để tiếp tục ..."
+    rm -rf /home/$mainwebsite/conf.d/$website.conf
+    cp -r /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf /home/$mainwebsite/conf.d/$website.conf
+    clear
+    echo "========================================================================="
+    echo "Quá trình cài đặt Paid SSL thất bại"       
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+else
+    /etc/dsnvps/menu/inc/re-start-nginx-service
+    clear
+    echo "========================================================================="
+    echo "Cài đặt tự động Paid SSL cho $website thành công."
+    echo "-------------------------------------------------------------------------"
+    echo "Truy cập $website trên trình duyệt để kiểm tra."
+    echo "-------------------------------------------------------------------------"
+    echo "Backup Vhost: /home/$mainwebsite/Backup.Vhost/$website.conf_HTTP"
+    echo "-------------------------------------------------------------------------"
+    echo "Backup SSL Vhost: /home/$mainwebsite/Backup.Vhost/$website.conf_HTTPS"; sleep 3
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+fi
+########################################################################################
+else  #################################################################################
+########################################################################################
+rm -rf /etc/dsnvps/.tmp/servername
+grep "server_name\ $website" /etc/nginx/conf.d/$website.conf > /etc/dsnvps/.tmp/servername
+servername=$(cat /etc/dsnvps/.tmp/servername)
+
+if [ ! -f /etc/dsnvps/.tmp/servername ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+
+if [ "`grep "block.conf;" /etc/nginx/conf.d/$website.conf`" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+cp -r /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf.txt
+
+# replace from 1 to server_name
+sed -i "1,/${servername}/d" /etc/dsnvps/.tmp/$website.conf.txt
+# Tao vhost ssl
+rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt   
+################### Lay WWW hoac Non_WWW
+if [[ "$website" == www.* ]]; then
+    # Nếu $website bắt đầu bằng "www."
+    website_redirect="${website#www.}"
+else
+    # Nếu $website không bắt đầu bằng "www."
+    website_redirect="www.$website"
+fi
+#################################
+
+cat > "/etc/dsnvps/.tmp/SSL-$website.conf.txt" <<END
+server {
+listen 80;
+server_name $website $website_redirect;
+return       301 https://$website\$request_uri;
+}
+server {
+listen 443 ssl;
+http2 on;
+http3 on;
+server_name  $website_redirect;
+return       301 https://$website\$request_uri;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+}
+server {
+listen 443 ssl;
+http2 on;
+http3 on;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+ssl_session_timeout 4h;
+ssl_session_tickets off;  
+ssl_prefer_server_ciphers on;
+include /etc/nginx/conf/ssl-protocol-cipherV2.conf;
+ssl_ecdh_curve X25519:P-256:P-384:P-224:P-521;
+ssl_buffer_size 1400;
+add_header Alt-Svc 'h3-23=":443"';  # Advertise HTTP/3 support
+add_header QUIC-Status "OK";
+add_header Strict-Transport-Security "max-age=31536000; preload" always;
+ssl_stapling on;
+ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 10s;
+access_log off;
+access_log   /home/$website/logs/access_log;
+error_log off;
+error_log /home/$website/logs/error.log;
+#add_header X-Frame-Options SAMEORIGIN;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+root /home/$website/public_html;
+include /etc/nginx/conf/ddos2.conf;
+index index.php index.html index.htm;
+$servername
+END
+cd /etc/dsnvps/.tmp/
+cat SSL-$website.conf.txt $website.conf.txt > $website.conf_HTTPS
+rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+cd
+
+if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+    mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+fi
+mkdir -p /etc/dsnvps/Backup.Vhost.SSL/$website
+if [ ! -d /home/$website/Backup.Vhost ]; then
+    mkdir -p /home/$website/Backup.Vhost 
+fi
+
+#Backup Vhost.Conf
+yes | cp -rf /etc/nginx/conf.d/$website.conf /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf
+yes | cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf_HTTPS
+yes | cp -rf /etc/nginx/conf.d/$website.conf /home/$website/Backup.Vhost/$website.conf_HTTP
+yes | cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$website/Backup.Vhost/$website.conf_HTTPS
+yes | cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/nginx/conf.d/$website.conf
+
+yes | cp -r /home/$website/$website.crt /etc/nginx/paidssl/$website/
+yes | cp -r /home/$website/$website.ca /etc/nginx/paidssl/$website/
+#########  CHECK CAI DAT THANH CONG HAY KHONG ##############
+if ! nginx -t &>/dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Quá trình cài đặt tự động Paid SSL cho $website"
+    echo "-------------------------------------------------------------------------"
+    echo "Theo cấu hình Vhost hiện tại thất bại."
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS sẽ tiến hành tạo file Vhost để bạn tự cài đặt."
+    echo "-------------------------------------------------------------------------"
+    echo "Nếu cài đặt thành công SSL, bạn cần chỉnh sửa lại thông tin Vhost theo những"
+    echo "-------------------------------------------------------------------------"
+    echo "cấu hình bạn đã chỉnh sửa."
+    echo "-------------------------------------------------------------------------"
+    echo "Backup Vhost: /home/$website/Backup.Vhost/$website.conf_HTTP"
+    echo "-------------------------------------------------------------------------"
+    echo "Backup SSL Vhost (failed): /home/$website/Backup.Vhost/$website.conf_HTTPS"
+    echo "-------------------------------------------------------------------------"
+    read -p "Nhấn [Enter] để tiếp tục ..."
+    rm -rf /etc/nginx/conf.d/$website.conf
+    cp -r /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf /etc/nginx/conf.d/$website.conf
+    clear
+    echo "========================================================================="
+    echo "Quá trình cài đặt Paid SSL thất bại"       
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+else
+    /etc/dsnvps/menu/inc/re-start-nginx-service
+    clear
+    echo "========================================================================="
+    echo "Cài đặt tự động Paid SSL cho $website thành công."
+    echo "-------------------------------------------------------------------------"
+    echo "Truy cập $website trên trình duyệt để kiểm tra."
+    echo "-------------------------------------------------------------------------"
+    echo "Backup Vhost: /home/$website/Backup.Vhost/$website.conf_HTTP"
+    echo "-------------------------------------------------------------------------"
+    echo "Backup SSL Vhost: /home/$website/Backup.Vhost/$website.conf_HTTPS"; sleep 3
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+fi
+fi

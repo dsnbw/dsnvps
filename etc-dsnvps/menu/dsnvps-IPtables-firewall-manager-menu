@@ -1,0 +1,48 @@
+#!/bin/bash
+show_phan_tren_menu()
+{
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                       Quản Lý IPtables Firewall\n"
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: "
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+
+printf "%-35s %s\n" "1) Mở Port (INPUT)" "4) Sao Lưu IPtables Rules"
+printf "%-35s %s\n" "2) Đóng Port (INPUT)" "5) Phục Hồi IPtables Rules"
+printf "%-35s %s\n" "3) Kiểm Tra / Check Port" "6) Xem IPtables Rules Hiện Tại"
+
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+
+    1) /etc/dsnvps/menu/tienich/dsnvps-mo-port-ip-tables;;
+    2) /etc/dsnvps/menu/tienich/dsnvps-dong-port-ip-tables;;
+    3) /etc/dsnvps/menu/tienich/dsnvps-check-port-service;;
+    4) /etc/dsnvps/menu/tienich/dsnvps-sao-luu-iptables;;
+    5) /etc/dsnvps/menu/tienich/dsnvps-phuc-hoi-iptables;;
+    6) /etc/dsnvps/menu/tienich/dsnvps-view-iptables-rules;;
+0) clear; exit 0;;
+
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,401 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Check strace
+# Anti-debug removed
+
+# Check DSNVPS Pro license
+rm -rf /etc/dsnvps/.tmp/sllokie
+mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+if [ ! -f /etc/dsnvps/.tmp/sllokie ]; then
+    clear
+    echo "========================================================================="
+    echo "Vui lòng cập nhật DSNVPS lên phiên bản Pro để sử dụng chức năng này !"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+rm -rf /etc/dsnvps/.tmp/sllokie
+
+# Check Nginx configuration
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+    awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+    if [ "$(cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word)" != "oksuccessful" ]; then
+        rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+        echo "-------------------------------------------------------------------------"
+        echo "Phát hiện lỗi ..."; sleep 3
+        clear
+        echo "========================================================================="
+        echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+        echo "-------------------------------------------------------------------------"
+        echo "Trạng thái Nginx: "
+        echo "-------------------------------------------------------------------------"
+        nginx -t
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+    fi
+fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng để nhân bản Website - Tạo website mới có nội dung giống"
+echo "-------------------------------------------------------------------------"
+echo "hệt website đã tồn tại trên server. DISC phải FREE ít nhất 500MB sau khi "
+echo "-------------------------------------------------------------------------"
+echo "nhân bản, nếu không đủ DSNVPS sẽ không chạy chức năng này. "
+echo "========================================================================="
+
+# Prompt for new domain
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,12}$"
+while true; do
+    echo -n "Nhập tên domain mới [0 -Thoát]: "
+    read new_website
+    if [ -z "$new_website" ]; then
+        echo "========================================================================="
+        echo "Bạn không nhập giá trị, vui lòng nhập lại!"
+        sleep 4
+        tput cuu 3
+        tput ed
+        continue
+    fi
+    new_website=$(echo "$new_website" | tr '[A-Z]' '[a-z]')
+    if [ -d /home/www.$new_website/public_html ] && [ -f /etc/nginx/conf.d/www.$new_website.conf ]; then
+        new_website=www.$new_website
+    fi
+    if [ $(echo "$new_website" | cut -c 1-4) == "www." ]; then
+        website_redirect=$(echo "$new_website" | sed 's/....//')
+    else
+        website_redirect=www.$new_website
+    fi
+    if [ "$new_website" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    elif [[ ! "$new_website" =~ $kiemtradomain3 ]] || [[ ! "$website_redirect" =~ $kiemtradomain3 ]]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 4
+        tput cuu 3
+        tput ed
+    elif [ -f /etc/nginx/conf.d/$new_website.conf ] || [ -f /etc/nginx/conf.d/$website_redirect.conf ]; then
+        echo "========================================================================="
+        echo "$new_website đã tồn tại trên server. Hãy nhập domain khác !"
+        sleep 4
+        tput cuu 3
+        tput ed
+    else
+        break
+    fi
+done
+
+# Check Park and Redirect Domain
+echo "$new_website" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-truoc-khi-them-vao-server
+
+# List websites
+vhost_dir="/etc/nginx/conf.d"
+home_dir="/home"
+output_file="/etc/dsnvps/.tmp/checkallwebsites"
+
+> "$output_file"
+
+for vhost_file in "$vhost_dir"/*.conf; do
+    domainc=$(basename "$vhost_file" .conf)
+    if [[ "$domainc" == "$mainsite" ]]; then
+        continue
+    fi
+    if [[ -d "$home_dir/$domainc" ]]; then
+        echo "$domainc" >> "$output_file"
+    fi
+done
+
+if [[ ! -s "$output_file" ]]; then
+    rm -rf /etc/dsnvps/.tmp/checkallwebsites
+    clear
+    echo "========================================================================="
+    echo "Hiện tại bạn chưa thêm Website vào Server!"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Select old website
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkallwebsites
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))
+    right_index=$((half + i + 1))
+    left_db="${danh_sach_website[i]:- }"
+    if (( right_index <= total )); then
+        right_db="${danh_sach_website[right_index-1]}"
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website cần nhân bản [0 -Thoát]: "
+    read lua_chon
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        old_website="${danh_sach_website[lua_chon-1]}"
+        break
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Confirm database cloning
+echo "========================================================================="
+echo "Bạn có muốn nhân bản cả database không?"
+echo "-------------------------------------------------------------------------"
+echo "Nhập [y] để nhân bản cả code và database, [n] để nhân bản chỉ code."
+echo "-------------------------------------------------------------------------"
+read -r -p "Lựa chọn của bạn [y/N]: " clone_db_response
+if [[ ! "$clone_db_response" =~ ^([yY][eE][sS]|[yY]|[nN])$ ]]; then
+    clone_db_response="n"
+fi
+
+# If cloning database, list and select old database
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    rm -rf /etc/dsnvps/.tmp/checkalldatabase
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+    ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+    listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase)
+    checksizeabc=$(du -sb /etc/dsnvps/.tmp/checkalldatabase | awk 'NR==1 {print $1}')
+    sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)
+    for database in $listdatabasetrenserver 
+    do
+        if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+            echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+        fi
+    done
+    if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+        if [ "$checksizeabc" == "1" ]; then
+            clear
+            echo "========================================================================="
+            echo "Không có database nào trên server"; sleep 2
+            /etc/dsnvps/menu/dsnvps-them-website-menu
+            exit
+        else
+            clear
+            echo "========================================================================="
+            echo "Tất cả database không có dữ liệu"; sleep 2
+            /etc/dsnvps/menu/dsnvps-them-website-menu
+            exit
+        fi
+    fi
+    echo "========================================================================="
+    echo "Danh sách database có dữ liệu trên server:"
+    echo "-------------------------------------------------------------------------"
+    mapfile -t file_list < /etc/dsnvps/.tmp/checkdatabase-list
+    total=${#file_list[@]}
+    half=$(( (total + 1) / 2 ))
+    for ((i = 0; i < half; i++)); do
+        left_index=$((i + 1))
+        right_index=$((half + i + 1))
+        left_db="${file_list[i]:- }"
+        if (( right_index <= total )); then
+            right_db="${file_list[right_index-1]}"
+            printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+        else
+            printf "%-1s %-30s\n" "$left_index." "$left_db"
+        fi
+    done
+    while true; do
+        echo "========================================================================="
+        echo -n "Nhập số tương ứng với database cũ của $old_website [0 -Thoát]: "
+        read choice
+        if [[ -z "$choice" ]]; then
+            echo "Vui lòng nhập một số hợp lệ."
+            continue
+        elif [[ "$choice" == "0" ]]; then
+            clear
+            /etc/dsnvps/menu/dsnvps-them-website-menu
+            exit
+        elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+            old_dbname="${file_list[choice-1]}"
+            break
+        else
+            echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+        fi
+    done
+fi
+
+# Check disk space
+echo "========================================================================="
+echo "Đang kiểm tra dung lượng DISC..."; sleep 5
+file_size=$(du -sb /home/$old_website/public_html | awk '{print $1}')
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    db_size=$(mysql -u root -p$mariadbpass -e "SELECT SUM(data_length + index_length) FROM information_schema.tables WHERE table_schema='$old_dbname';" | tail -1)
+    backup_size=$((db_size / 2))
+    total_needed=$((file_size + db_size + backup_size + 10*1024*1024))
+else
+    total_needed=$((file_size + 10*1024*1024))
+fi
+free_space=$(df -B1 /home | tail -1 | awk '{print $4}')
+if [ $free_space -lt $((total_needed + 500*1024*1024)) ]; then
+    clear
+    echo "========================================================================="
+    echo "Server không đủ dung lượng để nhân bản!"
+    echo "Dung lượng cần: $((total_needed / 1024 / 1024)) MB"
+    echo "Dung lượng trống: $((free_space / 1024 / 1024)) MB"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "=> Dung lượng đủ, tiếp tục nhân bản..."
+
+# Confirm cloning
+echo "==> Xác nhận nhân bản website:"
+echo "-------------------------------------------------------------------------"
+echo "Website mới thêm: $new_website"
+echo "Sẽ được nhân bản từ: $old_website"
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "Nhân bản: Cả code và database"
+else
+    echo "Nhân bản: Chỉ code"
+fi
+echo "========================================================================="
+read -r -p "Bạn muốn tiếp tục nhân bản? [y/N] " response
+if [[ ! "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Create new database if cloning database
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "$new_website" > /etc/dsnvps/.tmp/databasename.txt
+    sed -i 's/\./_/g' /etc/dsnvps/.tmp/databasename.txt
+    sed -i 's/\-/_/g' /etc/dsnvps/.tmp/databasename.txt
+    random=$(date | md5sum | cut -c '1-4')
+    dataname=$(cat /etc/dsnvps/.tmp/databasename.txt | cut -c1-11)_$random
+    username=$(cat /etc/dsnvps/.tmp/databasename.txt | sed "s/\_//g" | cut -c1-10)$random
+    password=$(date | md5sum | cut -c '1-29')
+    rm -rf /etc/dsnvps/.tmp/databasename.txt
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE $dataname CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+CREATE USER '$username'@'localhost' IDENTIFIED BY '$password';
+GRANT ALL PRIVILEGES ON $dataname.* TO '$username'@'localhost';
+FLUSH PRIVILEGES;
+END
+    mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+    rm -f /etc/dsnvps/.tmp/config.temp
+
+    echo "=========================================================================" >> /root/DBinfo.txt
+    echo "Database: $dataname - Created on: $(date +%d/%m/%Y) when clone $new_website from $old_website" >> /root/DBinfo.txt
+    echo "=========================================================================" >> /root/DBinfo.txt
+    echo "Data name: $dataname" >> /root/DBinfo.txt
+    echo "Username: $username" >> /root/DBinfo.txt
+    echo "Password: $password" >> /root/DBinfo.txt
+    echo "" >> /root/DBinfo.txt
+fi
+
+# Copy files
+echo "========================================================================="
+echo "Đang nhân bản files..."
+mkdir -p /home/$new_website/public_html
+cp -r /home/$old_website/public_html/* /home/$new_website/public_html/
+mkdir -p /home/$new_website/logs
+mkdir -p /home/$new_website/errorpage_html
+cp -r /etc/dsnvps/menu/inc/errorpage_html/*.html /home/$new_website/errorpage_html
+\cp -uf /etc/dsnvps/menu/robots.txt /home/$new_website/public_html/
+
+# Dump and import database if cloning database
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "========================================================================="
+    echo "Đang nhân bản database..."
+    rm -f /home/$old_website_db_backup.sql.gz
+    mysqldump -u root -p$mariadbpass $old_dbname | gzip > /home/$old_website_db_backup.sql.gz
+    gunzip < /home/$old_website_db_backup.sql.gz | mysql -u root -p$mariadbpass $dataname
+    rm -f /home/$old_website_db_backup.sql.gz
+fi
+
+# Create vhost
+rm -rf /etc/nginx/conf.d/$new_website.conf
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.normal.wordpress.conf /etc/nginx/conf.d/$new_website.conf
+sed -i "s/main_domain/${new_website}/g" /etc/nginx/conf.d/$new_website.conf
+sed -i "s/redirect_domain/${website_redirect}/g" /etc/nginx/conf.d/$new_website.conf
+sed -i 's/.*all.conf.*/include \/etc\/nginx\/conf\/all.conf;/g' /etc/nginx/conf.d/$new_website.conf
+
+# Create symlink for vhost
+mkdir -p /home/$new_website/0-Vhost
+cd /home/$new_website/0-Vhost
+echo "$new_website.conf là shortcut (symlink) tới Vhost của $new_website (/etc/nginx/conf/$new_website.conf)
+Nếu bạn edit file này, File vhost của $new_website cũng sẽ được edit.
+
++ File /home/$new_website/0-Vhost/$new_website.conf chỉ có thể edit trên SSH. Nếu muốn edit bằng trình edit txt, bạn 
+phải download file này về máy tính, edit sau đó upload lên server. 
+(Upload vào /etc/nginx/conf/ hoặc /home/$new_website/0-Vhost/ đều được) 
+
++ File Vhost gốc (/etc/nginx/conf/$new_website.conf), bạn có thể edit trên SSH, edit bằng trình edit trực tiếp bằng
+các phần mềm edit txt trực tiếp khi sử dụng các trình upload sFTP.
+" > readme.txt
+ln -s /etc/nginx/conf.d/$new_website.conf /home/$new_website/0-Vhost/$new_website.conf
+cd
+
+# Set permissions
+chown -R nginx:nginx /home/$new_website/public_html/
+chown -R nginx:nginx /home/$new_website/logs/
+find /home/$new_website/public_html/ -type d -exec chmod g+s {} \;
+
+# Restart services
+/etc/dsnvps/menu/inc/re-start-nginx-service
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+# Save and display result
+echo "=========================================================================" > /home/$new_website/$new_website.txt
+echo "Nhân bản $new_website từ $old_website thành công" >> /home/$new_website/$new_website.txt
+echo "-------------------------------------------------------------------------" >> /home/$new_website/$new_website.txt
+echo "Home Folder: /home/$new_website/public_html" >> /home/$new_website/$new_website.txt
+echo "-------------------------------------------------------------------------" >> /home/$new_website/$new_website.txt
+echo "Vhost File: /etc/nginx/conf.d/$new_website.conf" >> /home/$new_website/$new_website.txt
+echo "           --------------------------------------------------------------" >> /home/$new_website/$new_website.txt
+echo "Shortcut: /home/$new_website/0-Vhost/$new_website.conf" >> /home/$new_website/$new_website.txt
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------" >> /home/$new_website/$new_website.txt
+    echo "Thông tin database:" >> /home/$new_website/$new_website.txt
+    echo "-------------------------------------------------------------------------" >> /home/$new_website/$new_website.txt
+    echo "Tên Database: $dataname" >> /home/$new_website/$new_website.txt
+    echo "Username: $username" >> /home/$new_website/$new_website.txt
+    echo "Password: $password" >> /home/$new_website/$new_website.txt
+fi
+clear
+######
+### Them website vào Zend Opcache"
+BLACKLIST_FILE="/etc/dsnvps/opcache.blacklist"
+if [ -f "$BLACKLIST_FILE" ]; then
+echo "/home/$new_website/" >> "$BLACKLIST_FILE"
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+fi
+#########
+echo "========================================================================="
+echo "Nhân bản $new_website từ $old_website thành công"
+echo "-------------------------------------------------------------------------"
+echo "Home Folder: /home/$new_website/public_html"
+if [[ "$clone_db_response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Thông tin database:"
+    echo "-------------------------------------------------------------------------"
+    echo "Tên Database: $dataname"
+    echo "Username: $username"
+    echo "Password: $password"
+fi
+/etc/dsnvps/menu/dsnvps-them-website-menu

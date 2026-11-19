@@ -1,0 +1,59 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 3
+rm -rf /etc/dsnvps/.tmp/checksizelog
+find /home/$mainsite/logs/ -name "*mysql*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+find /home/$mainsite/logs/ -name "*php-fpm*" >> /etc/dsnvps/.tmp/dsnvps-checklogzise
+find /var/log/exim/ -name "*log*" >> /etc/dsnvps/.tmp/dsnvps-checkeximlogzise
+find /var/log/nginx/ -name "*.*"               >> /etc/dsnvps/.tmp/dsnvps-checkeximlogzise
+echo "/var/log/secure"  >> /etc/dsnvps/.tmp/dsnvps-checkeximlogzise
+checklogsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checkeximlogzise) | tail -1 | cut -f 1)
+if [ "$checklogsize" == "0" ]; then
+clear
+rm -rf /etc/dsnvps/.tmp/dsnvps-check*
+echo "========================================================================= "
+echo "Không có dữ liệu trong các file log"
+
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+exit
+fi
+
+rm -rf /home/$mainsite/private_html/server-log/*.*
+
+rm -rf /var/log/nginx/error.log
+touch /var/log/nginx/error.log 
+chown -R nginx:nginx /var/log/nginx/error.log
+
+rm -rf /home/$mainsite/logs/*
+touch /home/$mainsite/logs/php-fpm.log
+touch /home/$mainsite/logs/php-fpm-slow.log
+chown -R nginx:nginx /home/$mainsite/logs/php-fpm*
+
+touch /home/$mainsite/logs/mysql.log
+touch /home/$mainsite/logs/mysql-slow.log
+chown -R mysql:mysql /home/$mainsite/logs/mysql*
+
+rm -rf /var/log/secure
+touch /var/log/secure
+chmod -R 600 /var/log/secure
+rm -rf /var/log/exim/*
+
+systemctl restart exim.service >/dev/null 2>&1
+
+
+clear
+rm -rf /etc/dsnvps/.tmp/dsnvps-check*
+echo "========================================================================= "
+echo "Xóa tất cả logs thành công"
+
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+
+

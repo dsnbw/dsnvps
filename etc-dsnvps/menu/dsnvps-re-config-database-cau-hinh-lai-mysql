@@ -1,0 +1,132 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+cpucores=$( awk -F: '/model name/ {core++} END {print core}' /proc/cpuinfo )
+svram=$( free -m | awk 'NR==2 {print $2}' )
+time=$(date +"%m-%d-%Y-%H-%M")
+checknumbera='^[0-9]+$'
+if ! [[ $svram =~ $checknumbera ]] ; then 
+clear
+echo "========================================================================="
+echo "DSNVPS gap loi khi chay chuc nang nay"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại"
+ /etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+ exit
+fi
+if ! [[ $cpucores =~ $checknumbera ]] ; then 
+clear
+echo "========================================================================="
+echo "DSNVPS gap loi khi chay chuc nang nay"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại"
+ /etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+ exit
+fi
+
+if [ ! -d /home/$mainsite/public_html ]; then
+clear
+echo "========================================================================="
+echo "DSNVPS gap loi khi chay chuc nang nay"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại"
+ /etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+ exit
+fi
+
+echo "========================================================================="
+echo "Su dung chuc nang nay de config lai MySQL theo cau hinh server."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS se tu dong config dua theo so thong so CPU & RAM cua Server."
+echo "-------------------------------------------------------------------------"
+echo "Khi nang hoac ha cap server, Ban nen chay chuc nang nay."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/reconfigmysql"
+echo "========================================================================="
+read -r -p "Ban muon re-config MySQL ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+    echo "-------------------------------------------------------------------------"
+echo -n "Nhap [ OK ] de xac nhan: " 
+read xacnhan
+if [ ! "$xacnhan" = "OK" ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải Nhập OK để xác nhận !"
+/etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+exit
+fi
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "; sleep 2
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+fi
+###################################################################
+###################################################################
+mv /etc/my.cnf /etc/my.cnf_bak_$time
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf_bak_$time | grep MyISAM`
+if [ -z "$enginecheck" ]; then
+engine=InnoDB
+else
+engine=MyISAM
+fi 
+ # Config server.cnf
+/etc/dsnvps/menu/inc/config-server.cnf-belong-ram
+sed -ri "s|.*default_storage_engine =.*|default_storage_engine = $engine|" /etc/my.cnf
+echo "-------------------------------------------------------------------------"
+echo "Hoan thanh re-config ... "; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Restart MySQL voi config moi"
+echo "-------------------------------------------------------------------------"
+service mysql restart
+echo "-------------------------------------------------------------------------"
+echo "Check MySQl voi Config moi"; sleep 2
+echo "-------------------------------------------------------------------------"
+
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+mv /etc/my.cnf /etc/my.cnf_failed_$time
+mv /etc/my.cnf_bak_$time /etc/my.cnf
+#mv /var/lib/mysql/ib_logfile0 /var/lib/mysql/ib_logfile0.bak_$time
+#mv /var/lib/mysql/ib_logfile1 /var/lib/mysql/ib_logfile1.bak_$time
+/etc/dsnvps/menu/inc/restart-mysql-fix-error
+clear
+echo "========================================================================="
+echo "Re-config MySQL that bai !"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS se giu nguyen config MySQL nhu ban dau"
+ /etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+else
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+clear
+echo "========================================================================="
+echo "Config lai MySQL thanh cong ! "
+echo "-------------------------------------------------------------------------"
+echo "File config cu: /etc/my.cnf_bak_$time "
+ /etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+ fi
+ else
+ clear
+echo "========================================================================="
+echo "Huỷ bỏ !"
+ /etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
+fi
+

@@ -1,0 +1,40 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Với một số code lỗi, nếu đặt [display_errors = Off] trong php.ini sẽ làm"
+echo "-------------------------------------------------------------------------"
+echo "website hiển thị trang trắng. Fix bằng cách đặt [display_errors = On]"
+echo "-------------------------------------------------------------------------"
+echo "Nếu website không có lỗi, DSNVPS khuyến nghị đặt [display_errors = Off]"
+echo "========================================================================="
+echo "Hiện tại: DISPLAY ERRORS = ON "
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/onoffshowerror"
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [display_errors = OFF] trong php.ini ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    
+sed -i.bak "s,display_errors = On,display_errors = Off,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."
+sleep 2
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+    clear
+    echo "========================================================================="
+echo "Cấu hình [display_errors = Off] trong php.ini thành công"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+   echo "Hủy bỏ !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac

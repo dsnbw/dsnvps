@@ -1,0 +1,217 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/kiemtasncg
+rm -rf /etc/dsnvps/.tmp/klaoxcy
+rm -rf /etc/dsnvps/.tmp/klaoxcypark
+rm -rf /etc/dsnvps/.tmp/kl0zx
+rm -rf /etc/dsnvps/.tmp/$website.conf_HTTPS
+rm -rf /etc/dsnvps/.tmp/kiemtasncg
+######################################################
+#lay Danh Sách Website Trên Server####################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+# Xóa file cũ nếu tồn tại
+> "$output_file"
+# Duyệt qua tất cả các file .conf trong thư mục cấu hình Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+
+    # Kiểm tra nếu domain có thư mục public_html trong /home và vhost trong /etc/nginx/conf.d/
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+# Kiểm tra nếu không có domain nào được tìm thấy
+if [[ ! -s "$output_file" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra ......"; sleep 2
+clear
+echo "========================================================================= "
+echo "Không tìm thấy website trên server"
+echo "-------------------------------------------------------------------------"
+echo "Bạn cần thêm Website Vào Server trước khi chạy chức năng này."; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+########################################################
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+nginx_conf_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+# Xóa file kết quả cũ nếu tồn tại
+> "$output_file"
+
+if [[ -s "$klaoxcy_file" ]]; then
+    while IFS= read -r domain; do
+        domain_conf_folder="$nginx_conf_folder/$domain/conf.d"
+        if [[ "$domain" != "$mainsite" && -d "$domain_conf_folder" ]]; then
+            # Kiểm tra nếu thư mục có file .conf
+            if compgen -G "$domain_conf_folder"/*.conf > /dev/null; then
+                for vhost in "$domain_conf_folder"/*.conf; do
+                    subdomain=$(basename "$vhost" .conf)
+                    # Kiểm tra nếu subdomain không phải domain chính
+                    if [[ "$subdomain" != "$domain" ]]; then
+                        # Kiểm tra độ dài file vhost
+                        vhost_length=$(wc -c < "$vhost")
+                        if (( vhost_length > 200 )); then
+                            echo "$subdomain**" >> "$output_file"
+                        fi
+                    fi
+                done
+            fi
+        fi
+    done < "$klaoxcy_file"
+fi
+# Kiểm tra và thông báo kết quả
+
+
+echo "========================================================================="
+echo "Bắt đầu kiểm tra ..."; sleep 3
+echo "-------------------------------------------------------------------------"
+
+###################################################################################
+
+# Đọc danh sách các website từ file klaoxcy
+websites=$(cat /etc/dsnvps/.tmp/klaoxcy)
+
+# Đường dẫn file output để ghi kết quả
+output_file="/etc/dsnvps/.tmp/kiemtasncg"
+
+# Duyệt qua từng website
+for website in $websites; do
+    # Đường dẫn đến file vhost của website
+    vhost_file="/etc/nginx/conf.d/$website.conf"
+    
+    # Kiểm tra xem file vhost có tồn tại không
+    if [ -f "$vhost_file" ]; then
+        # Kiểm tra xem có dòng chứa đường dẫn chứng chỉ SSL không
+        cert_path=$(grep -o "/etc/nginx/paidssl/$website/$website.crt" "$vhost_file")
+        
+        if [ -n "$cert_path" ]; then
+            # Kiểm tra thời hạn chứng chỉ SSL nếu tìm thấy đường dẫn
+            cert_file="/etc/nginx/paidssl/$website/$website.crt"
+            
+            if [ -f "$cert_file" ]; then
+                # Lấy thông tin ngày bắt đầu và hết hạn của chứng chỉ
+                cert_dates=$(openssl x509 -in "$cert_file" -noout -dates)
+    cert_notbefore=$(echo "$cert_dates" | grep "notBefore" | sed 's/notBefore=//' | awk '{print $1, $2, $4}')
+    cert_notafter=$(echo "$cert_dates" | grep "notAfter" | sed 's/notAfter=//' | awk '{print $1, $2, $4}')
+                
+                # Ghi kết quả vào file output
+               # echo "-------------------------------------------------------------------------" >> "$output_file"
+  echo "Domain: $website" >> "$output_file"
+    echo "-------------------------------------------------------------------------" >> "$output_file"
+    echo "Thời gian đăng ký: $cert_notbefore" >> "$output_file"
+   echo "Thời gian hết hạn: $cert_notafter" >> "$output_file"
+    echo "=========================================================================" >> "$output_file"
+            fi
+        fi
+    fi
+done
+
+
+
+# Đọc danh sách các website từ file klaoxcy
+websites=$(cat /etc/dsnvps/.tmp/klaoxcy)
+
+# Đường dẫn file output để ghi kết quả
+output_file="/etc/dsnvps/.tmp/kiemtasncg"
+
+# Xóa nội dung cũ trong file output nếu có
+#> "$output_file"
+
+# Duyệt qua từng website
+for website in $websites; do
+    # Đường dẫn đến thư mục vhost của website
+    vhost_dir="/home/$website/conf.d"
+    
+    # Kiểm tra xem thư mục vhost của website có tồn tại không
+    if [ -d "$vhost_dir" ]; then
+        # Đọc các file vhost từ thư mục conf.d
+        for vhost_file in "$vhost_dir"/*.conf; do
+            # Kiểm tra xem file vhost có tồn tại không
+            if [ -f "$vhost_file" ]; then
+                # Lấy tên park domain từ tên file vhost (bỏ phần .conf)
+                parkdomain=$(basename "$vhost_file" .conf)
+                
+                # Kiểm tra xem có dòng chứa đường dẫn chứng chỉ SSL không
+                cert_path=$(grep -o "/etc/nginx/paidssl/$parkdomain/$parkdomain.crt" "$vhost_file")
+                
+                if [ -n "$cert_path" ]; then
+                    # Kiểm tra thời hạn chứng chỉ SSL nếu tìm thấy đường dẫn
+                    cert_file="/etc/nginx/paidssl/$parkdomain/$parkdomain.crt"
+                    
+                    if [ -f "$cert_file" ]; then
+                        # Lấy thông tin ngày bắt đầu và hết hạn của chứng chỉ
+                        cert_dates=$(openssl x509 -in "$cert_file" -noout -dates)
+    cert_notbefore=$(echo "$cert_dates" | grep "notBefore" | sed 's/notBefore=//' | awk '{print $1, $2, $4}')
+    cert_notafter=$(echo "$cert_dates" | grep "notAfter" | sed 's/notAfter=//' | awk '{print $1, $2, $4}')
+                        
+                        # Ghi kết quả vào file output
+                       # echo "-------------------------------------------------------------------------" >> "$output_file"
+  echo "Domain: $website" >> "$output_file"
+    echo "-------------------------------------------------------------------------" >> "$output_file"
+    echo "Registration time: $cert_notbefore" >> "$output_file"
+   echo "Expiration time: $cert_notafter" >> "$output_file"
+    echo "=========================================================================" >> "$output_file"
+                    fi
+                fi
+            fi
+        done
+    fi
+done
+
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+        # Kiểm tra xem có dòng chứa đường dẫn chứng chỉ SSL không
+        cert_pathQL=$(grep -o "/etc/nginx/paidssl/$domainquanly/$domainquanly.crt" /etc/dsnvps/domainquanly/domainquanly.conf)
+        
+        if [ -n "$cert_pathQL" ]; then
+            # Kiểm tra thời hạn chứng chỉ SSL nếu tìm thấy đường dẫn
+            cert_fileQL="/etc/nginx/paidssl/$domainquanly/$domainquanly.crt"
+            
+            if [ -f "$cert_fileQL" ]; then
+                # Lấy thông tin ngày bắt đầu và hết hạn của chứng chỉ
+                cert_datesQL=$(openssl x509 -in "$cert_fileQL" -noout -dates)
+    cert_notbefore=$(echo "$cert_datesQL" | grep "notBefore" | sed 's/notBefore=//' | awk '{print $1, $2, $4}')
+    cert_notafter=$(echo "$cert_datesQL" | grep "notAfter" | sed 's/notAfter=//' | awk '{print $1, $2, $4}')
+                
+                # Ghi kết quả vào file output
+    echo "-------------------------------------------------------------------------" >> "$output_file"
+  echo "Domain Quản Lý: $domainquanly" >> "$output_file"
+    echo "--------------------------------------" >> "$output_file"
+    echo "Thời gian đăng ký: $cert_notbefore" >> "$output_file"
+   echo "Thời gian hết hạn: $cert_notafter" >> "$output_file"
+    echo "=========================================================================" >> "$output_file"
+					fi
+			fi
+fi
+
+
+
+if [[ -s "/etc/dsnvps/.tmp/kiemtasncg" ]]; then
+sed -i '$d' /etc/dsnvps/.tmp/kiemtasncg
+clear
+printf "=========================================================================\n"
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                    Danh Sách Website Cài PaidSSL \n"
+printf "=========================================================================\n"
+cat /etc/dsnvps/.tmp/kiemtasncg
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+else
+clear
+printf "=========================================================================\n"
+echo "Không tìm thấy domain cài đặt PaidSSL / Origin SSL trên server"; sleep 2
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+fi

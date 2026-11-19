@@ -1,0 +1,195 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/cron.d/dsnvps.code.cron ]; then
+touch /etc/cron.d/dsnvps.code.cron
+fi
+mkdir -p /etc/dsnvps/.tmp
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+mkdir -p /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz
+
+for D in /home/*; do
+ if [ -d "${D}" ]; then #If a directory
+ domain=${D##*/} # Domain name
+echo "$domain" >> /etc/dsnvps/.tmp/dsnvps-websitelist
+ fi
+done
+
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i '/0-DSNVPS-SHORTCUT/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+acction1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r checksite
+    do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$checksite/public_html ]; then
+find /home/$checksite/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 4 ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+ done < "$acction1"
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy website có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+sowebsitecodulieu=$(cat /etc/dsnvps/.tmp/checksite-list | wc -l)
+randomcode=-`date |md5sum |cut -c '1-15'`
+ls /bin/ > /etc/dsnvps/.tmp/checkautobackuphostingaz.txt
+saoluucode () { 
+if [ ! "$(grep auto-backupcode-$website /etc/dsnvps/.tmp/checkautobackuphostingaz.txt)" == "" ]; then
+	if [ ! "$(grep auto-backupcode-$website /etc/cron.d/dsnvps.code.cron)" == "" ]; then
+pathname=$(awk -v site="$website" -v mainsite="$mainsite" '$1=="mv" && $2 ~ (site "\\.zip$") && $3 ~ ("/home/" mainsite "/private_html/backup/" site "/") { last=$3 } END { if (last) print last }' /bin/auto-backupcode-$website | tail -n1)
+filename=$(basename "$pathname")
+if [[ -z "$filename" || "$filename" == *"$"* ]]; then
+filename=$website$randomcode.zip
+fi
+thongbao=$(echo "(đang BẬT tự động sao lưu)")
+thongbao2=$(echo "(dang BAT tu dong sao luu)")
+	else
+filename=$website$randomcode.zip
+thongbao=$(echo "")
+thongbao2=$(echo "")
+	fi
+else
+filename=$website$randomcode.zip
+thongbao=$(echo "")
+thongbao2=$(echo "")
+fi
+if [ ! -d /home/$mainsite/private_html/backup/$website ]; then
+mkdir -p /home/$mainsite/private_html/backup/$website
+fi
+cd /home/$mainsite/private_html/backup/$website
+if [ -f /home/$mainsite/private_html/backup/$website/*.zip ]; then
+for file in *.zip; do
+time=$(date -r /home/$mainsite/private_html/backup/$website/$file +%Hh%Mm-%d-%m-%y)
+    mv "$file" "`basename $file .zip`.zip.$time"
+    echo "$file.$time" > /etc/dsnvps/.tmp/dsnvps_ten_file_cu
+done
+fi
+cd
+cd /home/$website/public_html/
+zip -r -q --exclude=*Full-DSNVPS* --exclude=*0-DSNVPS* --exclude=*full_backup.* $website.zip *
+mv $website.zip /home/$mainsite/private_html/backup/$website/$filename
+cd
+if [ -f /home/$mainsite/private_html/backup/$website/$filename ]; then
+echo "========================================================================="
+echo "Sao lưu $website $thongbao:"
+sleep 2
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/$website/$filename"
+if [ -f /etc/dsnvps/.tmp/dsnvps_ten_file_cu ]; then
+echo "-------------------------------------------------------------------------"
+echo "File backup cũ được đổi tên thành:"
+echo "-------------------------------------------------------------------------"
+echo "`cat /etc/dsnvps/.tmp/dsnvps_ten_file_cu`"
+rm -rf /etc/dsnvps/.tmp/dsnvps_ten_file_cu
+fi
+sleep 3
+echo "========================================================================================================================" >> /home/$mainsite/private_html/LUW$randomcode.txt
+echo "Website $website $thongbao2:" >> /home/$mainsite/private_html/LUW$randomcode.txt 
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/LUW$randomcode.txt
+echo "http://$serverip_priport/backup/$website/$filename" >> /home/$mainsite/private_html/LUW$randomcode.txt
+touch /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz/$website
+else
+echo "=========================================================================" 
+echo "Sao lưu website $website thất bại !"
+echo "========================================================================================================================" >> /home/$mainsite/private_html/LUW$randomcode.txt
+echo "Backup website $website that bai !" >> /home/$mainsite/private_html/LUW$randomcode.txt
+touch /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz/$website
+fi
+}
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để sao lưu tất cả các Website trên server"
+echo "-------------------------------------------------------------------------"
+echo "Sau khi được kích hoạt, DSNVPS sẽ lần lượt sao lưu tất cả các website."
+echo "-------------------------------------------------------------------------"
+echo "Tùy thuộc vào số lượng và dung lượng các website mà thời gian backup có"
+echo "-------------------------------------------------------------------------"
+echo "thể nhanh hoặc chậm."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/backupcodeallweb"
+echo "========================================================================="
+read -r -p "Bạn muốn sao lưu tất cả website? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+   
+   
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+###################################################################
+###################################################################
+rm -rf /home/dsnvps.demo/private_html/LUW-*.txt
+echo "========================================================================="
+echo "VUI LÒNG ĐỪNG TẮT MÀN HÌNH NÀY!"
+
+echo "========================================================================="
+sleep 2
+rm -rf /home/$mainsite/private_html/listbackup*
+echo "========================================================================================================================" > /home/$mainsite/private_html/LUW$randomcode.txt
+echo "                                      Link Download All Backup Files - Created by DSNVPS" >> /home/$mainsite/private_html/LUW$randomcode.txt
+echo "========================================================================================================================" >> /home/$mainsite/private_html/LUW$randomcode.txt
+echo "" >> /home/$mainsite/private_html/LUW$randomcode.txt
+dobackup=$(cat /etc/dsnvps/.tmp/checksite-list)
+for website in $dobackup 
+do
+saoluucode
+done
+echo "========================================================================="
+read -p "Nhấn [ Enter ] để tiếp tục"
+clear
+echo "========================================================================="
+echo "Có $sowebsitetrenserver Website trên server"
+echo "-------------------------------------------------------------------------"
+echo "Website có dữ liệu: $sowebsitecodulieu"
+	if [ "$(ls -1 /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz | wc -l)" == "$sowebsitecodulieu" ]; then
+	echo "-------------------------------------------------------------------------"
+echo "Sao lưu $sowebsitecodulieu website thành công"
+else
+echo "-------------------------------------------------------------------------"
+echo "Sao lưu thất bại $(ls -1 /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz | wc -l) website"
+echo "-------------------------------------------------------------------------"
+echo "Website sao lưu thất bại:"
+
+	echo "-------------------------------------------------------------------------"
+	ls /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz
+	fi
+if [ ! "$(ls -1 /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz | wc -l)" == "$sowebsitecodulieu" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Danh sách link tải các file sao lưu:"
+
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/LUW$randomcode.txt"
+fi
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+/etc/dsnvps/menu/dsnvps-sao-luu
+
+   ;;
+    *)
+    clear
+    rm -rf /etc/dsnvps/.tmp/*hostingaz*
+        echo "========================================================================= "
+        echo "Huỷ bỏ!"
+        /etc/dsnvps/menu/dsnvps-sao-luu
+        ;;
+esac 

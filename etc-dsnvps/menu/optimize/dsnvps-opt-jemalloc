@@ -1,0 +1,81 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+find_jemalloc() {
+    local arch; arch="$(uname -m)"
+    local dirs=("/usr/lib/${arch}-linux-gnu" "/usr/lib64" "/lib64" "/usr/lib" "/lib")
+    local d c
+    for d in "${dirs[@]}"; do
+        [[ -d "$d" ]] || continue
+        for c in "$d"/libjemalloc.so.2 "$d"/libjemalloc.so.1; do
+            if [[ -f "$c" ]]; then
+                readlink -f "$c" 2>/dev/null || echo "$c"
+                return 0
+            fi
+        done
+    done
+    ldconfig -p 2>/dev/null | awk '/libjemalloc\.so\.[0-9]+/ {print $NF; exit}'
+}
+
+JEMALLOC_SO="$(find_jemalloc || true)"
+if [[ -z "$JEMALLOC_SO" ]]; then
+    dsnvps_pkg_install libjemalloc2 >/dev/null 2>&1 || true
+    JEMALLOC_SO="$(find_jemalloc || true)"
+fi
+
+if [[ -z "$JEMALLOC_SO" || ! -f "$JEMALLOC_SO" ]]; then
+    echo -e "${C_RED}[ERR] Không tìm thấy thư viện libjemalloc.so!${C_RESET}"
+    exit 1
+fi
+
+mkdir -p /etc/systemd/system/mariadb.service.d
+dropin="/etc/systemd/system/mariadb.service.d/jemalloc.conf"
+expected="[Service]
+Environment=\"LD_PRELOAD=${JEMALLOC_SO}\""
+
+need_restart=0
+if [[ ! -f "$dropin" ]] || [[ "$(<"$dropin")" != "$expected" ]]; then
+    printf '%s\n' "$expected" > "$dropin"
+    systemctl daemon-reload >/dev/null 2>&1 || true
+    need_restart=1
+fi
+
+# Tune innodb_buffer_pool_size safely for current RAM if still at default 128M on >= 1800MB RAM
+ram_mb="$(dsnvps_ram_mb)"
+if [[ -f /etc/my.cnf ]] && ((ram_mb >= 1800 && ram_mb <= 3000)); then
+    if grep -qE '^innodb_buffer_pool_size\s*=\s*128M' /etc/my.cnf; then
+        sed -i 's/^innodb_buffer_pool_size\s*=.*/innodb_buffer_pool_size       = 256M/' /etc/my.cnf
+        sed -i 's/^table_open_cache\s*=.*/table_open_cache              = 4096/' /etc/my.cnf
+        need_restart=1
+    fi
+elif [[ -f /etc/my.cnf ]] && ((ram_mb > 3000 && ram_mb <= 5000)); then
+    if grep -qE '^innodb_buffer_pool_size\s*=\s*(128|256)M' /etc/my.cnf; then
+        sed -i 's/^innodb_buffer_pool_size\s*=.*/innodb_buffer_pool_size       = 768M/' /etc/my.cnf
+        sed -i 's/^table_open_cache\s*=.*/table_open_cache              = 4096/' /etc/my.cnf
+        need_restart=1
+    fi
+fi
+
+mpid="$(systemctl show -p MainPID --value mariadb 2>/dev/null || echo 0)"
+if [[ "$mpid" =~ ^[0-9]+$ ]] && ((mpid > 1)); then
+    grep -q "libjemalloc" "/proc/${mpid}/maps" 2>/dev/null || need_restart=1
+else
+    need_restart=1
+fi
+
+if ((need_restart == 1)); then
+    if ! systemctl restart mariadb >/dev/null 2>&1; then
+        rm -f "$dropin"
+        systemctl daemon-reload >/dev/null 2>&1 || true
+        systemctl start mariadb >/dev/null 2>&1 || true
+        echo -e "${C_RED}[ERR] MariaDB không khởi động được với jemalloc -> đã rollback an toàn!${C_RESET}"
+        exit 1
+    fi
+fi
+
+mpid="$(systemctl show -p MainPID --value mariadb 2>/dev/null || echo 0)"
+if [[ "$mpid" =~ ^[0-9]+$ ]] && ((mpid > 1)) && grep -q "libjemalloc" "/proc/${mpid}/maps" 2>/dev/null; then
+    echo -e "${C_GREEN}[OK] MariaDB đang chạy với jemalloc (${JEMALLOC_SO}).${C_RESET}"
+else
+    echo -e "${C_YELLOW}[WARN] MariaDB chạy nhưng chưa xác nhận được jemalloc trong /proc/${mpid}/maps.${C_RESET}"
+fi

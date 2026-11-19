@@ -1,0 +1,30 @@
+#!/bin/bash 
+#/etc/dsnvps/menu/dsnvps-ddns-cloudflare-script-first
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+if pgrep -x "strace" > /dev/null; then
+    echo "DSNVPS không thể thực hiện chức năng này."
+    clear
+dsnvps
+exit 1
+fi
+######
+touch /etc/dsnvps/.tmp/ckla
+# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed)
+#######
+if [ ! -d /etc/dsnvps/ddns-cloudflare ]; then
+  echo ""
+  exit 1
+fi
+files=("/etc/dsnvps/ddns-cloudflare"/*.conf)
+if [ ${#files[@]} -eq 0 ]; then
+  echo ""
+  exit 1
+fi
+for file in "${files[@]}"; do
+  /etc/dsnvps/menu/dsnvps-ddns-cloudflare-script-chay-goc "$file"
+done

@@ -1,0 +1,262 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+}
+
+# Hàm lấy IP hiện tại
+get_public_ip() {
+    local ip
+    ## Thi thoảng server amazonaws bị lỗi không check IP được. Làm như thế này, server lỗi thì check bằng server khác.
+    ip=$(curl -4 -s --max-time 10 https://checkip.amazonaws.com || wget -4 -qO- http://ipecho.net/plain || curl -4 -s --max-time 10 https://ifconfig.me) 
+    #ip=$(curl -s --max-time 15 https://checkip.amazonaws.com)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+    else
+        error_exit "Không thể lấy địa chỉ IP công cộng."
+    fi
+}
+
+# Hàm lấy số lõi CPU
+get_cpu_cores() {
+    local cores
+    cores=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo || echo "Unknown")
+    echo "$cores"
+}
+
+# Hàm lấy dung lượng RAM (MB)
+get_ram_mb() {
+    local ram
+    ram=$(free -m | awk '/^Mem:/ {print $2}' || echo "Unknown")
+    echo "$ram"
+}
+
+# Hàm lấy địa chỉ MAC
+get_mac_address() {
+    local mac
+    mac=$(ip link show | awk '/ether/ {print $2; exit}' | grep -E "^[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}$" || echo "00:00:00:00:00:00")
+    echo "$mac"
+}
+
+# Hàm kiểm tra phiên bản DSNVPS
+check_dsnvps_version() {
+    local local_version=$(cat "$DSNVPS_VERSION_FILE" 2>/dev/null)
+    wget -q "$NEW_VERSION_URL" -O "$TMP_DIR/dsnvps.newversion"
+    if [ ! -s "$TMP_DIR/dsnvps.newversion" ]; then
+        error_exit "Không thể kết nối tới DSNVPS.VN để kiểm tra phiên bản."
+    fi
+    local remote_version=$(cat "$TMP_DIR/dsnvps.newversion")
+    if [ "$local_version" != "$remote_version" ]; then
+        clear
+        echo "========================================================================="
+        echo "Bạn phải cập nhật DSNVPS lên phiên bản mới nhất: $remote_version"
+        echo "-------------------------------------------------------------------------"
+        echo "Hiện tại: $local_version"
+        echo "-------------------------------------------------------------------------"
+        echo "Hướng dẫn: DSNVPS menu => Cập nhật phiên bản mới ($remote_version)"
+        dsnvps
+        exit 1
+    fi
+}
+
+# Hàm kiểm tra xem IP hoặc MAC đã kích hoạt key Pro chưa
+check_pro_activation() {
+    local mac="$1"
+    local ip="$2"
+    local response
+    response=$(curl -s --max-time 15 -X POST "$API_URL/?action=check_pro_activation" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"mac\":\"$mac\",\"ip\":\"$ip\"}")
+    if [ -z "$response" ]; then
+        error_exit "Không nhận được phản hồi từ API khi kiểm tra kích hoạt Pro."
+    fi
+    if [[ "$response" =~ "status\":\"used" ]]; then
+        echo "used"
+    elif [[ "$response" =~ "status\":\"available" ]]; then
+        echo "available"
+    else
+        error_exit "Lỗi API khi kiểm tra kích hoạt Pro: $response"
+    fi
+}
+
+# Hàm kiểm tra trạng thái dùng thử
+check_trial_status() {
+    local mac="$1"
+    local ip="$2"
+    local response
+    response=$(curl -s --max-time 15 -X POST "$API_URL/?action=check_trial" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"mac\":\"$mac\",\"ip\":\"$ip\"}")
+    if [ -z "$response" ]; then
+        error_exit "Không nhận được phản hồi từ API khi kiểm tra dùng thử."
+    fi
+    if [[ "$response" =~ "status\":\"available" ]]; then
+        echo "available"
+    elif [[ "$response" =~ "status\":\"used" ]]; then
+        echo "used"
+    else
+        error_exit "Lỗi API khi kiểm tra dùng thử: $response"
+    fi
+}
+
+# Hàm kích hoạt dùng thử
+activate_trial() {
+    local mac="$1"
+    local ip="$2"
+    local cpu="$3"
+    local ram="$4"
+    local response
+    response=$(curl -s --max-time 15 -X POST "$API_URL/?action=activate_trial" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"mac\":\"$mac\",\"ip\":\"$ip\",\"cpu\":\"$cpu\",\"ram\":\"$ram\"}")
+    if [ -z "$response" ]; then
+        error_exit "Không nhận được phản hồi từ API khi kích hoạt dùng thử."
+    fi
+    if [[ "$response" =~ "status\":\"activated" ]]; then
+        echo "$response" > /tmp/trial_response.log
+        return 0
+    else
+        error_exit "Lỗi khi kích hoạt dùng thử: $response"
+    fi
+}
+
+# Kiểm tra phiên bản DSNVPS
+check_dsnvps_version
+
+# Kiểm tra kết nối tới server
+check_connectivity
+
+# Lấy thông số VPS
+current_ip=$(get_public_ip)
+mac_address=$(get_mac_address)
+
+# Kiểm tra xem IP hoặc MAC đã kích hoạt key Pro chưa
+pro_status=$(check_pro_activation "$mac_address" "$current_ip")
+if [ "$pro_status" = "used" ]; then
+clear
+    error_exit "Server đã (từng) kích hoạt DSNVPS Pro. Vui lòng sử dụng key Pro"
+fi
+
+# Kiểm tra trạng thái Pro hiện tại
+if [ -f "$CONFIG_A_FILE" ] && grep -q "Businesscode" "$CONFIG_FILE"; then
+    error_exit "Server đã kích hoạt DSNVPS Pro. Vui lòng sử dụng key Pro !."
+fi
+
+# Kiểm tra trạng thái dùng thử hiện tại
+if [ -f "$CONFIG_A_FILE" ] && grep -q "TrialMode" "$CONFIG_FILE"; then
+    error_exit "Server đang ở chế độ dùng thử. Vui lòng đăng ký key Pro để nâng cấp."
+fi
+
+# Hiển thị giao diện dùng thử
+clear
+echo "========================================================================="
+echo "Kích hoạt dùng thử DSNVPS Pro - 7 ngày miễn phí"
+echo "-------------------------------------------------------------------------"
+echo "Mỗi Server chỉ được dùng thử 1 lần duy nhất."
+echo "========================================================================="
+echo "Đăng ký VPro365 Key để dùng Pro không giới hạn:"
+echo "-------------------------------------------------------------------------"
+echo "Thanh toán qua Ngân Hàng: http://go.dsnvps/6789"
+echo "Thanh toán qua Paypal: http://go.dsnvps/3456"
+echo "========================================================================="
+read -p "Bạn có muốn kích hoạt dùng thử 7 ngày không? [y/N]: " confirm
+
+if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+clear
+    dsnvps
+    exit 0
+fi
+
+# Kiểm tra trạng thái dùng thử
+echo "-------------------------------------------------------------------------"
+echo "Đang kiểm tra khả năng dùng thử..."
+sleep 2
+trial_status=$(check_trial_status "$mac_address" "$current_ip")
+if [ "$trial_status" = "used" ]; then
+    error_exit "Địa chỉ MAC hoặc IP này đã được dùng thử trước đó."
+fi
+
+# Kích hoạt dùng thử
+echo "-------------------------------------------------------------------------"
+echo "Đang kích hoạt dùng thử DSNVPS Pro..."
+sleep 2
+if activate_trial "$mac_address" "$current_ip" "$cpu_cores" "$ram_mb"; then
+    # Ghi chế độ dùng thử vào dsnvps.conf
+    if grep -q "TrialMode" "$CONFIG_FILE"; then
+        sed -i '/TrialMode/d' "$CONFIG_FILE"
+    fi
+    echo "TrialMode=\"active\"" >> "$CONFIG_FILE"
+
+    # Tạo file cấu hình ẩn
+    if [ ! -f "$CONFIG_A_FILE" ]; then
+        cp /etc/dsnvps/menu/dsnvps-cau-hinh-folder-tam "$CONFIG_A_FILE"
+        chmod +x "$CONFIG_A_FILE"
+    fi
+    touch "$CONFIG_A_FILE"
+    if [ ! -f "$CONFIG_B_FILE" ]; then
+        cp /etc/dsnvps/menu/dsnvps-cau-hinh-folder-tam "$CONFIG_B_FILE"
+        chmod +x "$CONFIG_B_FILE"
+    fi
+    touch "$CONFIG_B_FILE"
+
+    # Tạo file tạm
+    if [ ! -f "$TMP_DIR/cjial" ]; then
+        echo "wordpress" > "$TMP_DIR/cjial"
+    fi
+
+    # Xóa file tạm cụ thể
+    rm -rf "$TMP_DIR"/lanxade
+    rm -rf "$TMP_DIR"/lanxadecheck
+    rm -rf "$TMP_DIR"/hethan.txt
+    rm -rf "$TMP_DIR"/htrai.txt
+
+    # Cài đặt script kiểm tra hết hạn
+    cat > /usr/local/dsnvps/check_dsnvps_expiry.sh << 'EOF'
+[Insert nội dung check_dsnvps_expiry.sh từ câu trả lời trước]
+EOF
+    chmod +x /usr/local/dsnvps/check_dsnvps_expiry.sh
+    chown root:root /usr/local/dsnvps/check_dsnvps_expiry.sh
+
+    # Thêm cron job để kiểm tra hàng ngày
+    CRON_JOB="0 2 * * * /bin/bash /usr/local/dsnvps/check_dsnvps_expiry.sh >> /var/log/dsnvps_expiry.log 2>&1"
+    if ! crontab -l 2>/dev/null | grep -q "/usr/local/dsnvps/check_dsnvps_expiry.sh"; then
+        (crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+    fi
+    touch /var/log/dsnvps_expiry.log
+    chown root:root /var/log/dsnvps_expiry.log
+    chmod 644 /var/log/dsnvps_expiry.log
+
+    # Lấy thông tin từ API để hiển thị
+    trial_info=$(curl -s --max-time 15 -X POST "$API_URL/?action=check_trial" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"mac\":\"$mac_address\",\"ip\":\"$current_ip\"}")
+    activation_time=$(echo "$trial_info" | grep -o '"activation_time":"[^"]*"' | cut -d'"' -f4)
+    valid_for=7
+    activation_epoch=$(date -d "$activation_time" +%s 2>/dev/null || echo "0")
+    if [ "$activation_epoch" = "0" ]; then
+        error_exit "Không thể phân tích thời gian kích hoạt."
+    fi
+    current_epoch=$(date +%s)
+    expiry_epoch=$((activation_epoch + valid_for * 86400))
+    days_remaining=$(( (expiry_epoch - current_epoch) / 86400 ))
+
+    clear
+    echo "========================================================================="
+    echo "Hoàn tất kích hoạt dùng thử DSNVPS Pro!"
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian kích hoạt: $activation_time"
+    echo "Thời gian còn lại: $days_remaining ngày"
+    echo "-------------------------------------------------------------------------"
+    echo "Lưu ý: Sau 7 ngày, bạn cần đăng ký key Pro để tiếp tục sử dụng Pro."
+    sleep 0.5
+    dsnvps
+    exit 0
+fi

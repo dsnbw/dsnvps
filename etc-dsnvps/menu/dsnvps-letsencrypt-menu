@@ -1,0 +1,187 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Anti-debug removed
+# Check if jq is installed
+if ! command -v jq &> /dev/null; then
+    apt-get install -y -qq jq >/dev/null 2>&1 &
+fi
+
+# Cập nhật DSNVPS từ 6.0.0
+if [ ! -f /etc/nginx/conf/ssl-protocol-cipherV2.conf ]; then
+    cp -r /etc/dsnvps/menu/inc/conf/ssl-protocol-cipherV2.conf /etc/nginx/conf/
+fi
+
+if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+    mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+fi
+
+if [ ! -d /etc/dsnvps/.tmp ]; then
+    mkdir -p /etc/dsnvps/.tmp
+fi
+
+if ! /root/.acme.sh/acme.sh --version 2>&1 | grep -q '^https://'; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS sẽ cài đặt tiện ích Acme.Sh trước khi chạy chức năng này"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 5
+    wget -O - https://get.acme.sh | sh -s email=$emailmanage
+    ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+    /root/.acme.sh/acme.sh --installcronjob >/dev/null 2>&1
+    /bin/systemctl restart crond.service >/dev/null 2>&1
+    sleep 3
+    clear
+    echo "========================================================================="
+    echo "Cài đặt acme.sh hoàn tất"
+    echo "-------------------------------------------------------------------------"
+    echo "Bây giờ bạn có thể sử dụng chức năng cài đặt SSL cho website của mình."
+    /etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+
+if [ ! -f /etc/cron.d/dsnvps.autorenew.acmessl.cron ]; then
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.autorenew.acmessl.cron
+    echo "43 17 * * * root \"/root/.acme.sh\"/acme.sh --cron --home \"/root/.acme.sh\" > /dev/null" >> /etc/cron.d/dsnvps.autorenew.acmessl.cron
+    echo "1 1 * * 6 root /etc/dsnvps/menu/dsnvps-update-letsencrypt-1-tuan-1-lan-check" >> /etc/cron.d/dsnvps.autorenew.acmessl.cron
+    /bin/systemctl restart crond.service >/dev/null 2>&1
+fi
+
+if [ -f /etc/cron.d/dsnvps.autorenew.acmessl.cron ]; then
+    if [ "$(grep 'dsnvps-update-letsencrypt-1-tuan-1-lan-check' /etc/cron.d/dsnvps.autorenew.acmessl.cron)" = "" ]; then
+        echo "1 1 * * 6 root /etc/dsnvps/menu/dsnvps-update-letsencrypt-1-tuan-1-lan-check >/dev/null 2>&1" >> /etc/cron.d/dsnvps.autorenew.acmessl.cron
+        /bin/systemctl restart crond.service >/dev/null 2>&1
+    fi
+fi
+
+
+
+acme_update_func() {
+    clear
+    echo "========================================================================="
+    echo "Đang tiến hành cập nhật acme.sh lên phiên bản mới nhất..."
+    echo "-------------------------------------------------------------------------"
+    /root/.acme.sh/acme.sh --upgrade
+    if [ $? -eq 0 ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Cập nhật acme.sh thành công!"
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Cập nhật acme.sh thất bại!"
+    fi
+    sleep 2
+    show_phan_tren_menu
+}
+veracme=""
+if /root/.acme.sh/acme.sh --version 2>&1 | grep -q '^https://'; then
+    veracme=$(/root/.acme.sh/acme.sh --version 2>/dev/null | sed -n '2p')
+fi
+show_phan_tren_menu() {
+    /etc/dsnvps/menu/dsnvps-menu-all-function
+    printf "=========================================================================\n"
+    echo "              Cài Đặt Free SSL  | Powered by ACME.SH $veracme"
+    echo "========================================================================="
+    echo "Tất cả Chứng Chỉ SSL sẽ được tự động renew 30 ngày trước khi hết hạn."
+    echo "========================================================================="
+    echo "Hỗ trợ cài đặt tự động Free SSL cho: Domain, Sub-domain, Park domain"
+    echo "========================================================================="
+    echo "& Subsite của WordPress Multisite."
+    echo "========================================================================="
+    # Kiểm tra xem đã có API Global chưa
+    if [ -f /etc/dsnvps/ssl-cloudflare-api-global.conf ]; then
+        source /etc/dsnvps/ssl-cloudflare-api-global.conf
+        if [ -n "$global_ssl_api_email" ]; then
+            echo "Cloudflare API: Đã cấu hình (Global API Key)"
+        else
+            echo "Cloudflare API: Đã cấu hình (API Token)"
+        fi
+    else
+        echo "Cloudflare API: Chưa cấu hình"
+    fi
+    echo "========================================================================="
+}
+
+show_menu_setup-ssl () {
+while true; do
+clear
+show_phan_tren_menu
+echo ""
+printf "%-43s %s\n" "1) Cài FreeSSL Cho Domain, Subsite" ""
+printf "%-43s %s\n" "2) Renew SSL (Thủ Công)" ""
+printf "%-43s %s\n" "-------------------------------------------------------------------------"
+printf "%-43s %s\n" "3) Cấu Hình Cloudflare API" ""
+printf "%-43s %s\n" "-------------------------------------------------------------------------"
+printf "%-43s %s\n" "4) Gỡ Cài Đặt SSL (Quay lại HTTP)" ""
+printf "%-43s %s\n" "-------------------------------------------------------------------------"
+printf "%-43s %s\n" "5) Danh Sách Website Dùng Free SSL" ""
+printf "%-43s %s\n" "6) Cập Nhật ACME.SH" ""
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in
+        1) /etc/dsnvps/menu/dsnvps-cai-dat-ssl-letsencrypt ;;
+        2) /etc/dsnvps/menu/dsnvps-renew-ssl-letsencrypt ;;
+        3) clear && /etc/dsnvps/menu/dsnvps-cloudflare-api-full-edit-dns-zone;;
+        4) /etc/dsnvps/menu/dsnvps-remove-ssl-letsencrypt ;;
+        5) /etc/dsnvps/menu/dsnvps-list-domain-cai-dat-free-ssl-letsencrypt ;;
+        6) acme_update_func ;;
+0) clear; exit 0;;
+        *)
+            echo "========================================================================="
+            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"
+            sleep 3
+            tput cuu 14
+            for ((i = 0; i < 14; i++)); do tput el; tput cud1; done
+            tput cuu 14
+            ;;
+    esac
+done
+
+}
+show_menu_setup-ssl
+
+# check_nginx_service () {
+# UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+# if [ ! "$UP" -ne 1 ]; then
+# show_menu_setup-ssl
+#     else
+# clear
+# echo "========================================================================"
+# echo "Dịch vụ Nginx không chạy"
+# echo "------------------------------------------------------------------------"
+# echo "DSNVPS đang cố gắng khởi động"
+# echo "------------------------------------------------------------------------"
+# echo "Vui lòng chờ ..."
+# sleep 5 ; clear
+# /etc/dsnvps/menu/inc/start-nginx-service
+# clear
+# echo "========================================================================"
+# echo "Đang kiểm tra lại dịch vụ Nginx!"
+# echo "------------------------------------------------------------------------"
+# echo "Vui lòng chờ ..."
+# sleep 5 ; clear
+# UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+# if [ ! "$UP" -ne 1 ]; then
+# show_menu_setup-ssl 
+#         else
+#                 clear
+# echo "========================================================================"
+# echo "DSNVPS không thể khởi động dịch vụ Nginx"
+# sleep 4 ;
+#     clear
+#     echo "========================================================================="
+#     echo "Xin lỗi, Nginx đang dừng. Vui lòng KHỞI ĐỘNG Nginx trước khi dùng chức năng này."
+#     echo "------------------------------------------------------------------------"
+#     nginx -t
+#     dsnvps
+# fi
+# fi
+# }
+# 
+# check_nginx_service

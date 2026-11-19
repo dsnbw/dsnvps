@@ -1,0 +1,131 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /etc/php.d/ioncube.ini ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để Cài Đặt/Gỡ Cài Đặt Ioncube cho server"
+echo "-------------------------------------------------------------------------"
+echo "Ioncube Loader đã được cài đặt trên server."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2978"
+echo "========================================================================="
+read -r -p "Bạn muốn Gỡ Cài Đặt Ioncube Loader?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 2
+    
+rm -rf /etc/php.d/*.ioncube.*
+rm -rf /etc/php.d/ioncube.*
+rm -rf /usr/local/ioncube
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+echo "========================================================================="
+	echo "Gỡ Cài Đặt Ioncube Loader thành công !"
+	    echo "-------------------------------------------------------------------------"
+    php -v	
+    sleep 3
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+   echo "Hủy bỏ !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+exit
+fi
+php_version1=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+echo "========================================================================="
+echo "Sử dụng chức năng này để Cài Đặt/Gỡ Cài Đặt Ioncube cho server"
+echo "-------------------------------------------------------------------------"
+echo "Ioncube Loader chưa được cài đặt trên server."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2978"
+echo "========================================================================="
+read -r -p "Bạn muốn Cài Đặt Ioncube Loader?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+		echo "Vui lòng chờ..."
+		sleep 2
+
+sleep 2
+php_version=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+rm -rf /usr/local/ioncube	
+if [ ! -d /usr/local/ioncube ]; then
+mkdir -p /usr/local/ioncube
+fi
+
+
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini	
+/etc/dsnvps/menu/dsnvps-cai-dat-ioncube-run
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+
+if [ ! -f /usr/local/ioncube/ioncube_loader_lin_${php_version}.so ]; then
+clear
+echo "========================================================================="
+echo "Ioncube không tương thích với phiên bản PHP hiện tại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy cài đặt phiên bản PHP khác!"
+sleep 3
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+exit
+fi
+cat > "/etc/php.d/ioncube.ini" <<END
+zend_extension=/usr/local/ioncube/ioncube_loader_lin_${php_version}.so
+END
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết quả việc cài đặt ..."
+rm -rf /etc/dsnvps/.tmp/ioncubetest
+php -v 2>&1 | tee /etc/dsnvps/.tmp/ioncubetest
+
+if grep -q "Failed loading" /etc/dsnvps/.tmp/ioncubetest; then
+    echo "-------------------------------------------------------------------------"
+    echo "Ioncube không tương thích với phiên bản PHP $php_version"; sleep 3
+    echo "-------------------------------------------------------------------------"; sleep 2
+    echo "DSNVPS sẽ gỡ bỏ Ioncube Loader để tránh lỗi PHP."; sleep 3
+    echo "-------------------------------------------------------------------------"; sleep 2
+    echo "Nếu muốn sử dụng Ioncube, bạn hãy hạ cấp phiên bản PHP."; sleep 3
+rm -rf /etc/php.d/ioncube.ini
+rm -rf /usr/local/ioncube
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+clear
+echo "========================================================================="
+echo "Cài đặt lỗi."
+echo "-------------------------------------------------------------------------"
+echo "Ioncube Loader không tương thích với phiên bản PHP hiện tại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy hạ cấp PHP rồi cài đặt lại Ioncube Loader."
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+else
+clear
+echo "========================================================================="
+echo "Cài đặt Ioncube Loader thành công!"
+    echo "-------------------------------------------------------------------------"; sleep 3
+    php -v	
+    sleep 3
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+fi
+       ;;
+    *)
+    clear
+    echo "========================================================================="
+echo "Bạn đã hủy cài đặt Ioncube Loader"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+exit
+fi

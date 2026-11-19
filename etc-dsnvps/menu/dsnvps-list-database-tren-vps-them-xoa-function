@@ -1,0 +1,88 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+if [ "$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa tạo database trên server !"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+rm -rf /etc/dsnvps/.tmp/*check*
+randomcode=-`date |md5sum |cut -c '1-12'`
+clear
+echo "========================================================================="
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase)
+checksizeabc=$(du -sb /etc/dsnvps/.tmp/checkalldatabase | awk 'NR==1 {print $1}')
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)
+for database in $listdatabasetrenserver 
+do
+if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+if [ "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabaseempty-list
+fi
+ done
+ 
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                     Danh Sách Database Trên Server \n"
+printf "=========================================================================\n"
+ if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+    if [ "$checksizeabc" == "1" ]; then
+    echo "Bạn chưa tạo database trên server"
+    else
+    echo "Tất cả database đều không có dữ liệu"
+    fi
+###
+ else
+ databasedulieu=$(cat /etc/dsnvps/.tmp/checkdatabase-list | wc -l)
+ echo "Database có dữ liệu:"
+ echo "-------------------------------------------------------------------------"
+ 
+dsnvps_check_size=`cat /etc/dsnvps/.tmp/checkdatabase-list`
+rm -rf /etc/dsnvps/.tmp/checksiztungdb
+rm -rf /etc/dsnvps/.tmp/checktabletungdb
+for datbase123 in $dsnvps_check_size 
+do
+sizetungdb=`du -sh /var/lib/mysql/$datbase123 | awk 'NR==1 {print $1}'`
+tablecount=`ls -1 /var/lib/mysql/$datbase123 | grep -c ".ibd"`
+echo "$datbase123 ($sizetungdb)" >> /etc/dsnvps/.tmp/checksiztungdb
+echo "$datbase123 ($tablecount tables)" >> /etc/dsnvps/.tmp/checktabletungdb
+done
+cat /etc/dsnvps/.tmp/checksiztungdb | pr -2 -t 
+echo "-------------------------------------------------------------------------"
+echo "Số lượng bảng trong mỗi Database:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/checktabletungdb | pr -2 -t
+sodatabasecodulieu=$(echo "| Database có dữ liệu: $databasedulieu")
+ fi
+
+    if [ -f /etc/dsnvps/.tmp/checkdatabaseempty-list ]; then
+    databaseempty=$(cat /etc/dsnvps/.tmp/checkdatabaseempty-list | wc -l)
+    sodatabaseempty=$(echo "| Database rỗng: $databaseempty")
+    echo "-------------------------------------------------------------------------"
+    echo "Database rỗng:"
+    echo "-------------------------------------------------------------------------" 
+    cat /etc/dsnvps/.tmp/checkdatabaseempty-list | pr -2 -t   
+    ####
+    fi
+echo "========================================================================="
+echo "Tổng Database: $sodatabasetrenserver $sodatabasecodulieu $sodatabaseempty "
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+dsnvps

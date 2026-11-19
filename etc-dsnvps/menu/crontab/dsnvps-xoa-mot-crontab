@@ -1,0 +1,174 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d "/etc/dsnvps/crontab" ]; then
+mkdir -p /etc/dsnvps/crontab
+else
+rm -rf /etc/dsnvps/crontab/*
+fi
+if [ "$(crontab -l | awk 'NR==1 {print $1}')" == "" ]; then
+clear
+echo "========================================================================= "
+echo "Bạn chưa tạo Cronjob trên server !"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/tyzafdrxx
+crontab -l > /etc/dsnvps/.tmp/tyzafdrxx
+solon=`wc -l < /etc/dsnvps/.tmp/tyzafdrxx`
+
+if [ "$solon" = "1" ]; then
+
+#=================================================================================
+#=================================================================================
+if [ ! "$(grep "acme.sh" /etc/dsnvps/.tmp/tyzafdrxx)" == "" ]; then
+rm -rf /etc/dsnvps/.tmp/tyzafdrxx
+clear
+echo "========================================================================= "
+echo "Hiện chỉ có 1 Cronjob đang chạy trên server:"
+echo "-------------------------------------------------------------------------"
+awk '{print NR". "$0}' /var/spool/cron/crontabs/root
+echo "-------------------------------------------------------------------------"
+echo "Cronjob này được sử dụng để tự động gia hạn SSL Free."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện xóa cronjob này."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+fi
+#=================================================================================
+#=================================================================================
+echo "========================================================================="
+echo "Sử dụng chức năng này để xóa một cronjob trên server."
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại, chỉ có 1 cronjob đang chạy."
+echo "-------------------------------------------------------------------------"
+echo "Cronjob:"
+echo "-------------------------------------------------------------------------"
+awk '{print NR". "$0}' /var/spool/cron/crontabs/root
+echo "========================================================================="
+read -r -p "Bạn muốn xóa cronjob này? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "OK, Vui lòng chờ ..."; sleep 3
+crontab -r
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true >/dev/null 2>&1
+clear
+echo "========================================================================= "
+echo "Hoàn thành xóa cronjob hiện tại."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+else
+clear
+echo "========================================================================= "
+echo "Hủy bỏ."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để xóa 1 Cronjob trên server."
+echo "-------------------------------------------------------------------------"
+echo "Danh sách cronjob đang chạy:"
+echo "-------------------------------------------------------------------------"
+awk '{print NR". "$0}' /var/spool/cron/crontabs/root
+echo "-------------------------------------------------------------------------"
+echo "Nhập số thứ tự (X) cronjob bạn muốn xóa. X nằm trong khoảng (1 - $solon)."
+echo "========================================================================="
+while :; do
+echo -n "Nhập số Cronjob [0 -Thoát]: "
+    read cronjob
+    if [[ "$cronjob" == "0" ]]; then
+clear
+echo "========================================================================= "
+echo "Huỷ bỏ !"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+        break
+    elif [[ -n "$cronjob" ]] && [[ "$cronjob" =~ ^[0-9]+$ ]] && [ "$cronjob" -ge 1 ] && [ "$cronjob" -le $solon ]; then
+break
+    else
+        # Xóa thông báo lỗi cũ và quay lại dòng nhập liệu
+        tput cuu 1      # Di chuyển con trỏ lên dòng nhập liệu
+        tput el         # Xóa dòng nhập liệu
+echo "Nhập sai. Số bạn nhập là số trong khoảng (1 - $solon)"
+        sleep 4
+        # Quay lại dòng nhập liệu với thông báo
+        tput cuu 1      # Di chuyển con trỏ lên dòng nhập liệu
+        tput el         # Xóa dòng lỗi
+    fi
+done
+
+#=================================================================================
+#=================================================================================
+rm -rf /etc/dsnvps/.tmp/tyzafdrxxzzz
+awk -v line=$cronjob 'NR==line' /etc/dsnvps/.tmp/tyzafdrxx > /etc/dsnvps/.tmp/tyzafdrxxzzz 
+if [ ! "$(grep "acme.sh" /etc/dsnvps/.tmp/tyzafdrxxzzz)" == "" ]; then
+rm -rf /etc/dsnvps/.tmp/tyzafdrxxzzz
+clear
+echo "========================================================================= "
+echo "Crontab bạn chọn:"
+echo "-------------------------------------------------------------------------"
+awk -v line=$cronjob 'NR==line' /etc/dsnvps/.tmp/tyzafdrxx
+echo "-------------------------------------------------------------------------"
+echo "Crontab này được sử dụng để tự động gia hạn SSL Free."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+fi
+#=================================================================================
+#=================================================================================
+
+
+echo "-------------------------------------------------------------------------"
+echo "Cronjob bạn chọn:"
+echo "-------------------------------------------------------------------------"
+awk -v line=$cronjob 'NR==line' /etc/dsnvps/.tmp/tyzafdrxx 
+#cat /etc/dsnvps/.tmp/tyzafdrxx | awk 'NR==$cronjob' 
+echo "========================================================================="
+read -r -p "Bạn chắc chắn muốn xóa cronjob này? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "OK, Vui lòng chờ ..."; sleep 3
+cat > "/etc/dsnvps/.tmp/tyzafdrxxrun" <<END
+sed -i '${cronjob}d' /var/spool/cron/crontabs/root
+END
+sh /etc/dsnvps/.tmp/tyzafdrxxrun
+
+
+systemctl restart crond >/dev/null 2>&1
+crontab -l > /etc/dsnvps/.tmp/tyzafdrxxzawtbn
+if [ "$(wc -l /etc/dsnvps/.tmp/tyzafdrxx | awk '{print $1}')" == "$(wc -l /etc/dsnvps/.tmp/tyzafdrxxzawtbn | awk '{print $1}')" ]; then
+clear
+echo "========================================================================= "
+echo "Xóa crontab thất bại hoặc crontab muốn xóa không tồn tại trên hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy thử lại lần nữa"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+else
+clear
+echo "========================================================================= "
+echo "Xóa thành công Cronjob:"
+echo "-------------------------------------------------------------------------"
+awk -v line=$cronjob 'NR==line' /etc/dsnvps/.tmp/tyzafdrxx
+rm -rf /etc/dsnvps/.tmp/tyzafdrxxrun
+if [ "$(crontab -l | awk 'NR==1 {print $1}')" == "" ]; then
+  echo "-------------------------------------------------------------------------"
+  echo "Hiện tại không có crontab nào đang chạy."
+else
+  echo "-------------------------------------------------------------------------"
+  echo "Danh sách Crontab hiện tại:"
+fi
+echo "-------------------------------------------------------------------------"
+awk '{print NR". "$0}' /var/spool/cron/crontabs/root
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi
+fi
+else
+clear
+echo "========================================================================= "
+echo "Hủy bỏ."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi

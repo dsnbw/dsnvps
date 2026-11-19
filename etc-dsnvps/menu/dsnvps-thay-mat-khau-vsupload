@@ -1,0 +1,111 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html/vsupload ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy trình upload file mặc định trên Server !"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+echo "========================================================================= "
+echo "Dùng chức năng này để thay username và mật khẩu cho tài khoản admin của"
+echo "-------------------------------------------------------------------------"
+echo "trình upload file mặc định: http://$serverip_priport/vsupload/"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ tạo username và password mới mà không cần biết thông tin đăng  "
+echo "-------------------------------------------------------------------------"
+echo "nhập cũ."
+echo "========================================================================= "
+read -r -p "Bạn muốn tạo thông tin đăng nhập mới cho admin ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+#############
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập tài khoản admin mới [ENTER]: " 
+read adminupload
+if [ "$adminupload" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải nhập tài khoản admin."
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [[ ! ${#adminupload} -ge 5 ]]; then
+clear
+echo "========================================================================="
+echo "User admin tối thiểu phải có 5 ký tự "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi 
+checkuseradmin="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$";
+if [[ ! "$adminupload" =~ $checkuseradmin ]]; then
+clear
+echo "========================================================================="
+echo "Bạn chỉ được sử dụng chữ cái và số cho tài khoản admin"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại  !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi 
+
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập mật khẩu moi [ENTER]: "
+read matkhau
+if [ "$matkhau" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn chưa nhập mật khẩu"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+
+if [[ ! ${#matkhau} -ge 8 ]]; then
+clear
+echo "========================================================================="
+echo "Mật khẩu phải có ít nhất 8 ký tự "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại  !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi 
+#######
+echo "-------------------------------------------------------------------------"
+echo "Thông tin đăng nhập mới cho trình upload file mặc định:"
+echo "-------------------------------------------------------------------------"
+echo "Username: $adminupload | Password: $matkhau"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+chown -R nginx:nginx /home/$mainsite/private_html
+rm -rf /home/$mainsite/private_html/vsupload/config/.htusers.php
+cat > "/home/$mainsite/private_html/vsupload/config/.htusers.php" <<END
+<?php
+        // ensure this file is being included by a parent file
+        if( !defined( '_JEXEC' ) && !defined( '_VALID_MOS' ) ) die( 'Restricted access' );
+        \$GLOBALS["users"]=array(
+        array('$adminupload','$(echo -n "$matkhau" | md5sum | awk '{print $1}')','/home','http://localhost','1','','7',1),
+);
+?>
+END
+clear
+echo "========================================================================="
+echo "Thay đổi thông tin đăng nhập trình upload file mặc định thành công."
+echo "-------------------------------------------------------------------------"
+echo "Username: $adminupload | Password: $matkhau"
+/etc/dsnvps/menu/dsnvps-tien-ich
+;;
+esac
+clear
+echo "========================================================================="
+echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-tien-ich

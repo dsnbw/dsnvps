@@ -1,0 +1,35 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /etc/csf/csf.conf ]; then
+clear
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+else
+echo "========================================================================= "
+echo "Chức năng này cần CSF Firewall để hoạt động"
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall chưa được cài đặt trên server! "
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn cài đặt CSF Firewall không ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình thành công CSF Firewall."
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Bạn hủy bỏ cài đặt CSF Firewall ! "
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi

@@ -1,0 +1,227 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ ! -f /bin/sizeconvert ]; then
+cp -r /etc/dsnvps/menu/dsnvps-calc-for-convert-file-size-chuyen-doi-don-vi /bin/sizeconvert
+chmod +x /bin/sizeconvert
+sed -i 's/scale=0/scale=5/g' /bin/sizeconvert
+fi
+
+checknumber="^[0-9.]+$"
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+#prompt="Type in your choice: "
+options=( "Byte" "Kilobyte (KB)" "Megabyte (MB)" "Gigabyte (GB)" "Terabyte (TB)")
+echo "========================================================================="
+echo "Chức năng này dùng để chuyển đổi đơn vị: B sang KB sang MB sang GB sang TB"
+echo "-------------------------------------------------------------------------"
+echo "Hoặc TB sang GB sang MB sang KB sang B."
+echo "========================================================================="
+echo "Lựa chọn đơn vị hiện tại của bạn"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) donvicanchuyen="Byte"; break;;
+    2) donvicanchuyen="Kilobyte"; break;;
+    3) donvicanchuyen="Megabyte"; break;;
+    4) donvicanchuyen="Gigabyte"; break;;
+    5) donvicanchuyen="Terabyte"; break;;
+    0) donvicanchuyen="Cancel"; break;;
+    *) echo "Ban nhao sai, Vui lòng chọn so trong danh sach";continue;;
+    #*) echo "You typed wrong, Please type in the ordinal number on the list";continue;;
+    esac  
+done
+echo "-------------------------------------------------------------------------"
+if [ "$donvicanchuyen" = "Byte" ]; then
+echo -n "Nhập kích thước tệp (Không bao gồm B): "
+read nhapso
+nhapso=`echo $nhapso | tr '[A-Z]' '[a-z]'`
+if [ "$nhapso" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+#echo "You typed wrong, please type in accurately!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [[ ! "$nhapso" =~ $checknumber ]]; then
+clear
+echo "========================================================================="
+echo "$nhapso không phải là số"
+#echo "$nhapso maybe not a number!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+clear
+echo "========================================================================="
+echo "Byte: $nhapso B"
+echo "========================================================================="
+echo "Kết quả chuyển đổi:"
+echo "-------------------------------------------------------------------------"
+echo "Kilobyte: $(sizeconvert ${nhapso}/1024) KB"
+echo "-------------------------------------------------------------------------"
+echo "Megabyte: $(sizeconvert ${nhapso}/1024/1024) MB"
+echo "-------------------------------------------------------------------------"
+echo "Gigabyte: $(sizeconvert ${nhapso}/1024/1024/1024) GB"
+echo "-------------------------------------------------------------------------"
+echo "Terabyte: $(sizeconvert ${nhapso}/1024/1024/1024/1024) TB"
+/etc/dsnvps/menu/dsnvps-tien-ich
+elif [ "$donvicanchuyen" = "Kilobyte" ]; then
+
+echo -n "Nhập FileSize (Không bao gồm KB): "
+read nhapso
+nhapso=`echo $nhapso | tr '[A-Z]' '[a-z]'`
+if [ "$nhapso" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+#echo "You typed wrong, please type in accurately!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [[ ! "$nhapso" =~ $checknumber ]]; then
+clear
+echo "========================================================================="
+echo "$nhapso không phải là số"
+#echo "$nhapso maybe not a number!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+clear
+echo "========================================================================="
+echo "Kilobyte: $nhapso KB"
+echo "========================================================================="
+echo "Kết quả chuyển đổi:"
+echo "-------------------------------------------------------------------------"
+echo "Byte: $(sizeconvert ${nhapso}*1024) B"
+echo "-------------------------------------------------------------------------"
+echo "Megabyte: $(sizeconvert ${nhapso}/1024) MB"
+echo "-------------------------------------------------------------------------"
+echo "Gigabyte: $(sizeconvert ${nhapso}/1024/1024) GB"
+echo "-------------------------------------------------------------------------"
+echo "Terabyte: $(sizeconvert ${nhapso}/1024/1024/1024) TB"
+/etc/dsnvps/menu/dsnvps-tien-ich
+elif [ "$donvicanchuyen" = "Megabyte" ]; then
+echo -n "Nhập FileSize (Không bao gồm MB): "
+read nhapso
+nhapso=`echo $nhapso | tr '[A-Z]' '[a-z]'`
+if [ "$nhapso" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+#echo "You typed wrong, please type in accurately!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [[ ! "$nhapso" =~ $checknumber ]]; then
+clear
+echo "========================================================================="
+echo "$nhapso không phải là số"
+#echo "$nhapso maybe not a number!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+clear
+echo "========================================================================="
+echo "Megabyte: $nhapso MB"
+echo "========================================================================="
+echo "Kết quả chuyển đổi:"
+echo "-------------------------------------------------------------------------"
+echo "Byte: $(sizeconvert ${nhapso}*1024*1024) B"
+echo "-------------------------------------------------------------------------"
+echo "Kilobyte: $(sizeconvert ${nhapso}*1024) KB"
+echo "-------------------------------------------------------------------------"
+echo "Gigabyte: $(sizeconvert ${nhapso}/1024) GB"
+echo "-------------------------------------------------------------------------"
+echo "Terabyte: $(sizeconvert ${nhapso}/1024/1024) TB"
+/etc/dsnvps/menu/dsnvps-tien-ich
+elif [ "$donvicanchuyen" = "Gigabyte" ]; then
+echo -n "Nhập FileSize (Không bao gồm GB): "
+read nhapso
+nhapso=`echo $nhapso | tr '[A-Z]' '[a-z]'`
+if [ "$nhapso" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+#echo "You typed wrong, please type in accurately!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [[ ! "$nhapso" =~ $checknumber ]]; then
+clear
+echo "========================================================================="
+echo "$nhapso không phải là số"
+#echo "$nhapso maybe not a number!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+clear
+echo "========================================================================="
+echo "Gigabyte: $nhapso GB"
+echo "========================================================================="
+echo "Kết quả chuyển đổi:"
+echo "-------------------------------------------------------------------------"
+echo "Byte: $(sizeconvert ${nhapso}*1024*1024*1024) B"
+echo "-------------------------------------------------------------------------"
+echo "Kilobyte: $(sizeconvert ${nhapso}*1024*1024) KB"
+echo "-------------------------------------------------------------------------"
+echo "Megabyte: $(sizeconvert ${nhapso}*1024) MB"
+echo "-------------------------------------------------------------------------"
+echo "Terabyte: $(sizeconvert ${nhapso}/1024) TB"
+/etc/dsnvps/menu/dsnvps-tien-ich
+elif [ "$donvicanchuyen" = "Terabyte" ]; then
+echo -n "Nhập FileSize (Không bao gồm TB): " 
+read nhapso
+nhapso=`echo $nhapso | tr '[A-Z]' '[a-z]'`
+if [ "$nhapso" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+#echo "You typed wrong, please type in accurately!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [[ ! "$nhapso" =~ $checknumber ]]; then
+clear
+echo "========================================================================="
+echo "$nhapso không phải là số"
+#echo "$nhapso maybe not a number!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+clear
+echo "========================================================================="
+echo "Terabyte: $nhapso TB"
+echo "========================================================================="
+echo "Kết quả chuyển đổi:"
+echo "-------------------------------------------------------------------------"
+echo "Byte: $(sizeconvert ${nhapso}*1024*1024*1024*1024) B"
+echo "-------------------------------------------------------------------------"
+echo "Kilobyte: $(sizeconvert ${nhapso}*1024*1024*1024) KB"
+echo "-------------------------------------------------------------------------"
+echo "Megabyte: $(sizeconvert ${nhapso}*1024*1024) MB"
+echo "-------------------------------------------------------------------------"
+echo "GigabyteB: $(sizeconvert ${nhapso}*1024) GB"
+/etc/dsnvps/menu/dsnvps-tien-ich
+else
+clear
+exit 0
+fi

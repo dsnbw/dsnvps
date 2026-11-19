@@ -1,0 +1,8 @@
+#!/bin/bash 
+curTime=$(date +%s)
+checktruenumber='^[0-9]+$'
+# Anti-debug removed
+if [ ! -d /etc/dsnvps/.tmp ]; then
+    mkdir -p /etc/dsnvps/.tmp
+fi
+/etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu

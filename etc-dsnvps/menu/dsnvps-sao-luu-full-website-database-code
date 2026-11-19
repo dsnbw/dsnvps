@@ -1,0 +1,273 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+####################################################
+################################################
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+kiemtrafolder="^[a-zA-Z0-9-][-a-zA-Z0-9_-.]{0,61}[a-zA-Z0-9]$";
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$checksite/public_html ]; then
+find /home/$checksite/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 5 ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+done
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không tìm thấy website có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|dsnvpscheckauto|sys)" > /etc/dsnvps/.tmp/checkalldatabase
+if [ "$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+clear
+echo "========================================================================="
+echo "Hiện tại Tất cả database đều không có dữ liệu."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy sử dụng chức năng [ Backup Code 1 Website ]"
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+
+
+###################################################################################################################################
+echo "========================================================================="
+echo "DSNVPS sẽ backup Code website + Database cùng một lúc. Bạn có thể phục"
+echo "-------------------------------------------------------------------------"
+echo "hồi website bằng chức năng [ Phục Hồi Full Web + Database ]"
+echo "-------------------------------------------------------------------------"
+echo "Khi phục hồi website, DSNVPS sẽ tự động tạo database nếu cần thiết."
+
+echo "========================================================================="
+echo "List Website Có Dữ Liệu:"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checksite-list
+echo "-------------------------------------------------------------------------"
+################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+
+
+if [ -f /home/$website/wp-config.php ]; then
+	if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+	tendatabase=`cat /home/$website/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+	else
+	tendatabase=`cat /home/$website/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+	fi
+echo "========================================================================="
+echo "$website sử dụng Wordpress, database là $tendatabase"
+else
+echo "-------------------------------------------------------------------------"
+echo "Tiếp theo, chọn database của $website"
+echo "========================================================================="
+# Read the database list into an array
+mapfile -t danh_sach_websiteDB < /etc/dsnvps/.tmp/checkalldatabase
+for ((i = 0; i < ${#danh_sach_websiteDB[@]}; i+=2)); do
+    if ((i+1 < ${#danh_sach_websiteDB[@]})); then
+        printf "%-1s %-20s %-1s %-20s\n" "$((i+1))." "${danh_sach_websiteDB[i]}" "$((i+2))." "${danh_sach_websiteDB[i+1]}"
+    else
+        printf "%-1s %-20s\n" "$((i+1))." "${danh_sach_websiteDB[i]}"
+    fi
+done
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với Database [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_websiteDB[@]} )); then
+        tendatabase=${danh_sach_websiteDB[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+fi
+
+
+
+############################################################################################################################################################
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS chuẩn bị backup code và database cho $website"; sleep 3
+echo "-------------------------------------------------------------------------"
+echo "Chuẩn bị sao lưu .... "
+
+sleep 2
+echo "$tendatabase" > /home/$website/dataname.txt
+randomwp=`date |md5sum |cut -c '1-23'`
+echo "`date '+%d-%m'`" > /etc/dsnvps/.tmp/datetime
+time=$(cat /etc/dsnvps/.tmp/datetime)
+cd /home/$website
+rm -rf DSNVPS-DATABASE.sql.gz
+echo "Backup Database $tendatabase ... "; sleep 5
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+if [ -z "$enginecheck" ]; then
+mysqldump --force -u root -p$mariadbpass $tendatabase --single-transaction | gzip -6 > DSNVPS-DATABASE.sql.gz
+else
+mysqldump --force -u root -p$mariadbpass $tendatabase --lock-tables=false | gzip -6 > DSNVPS-DATABASE.sql.gz
+fi
+cd
+
+if [ ! -f /home/$website/DSNVPS-DATABASE.sql.gz ]; then
+rm -rf /home/$website/dataname.txt
+clear
+echo "========================================================================="
+echo "DSNVPS không thể sao lưu database của $website"
+echo "----------------------------------------------"
+echo "Sao lưu thất bại."; sleep 2
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+if [ "`du -k /home/$website/DSNVPS-DATABASE.sql.gz | awk 'NR==1 {print $1}' | sed 's/[^0-9]*//g'`" -lt "4" ]; then
+rm -rf /home/$website/DSNVPS-DATABASE.sql.gz
+rm -rf /home/$website/dataname.txt
+clear
+echo "========================================================================="
+echo "Có lỗi xảy ra trong quá trình sao lưu database của $website"
+echo "-------------------------------------------------------------------------"
+echo "Sao lưu thất bại."; sleep 2
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+echo "Backup Code ... "; sleep 5
+if [ ! -d /home/$website/public_html/Full-DSNVPS ]; then
+mkdir -p /home/$website/public_html/Full-DSNVPS
+fi
+cd /home/$website
+echo "$website" > /home/$website/public_html/dsnvps.fullbackup.check
+zip -r --exclude=*Full-DSNVPS* --exclude=*0-DSNVPS* --exclude=*full_backup.* full_$website.zip *
+mkdir -p /home/$website/public_html/Full-DSNVPS
+mv full_$website.zip /home/$website/public_html/Full-DSNVPS/full_$website.zip.$randomwp.$time
+cd
+rm -rf /home/$website/DSNVPS-DATABASE.sql.gz
+chown -R nginx:nginx /home/$website/public_html/Full-DSNVPS
+if [ ! -f /home/$website/public_html/Full-DSNVPS/full_$website.zip.$randomwp.$time ]; then
+rm -rf /home/$website/DSNVPS-DATABASE.sql.gz
+rm -rf /home/$website/public_html/dsnvps.fullbackup.check
+rm -rf /home/$website/dataname.txt
+clear
+echo "========================================================================="
+echo "Quá trình sao lưu Full $website thất bại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải tự làm thôi."; sleep 2
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+
+if [ "`du -k /home/$website/public_html/Full-DSNVPS/full_$website.zip.$randomwp.$time | awk 'NR==1 {print $1}' | sed 's/[^0-9]*//g'`" -lt "100" ]; then
+rm -rf /home/$website/DSNVPS-DATABASE.sql.gz
+rm -rf /home/$website/public_html/Full-DSNVPS
+rm -rf /home/$website/public_html/dsnvps.fullbackup.check
+rm -rf /home/$website/dataname.txt
+clear
+echo "========================================================================="
+echo "Có lỗi xảy ra trong quá trình sao lưu $website"
+echo "----------------------------------------------"
+echo "Sao lưu thất bại."; sleep 2
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+rm -rf /home/$website/public_html/dsnvps.fullbackup.check
+rm -rf /home/$website/dataname.txt
+if [ ! -f /home/$website/public_html/Full-DSNVPS/index.php ]; then
+echo "" > /home/$website/public_html/Full-DSNVPS/index.php
+fi
+
+clear
+echo "========================================================================="
+echo "Sao lưu full code & database thành công !"
+echo "-------------------------------------------------------------------------"
+echo "Link download backup:"
+echo "-------------------------------------------------------------------------"
+echo "http://$website/Full-DSNVPS/full_$website.zip.$randomwp.$time"
+echo "========================================================================="
+echo "Để phục hồi Website + Database ta đổi tên:"
+echo "-------------------------------------------------------------------------"
+echo "full_$website.zip.XXXX => full_backup.zip"
+echo "-------------------------------------------------------------------------"
+echo "sau đó upload vào thư mục: /home/$website/"
+echo "-------------------------------------------------------------------------"
+echo "(Hoặc: /home/domain-abc.com/ - Với domain-abc.com là website bạn muốn sử  "
+echo "-------------------------------------------------------------------------"
+echo "dụng code và database từ file backup) "
+echo "-------------------------------------------------------------------------"
+echo "và chạy chức năng [ Phục Hồi Full Web + Database ]"; sleep 3
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+
+
+
+
+

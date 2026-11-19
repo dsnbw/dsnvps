@@ -1,0 +1,40 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
+
+
+if [ "`systemctl is-active memcached.service`" == "active" ]; then
+options=("Disable" "Restart" "Config Memcached" )
+fi
+if [ "$(/bin/systemctl status  memcached.service | awk 'NR==3 {print $2}')" == "inactive" ]; then
+options=("Enable" "Restart" "Config Memcached" )
+fi
+
+printf "=========================================================================\n"
+printf "                DSNVPS - Quản Lý VPS/Server by DSNVPS.VN \n"
+printf "=========================================================================\n"
+printf "                           Quản Lý Memcached \n"
+printf "=========================================================================\n"
+printf "Link Quản Lý Memcached: http://$serverip_priport/memcache.php\n"
+printf "=========================================================================\n"
+
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+
+    1 ) /etc/dsnvps/menu/memcache/dsnvps-before-bat-tat-memcache;;
+    2 ) /etc/dsnvps/menu/memcache/dsnvps-memcache-restart;;
+    3 ) /etc/dsnvps/menu/memcache/dsnvps-memcache-change-size;;
+0) clear; exit 0;;
+     *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+
+    esac
+
+done

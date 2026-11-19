@@ -1,0 +1,27 @@
+#!/bin/bash
+API_URL="https://vpro.dsnvps"
+API_KEY="HALINH-Dq1r68x4EHYgqmBphIKgZpw4Ka"
+# H�m gi API  ly phi�n bn DSNVPS
+##Update DSNVPS version
+get_dsnvps_version() {
+    local response
+    response=$(curl -s --max-time 10 -X POST "$API_URL/?action=get_latest_version" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{}" --write-out '\n%{http_code}')
+    local http_code=$(echo "$response" | tail -n 1)
+    local json_data=$(echo "$response" | sed '$d')
+    if [ "$http_code" = "200" ] && [ -n "$json_data" ] && echo "$json_data" | grep -q '"status":"success"'; then
+        local version
+        version=$(echo "$json_data" | jq -r '.version' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+        if [ -n "$version" ]; then
+            mkdir -p /etc/dsnvps/.tmp
+            ## Tao phien ban DSNVPS
+            echo "$version" > /etc/dsnvps/dsnvps.version
+            return 0
+        fi
+    fi
+    return 1
+}
+# To file cha phi�n bn DSNVPS mi nht
+get_dsnvps_version || get_dsnvps_version

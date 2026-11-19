@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+  serverip_priport=$domainquanly
+else
+  serverip_priport="${serverip}:${priport}"
+fi
+
+# Anti-debug removed
+    is_proxed="${proxied}"
+  fi
+
+  ### Lấy thông tin từ Cloudflare API nếu proxied = true
+  if [ "${proxied}" == "true" ]; then
+    if [ -n "$final_api_email" ]; then
+      # Global API Key
+      dns_record_info=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records?type=A&name=$record" \
+        -H "X-Auth-Email: $final_api_email" \
+        -H "X-Auth-Key: $cloudflare_zone_api_token" \
+        -H "Content-Type: application/json")
+    else
+      # API Token
+      dns_record_info=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records?type=A&name=$record" \
+        -H "Authorization: Bearer $cloudflare_zone_api_token" \
+        -H "Content-Type: application/json")
+    fi
+
+    if [[ ${dns_record_info} == *"\"success\":false"* ]]; then
+      echo "Warning: DNS record '$record' not found in Cloudflare zone"
+      echo "Bỏ qua record này..."
+      echo "-------------------------------------------------------------------------"
+      continue
+    fi
+    
+    # Kiểm tra xem record có tồn tại không (kết quả rỗng nghĩa là không tìm thấy record)
+    if [[ ${dns_record_info} == *'"result":[]'* ]]; then
+      echo "Warning: DNS record '$record' không tồn tại trong Cloudflare zone"
+      echo "Bỏ qua record này..."
+      echo "-------------------------------------------------------------------------"
+      continue
+    fi
+    
+    is_proxed=$(echo ${dns_record_info} | grep -o '"proxied":[^,]*' | grep -o '[^:]*$')
+    dns_record_ip=$(echo ${dns_record_info} | grep -o '"content":"[^"]*' | cut -d'"' -f 4)
+  fi
+
+  ### Kiểm tra nếu IP hoặc proxy status đã thay đổi
+  if [ "$dns_record_ip" == "$ip" ] && [ "$is_proxed" == "$proxied" ]; then
+    statusproxy=$( [ "$proxied" == "true" ] && echo "ON" || echo "OFF" )
+    echo "Hiện tại ${record} đang trỏ tới: ${dns_record_ip}"; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "==> Không cần cập nhật DNS | CloudFlare Proxy: $statusproxy | Time to live: $ttl"; sleep 3
+    continue
+  fi
+
+  echo "Hiện tại ${record} đang trỏ tới: ${dns_record_ip}"; sleep 3
+  echo "-------------------------------------------------------------------------"
+  echo "Cập nhật địa chỉ IP mới cho ${record}: $ip"; sleep 3
+
+  ### Lấy thông tin DNS record từ Cloudflare API
+  if [ -n "$final_api_email" ]; then
+    # Global API Key
+    cloudflare_record_info=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records?type=A&name=$record" \
+      -H "X-Auth-Email: $final_api_email" \
+      -H "X-Auth-Key: $cloudflare_zone_api_token" \
+      -H "Content-Type: application/json")
+  else
+    # API Token
+    cloudflare_record_info=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records?type=A&name=$record" \
+      -H "Authorization: Bearer $cloudflare_zone_api_token" \
+      -H "Content-Type: application/json")
+  fi
+
+  if [[ ${cloudflare_record_info} == *"\"success\":false"* ]]; then
+    echo ${cloudflare_record_info}
+    echo "Error! Can't get ${record} record information from Cloudflare API"
+    exit 0
+  fi
+
+  ### Lấy ID của DNS record từ phản hồi API
+  cloudflare_dns_record_id=$(echo ${cloudflare_record_info} | grep -o '"id":"[^"]*' | cut -d'"' -f4)
+
+  ### Cập nhật DNS record qua Cloudflare API
+  if [ -n "$final_api_email" ]; then
+    # Global API Key
+    update_dns_record=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records/$cloudflare_dns_record_id" \
+      -H "X-Auth-Email: $final_api_email" \
+      -H "X-Auth-Key: $cloudflare_zone_api_token" \
+      -H "Content-Type: application/json" \
+      --data "{\"type\":\"A\",\"name\":\"$record\",\"content\":\"$ip\",\"ttl\":$ttl,\"proxied\":$proxied}")
+  else
+    # API Token
+    update_dns_record=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records/$cloudflare_dns_record_id" \
+      -H "Authorization: Bearer $cloudflare_zone_api_token" \
+      -H "Content-Type: application/json" \
+      --data "{\"type\":\"A\",\"name\":\"$record\",\"content\":\"$ip\",\"ttl\":$ttl,\"proxied\":$proxied}")
+  fi
+
+  if [[ ${update_dns_record} == *"\"success\":false"* ]]; then
+    echo ${update_dns_record}
+    echo "Error! Update failed"
+    exit 0
+  fi
+
+  statusproxy=$( [ "$proxied" == "true" ] && echo "ON" || echo "OFF" )
+  echo "-------------------------------------------------------------------------"
+  echo "==> Trạng thái cập nhật DNS: Thành công!"; sleep 3
+  echo "-------------------------------------------------------------------------"
+  echo "$record đã trỏ về: $ip"; sleep 3
+  echo "-------------------------------------------------------------------------"
+  echo "Time to live: $ttl, CloudFlare Proxy: $statusproxy"; sleep 3
+done

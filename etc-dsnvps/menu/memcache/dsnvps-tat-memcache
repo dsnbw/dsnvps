@@ -1,0 +1,16 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------" 
+echo "Vui lòng chờ....";sleep 2
+systemctl disable memcached.service
+systemctl stop  memcached.service
+echo "========================================================================= "
+echo "Dừng Memcached thành công!"
+
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu

@@ -1,0 +1,26 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ "$(crontab -l | awk 'NR==1 {print $1}')" == "" ]; then
+echo "Vui lòng chờ....";sleep 3
+clear
+echo "========================================================================= "
+echo "Bạn chưa tạo crontab trên server !"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+fi
+echo "Vui lòng chờ....";sleep 3
+clear
+echo "========================================================================= "
+echo "Danh sách Crontab đang chạy:"
+echo "-------------------------------------------------------------------------"
+awk '{print NR". "$0}' /var/spool/cron/crontabs/root
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+

@@ -1,0 +1,185 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if command -v php >/dev/null 2>&1; then
+timezone=`php -f /etc/dsnvps/gettimezonev2.php | sed 's/:00//'`
+else
+timezone="Unknown"
+    fi
+#prompt="Lựa chọn của bạn [0 -Thoát]: "
+#options=("GMT" "GMT+1" "GMT+2" "GMT+3" "GMT+4" "GMT+5" "GMT+5:30" "GMT+6" "GMT+6:30" "GMT+7" "GMT+8" "GMT+8:45" "GMT+9" "GMT+9:30" "GMT+10" "GMT+10:30" "GMT+11" "GMT+12" "GMT+13" "GMT+13:45" "GMT+14" "GMT-1" "GMT-2" "GMT-3" "GMT-4" "GMT-5" "GMT-6" "GMT-7" "GMT-8" "GMT-9" "GMT-9:30" "GMT-10" "GMT-11" "GMT-12" )
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                        Cài Đặt TimeZone Cho PHP  \n"
+printf "=========================================================================\n"
+text="PHP Timezone Hiện Tại: $timezone"
+# Căn giữa với chiều rộng 73 ký tự
+printf "%$(( (73 - ${#text}) / 2 ))s%s\n" "" "$text"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2144"
+printf "=========================================================================\n"
+while true; do
+    printf "%-18s %-18s %-18s %-18s\n" "1) GMT" "8) GMT+6" "15) GMT+10" "22) GMT-1"
+    printf "%-18s %-18s %-18s %-18s\n" "2) GMT+1" "9) GMT+6:30" "16) GMT+10:30" "23) GMT-2"
+    printf "%-18s %-18s %-18s %-18s\n" "3) GMT+2" "10) GMT+7" "17) GMT+11" "24) GMT-3"
+    printf "%-18s %-18s %-18s %-18s\n" "4) GMT+3" "11) GMT+8" "18) GMT+12" "25) GMT-4"
+    printf "%-18s %-18s %-18s %-18s\n" "5) GMT+4" "12) GMT+8:45" "19) GMT+13" "26) GMT-5"
+    printf "%-18s %-18s %-18s %-18s\n" "6) GMT+5" "13) GMT+9" "20) GMT+13:45" "27) GMT-6"
+    printf "%-18s %-18s %-18s %-18s\n" "7) GMT+5:30" "14) GMT+9:30" "21) GMT+14" "28) GMT-7"
+    printf "%-18s %-18s %-18s %-18s\n" "29) GMT-8" "30) GMT-9" "31) GMT-9:30" "32) GMT-10"
+    printf "%-18s %-18s %-18s %-18s\n" "33) GMT-11" "34) GMT-12" "" ""
+
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+ #   read -p "Type in your choice [0 - Exit]: " choice
+    case $choice in
+    1) muigio="GMT"; break;;
+    2) muigio="GMT+1"; break;;
+    3) muigio="GMT+2"; break;;
+    4) muigio="GMT+3"; break;;
+    5) muigio="GMT+4"; break;;
+    6) muigio="GMT+5"; break;;
+    7) muigio="GMT+5:30"; break;;
+    8) muigio="GMT+6"; break;;
+    9) muigio="GMT+6:30"; break;;
+    10) muigio="GMT+7"; break;;
+    11) muigio="GMT+8"; break;;
+    12) muigio="GMT+8:45"; break;;
+    13) muigio="GMT+9"; break;;
+    14) muigio="GMT+9:30"; break;;
+    15) muigio="GMT+10"; break;;
+    16) muigio="GMT+10:30"; break;;
+    17) muigio="GMT+11"; break;;
+    18) muigio="GMT+12"; break;;
+    19) muigio="GMT+13"; break;;
+    20) muigio="GMT+13:45"; break;;
+    21) muigio="GMT+14"; break;;
+    22) muigio="GMT-1"; break;;
+    23) muigio="GMT-2"; break;;
+    24) muigio="GMT-3"; break;;
+    25) muigio="GMT-4"; break;;
+    26) muigio="GMT-5"; break;;
+    27) muigio="GMT-6"; break;;
+    28) muigio="GMT-7"; break;;
+    29) muigio="GMT-8"; break;;
+    30) muigio="GMT-9"; break;;
+    31) muigio="GMT-9:30"; break;;
+    32) muigio="GMT-10"; break;;
+    33) muigio="GMT-11"; break;;
+    34) muigio="GMT-12"; break;;
+0) clear; exit 0;;
+
+  
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+    esac
+    
+done
+echo "=========================================================================";
+echo "Chức năng này chỉ cấu hình PHP timezone. Nếu muốn cấu hình server ";
+echo "-------------------------------------------------------------------------"
+echo "timezone, bạn cần sử dụng chức năng [ Cài Đặt Múi Giờ Cho Server ]. "; 
+echo "=========================================================================";
+read -r -p "Bạn muốn thiết lập múi giờ cho PHP: $muigio ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "OK, Vui lòng chờ ..."; sleep 3
+
+if [ "$muigio" = "GMT" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Europe/London|" /etc/php.ini
+elif [ "$muigio" = "GMT+1" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Europe/Amsterdam|" /etc/php.ini
+elif [ "$muigio" = "GMT+2" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Famagusta|" /etc/php.ini
+elif [ "$muigio" = "GMT+3" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Baghdad|" /etc/php.ini
+elif [ "$muigio" = "GMT+4" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Yerevan|" /etc/php.ini
+elif [ "$muigio" = "GMT+5" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Yekaterinburg|" /etc/php.ini
+elif [ "$muigio" = "GMT+6" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Almaty|" /etc/php.ini
+elif [ "$muigio" = "GMT+7" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Bangkok|" /etc/php.ini
+elif [ "$muigio" = "GMT+8" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Hong_Kong|" /etc/php.ini
+elif [ "$muigio" = "GMT+9" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Seoul|" /etc/php.ini
+elif [ "$muigio" = "GMT+10" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Vladivostok|" /etc/php.ini
+elif [ "$muigio" = "GMT+11" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Srednekolymsk|" /etc/php.ini
+elif [ "$muigio" = "GMT+12" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Anadyr|" /etc/php.ini
+elif [ "$muigio" = "GMT-1" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Atlantic/Cape_Verde|" /etc/php.ini
+elif [ "$muigio" = "GMT-2" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Atlantic/South_Georgia|" /etc/php.ini
+elif [ "$muigio" = "GMT-3" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = America/Araguaina|" /etc/php.ini
+elif [ "$muigio" = "GMT-4" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = America/Caracas|" /etc/php.ini
+elif [ "$muigio" = "GMT-5" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = America/Lima|" /etc/php.ini
+elif [ "$muigio" = "GMT-6" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = America/Belize|" /etc/php.ini
+elif [ "$muigio" = "GMT-7" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = America/Fort_Nelson|" /etc/php.ini
+elif [ "$muigio" = "GMT-8" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Pitcairn|" /etc/php.ini
+elif [ "$muigio" = "GMT-9" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Gambier|" /etc/php.ini
+elif [ "$muigio" = "GMT-10" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Tahiti|" /etc/php.ini
+elif [ "$muigio" = "GMT-11" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Midway|" /etc/php.ini
+elif [ "$muigio" = "GMT+5:30" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Colombo|" /etc/php.ini
+elif [ "$muigio" = "GMT+6:30" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Yangon|" /etc/php.ini
+elif [ "$muigio" = "GMT+8:45" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Australia/Eucla|" /etc/php.ini
+elif [ "$muigio" = "GMT+9:30" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Australia/Darwin|" /etc/php.ini
+elif [ "$muigio" = "GMT+10:30" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Australia/Lord_Howe|" /etc/php.ini
+elif [ "$muigio" = "GMT+13:45" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Chatham|" /etc/php.ini
+elif [ "$muigio" = "GMT-9:30" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Marquesas|" /etc/php.ini
+elif [ "$muigio" = "GMT+13" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Fakaofo|" /etc/php.ini
+elif [ "$muigio" = "GMT+14" ]; then
+	sed -ri "s|.*date.timezone =.*|date.timezone = Pacific/Kiritimati|" /etc/php.ini
+else 
+clear
+echo "========================================================================="
+echo "Hiện tại DSNVPS chưa support set timezone này."
+/etc/dsnvps/menu/dsnvps-thay-doi-php-timezone-full-timezone
+fi
+####### Restart PHP-FPM ###############
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+if command -v php >/dev/null 2>&1; then
+timezone2=`php -f /etc/dsnvps/gettimezonev2.php | sed 's/:00//'`
+else
+timezone2="Unknown"
+    fi
+#timezone2=`php -f /home/dsnvps.demo/private_html/gettimezone.php | cut -d \" -f 2`
+clear
+echo "========================================================================="
+echo "Thay đổi Timezone cho PHP thành công."
+echo "-------------------------------------------------------------------------"
+echo "PHP Timezone: $timezone2"
+/etc/dsnvps/menu/dsnvps-thay-doi-php-timezone-full-timezone
+else
+ clear
+ echo "========================================================================="
+ echo "Hủy bỏ."
+/etc/dsnvps/menu/dsnvps-thay-doi-php-timezone-full-timezone
+ exit
+fi

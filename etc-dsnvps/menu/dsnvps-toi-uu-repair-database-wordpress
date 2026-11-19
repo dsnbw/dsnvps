@@ -1,0 +1,164 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để Tối ưu (Optimize) hoặc Sửa lỗi (Repair) Database"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1110"
+echo "========================================================================="
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-25s %-1s %-25s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-25s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Cac doan ma xac nhan phia duoi se tiep tuc chay
+
+databasename=`cat /home/$website/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trong hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "$website sử dụng WordPress code"
+echo "-------------------------------------------------------------------------"
+echo "Database đang được sử dụng: $databasename"; sleep 5
+if [ ! -f /var/lib/mysql/$databasename/db.opt ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy database: $databasename"
+echo "-------------------------------------------------------------------------"
+echo "trên VPS. DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+echo "========================================================================="
+echo "Lựa chọn thao tác database"
+echo "========================================================================="
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=( "Tối ưu Database" "Sửa lỗi Database")
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) cachlam="toiuu"; break;;
+    2) cachlam="repair"; break;;
+    0) cachlam="huybo"; break;;  
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#Xoacahai
+###################################
+if [ "$cachlam" = "toiuu" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+####################################################################
+##Check Ban Pro
+####################################################################
+###################################################################
+###################################################################
+echo "-------------------------------------------------------------------------"
+sleep 2
+cd /home/$website/public_html/
+wp db optimize --allow-root
+sleep 2
+cd
+clear
+echo "========================================================================="
+echo "Hoàn thành tối ưu database cho $website"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+elif [ "$cachlam" = "repair" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+####################################################################
+##Check Ban Pro
+####################################################################
+###################################################################
+###################################################################
+echo "-------------------------------------------------------------------------"
+sleep 2
+cd /home/$website/public_html/
+wp db repair --allow-root
+cd
+sleep 2
+clear
+echo "========================================================================="
+echo "Hoàn thành sửa lỗi database của $website"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+else 
+cd
+clear
+echo "========================================================================="
+echo "Huỷ bỏ !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+

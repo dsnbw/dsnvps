@@ -1,0 +1,30 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /home/$mainsite/private_html/backup/home/*.zip ]; then
+find /home/$mainsite/private_html/backup/$website/ -name '*.zip' -type f -exec basename {} \;  > /etc/dsnvps/linkbackup
+filename=`cat /etc/dsnvps/linkbackup`
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+clear
+echo "========================================================================="
+echo "Tìm thấy file backup của thư mục Home"
+echo "-------------------------------------------------------------------------"
+echo "Link download backup: "
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/home/$filename"
+/etc/dsnvps/menu/dsnvps-sao-luu
+rm -rf /etc/dsnvps/linkbackup
+else
+clear
+echo "========================================================================="
+echo "Bạn chưa tạo file backup code folder Home !"
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi

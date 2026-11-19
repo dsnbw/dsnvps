@@ -1,0 +1,158 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+website=`cat /etc/dsnvps/.tmp/subdomainwp.txt`
+tendatabase=`cat /home/$website/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+echo "========================================================================="
+echo "LỰA CHỌN PHƯƠNG THỨC CÀI ĐẶT WORDPRESS MULTISITE"
+echo "========================================================================="
+while true; do
+printf "%-35s  %s\n" " 1) Cài WordPress Multisite luôn"  "2) Sao lưu rồi cài"
+    echo "========================================================================="
+   read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    #read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+    case $choice in
+    1) luachoncaidat="caingay"; break;;
+    2) luachoncaidat="sauluuroicai"; break;;
+    0) luachoncaidat="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+    sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+continue;;
+    #*) echo "You typed wrong, Please type in the ordinal number on the list";continue;;
+    esac  
+done
+###################################
+#caingay
+###################################
+if [ "$luachoncaidat" = "caingay" ]; then
+
+echo "-------------------------------------------------------------------------"
+read -p "Bạn muốn cài WordPress Multisite ngay? (y/N:)" choice
+           	if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+           echo "-------------------------------------------------------------------------"; sleep 2
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"   
+sleep 2
+####################################################################
+##Check Ban Pro
+###################################################################
+###################################################################
+cd /home/$website/public_html
+wp core multisite-convert --subdomains --allow-root
+cd
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+############## Config Vhost Multisite##################
+if [ ! -d /home/$website/multisite.conf.d ]; then
+mkdir -p /home/$website/multisite.conf.d
+fi
+if [ "`grep "\/multisite.conf.d\/" /etc/nginx/conf.d/$website.conf`" == "" ]; then
+echo "include /home/$website/multisite.conf.d/*.conf;" >> /etc/nginx/conf.d/$website.conf
+fi
+############## Config Vhost Multisite##################
+clear
+if [ ! "$(grep "WP_ALLOW_MULTISITE" /home/$website/public_html/wp-config.php)" == "" ]; then
+echo "========================================================================="
+echo "Cài đặt WordPress Multisite cho $website thành công !"; sleep 2
+dsnvps
+else
+echo "========================================================================="
+echo "Cài đặt WordPress Multisite cho $website thất bại !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại !"
+dsnvps
+fi
+else
+clear
+echo "========================================================================="
+echo "Hủy bỏ."
+fi
+
+
+###################################
+#sao luu roi cai
+###################################
+elif [ "$luachoncaidat" = "sauluuroicai" ]; then
+tendatabase=`cat /home/$website/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+echo "`date '+%d%m'`" > /etc/dsnvps/.tmp/datetime
+tenmo=$(cat /etc/dsnvps/.tmp/datetime)
+if [ ! -d /home/$website/public_html/0-DSNVPS ]; then
+mkdir -p /home/$website/public_html/0-DSNVPS
+fi
+echo "-------------------------------------------------------------------------"
+read -p "Bạn muốn sao lưu rồi cài WordPress Multisite? (y/N:)" choice
+           	if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+           echo "-------------------------------------------------------------------------"; 
+echo "Vui lòng chờ ..."; sleep 2
+####################################################################
+##Check Ban Pro
+####################################################################
+###################################################################
+###################################################################
+echo "-------------------------------------------------------------------------"   
+sleep 2
+cd /home/$website/public_html
+#wp db export $tendatabase-$tenmo --allow-root
+randomwp=`date |md5sum |cut -c '1-16'`
+#mv -f /home/$website/public_html/$tendatabase-$tenmo /home/$website/public_html/0-DSNVPS/$tendatabase-$tenmo.Before-WP-Multisite_$randomwp
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+if [ -z "$enginecheck" ]; then
+mysqldump --force -u root -p$mariadbpass $tendatabase --single-transaction | gzip -6 > /home/$website/public_html/0-DSNVPS/$tendatabase-$tenmo.Before-WP-Multisite_$randomwp.sql.gz
+else
+mysqldump --force -u root -p$mariadbpass $tendatabase --lock-tables=false | gzip -6 > /home/$website/public_html/0-DSNVPS/$tendatabase-$tenmo.Before-WP-Multisite_$randomwp.sql.gz
+fi
+
+cp /home/$website/public_html/wp-config.php /home/$website/public_html/0-DSNVPS/wp-config.php-$tenmo.Before-WP-Multisite_$randomwp
+wp core multisite-convert --subdomains --allow-root
+cd
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+clear
+############## Config Vhost Multisite##################
+if [ ! -d /home/$website/multisite.conf.d ]; then
+mkdir -p /home/$website/multisite.conf.d
+fi
+if [ "`grep "\/multisite.conf.d\/" /etc/nginx/conf.d/$website.conf`" == "" ]; then
+echo "include /home/$website/multisite.conf.d/*.conf;" >> /etc/nginx/conf.d/$website.conf
+fi
+############## Config Vhost Multisite##################
+
+if [ ! "$(grep "WP_ALLOW_MULTISITE" /home/$website/public_html/wp-config.php)" == "" ]; then
+echo "========================================================================="
+echo "Cài đặt WordPress Multisite cho $website thành công!"
+else
+echo "========================================================================="
+echo "Cài đặt WordPress Multisite cho $website thất bại!"
+fi
+
+if [ -f /home/$website/public_html/0-DSNVPS/$tendatabase-$tenmo.Before-WP-Multisite_$randomwp.sql.gz ]; then
+echo "-------------------------------------------------------------------------"
+echo "Sao lưu Database & wp-config.php thành công"
+echo "-------------------------------------------------------------------------"
+echo "Link folder backup: http://$website/0-DSNVPS"
+else
+echo "-------------------------------------------------------------------------"
+echo "Sao lưu database thất bại!"
+fi
+sleep 2
+dsnvps
+else
+clear
+echo "========================================================================="
+echo "Hủy bỏ."
+fi
+else
+clear
+exit 0
+fi

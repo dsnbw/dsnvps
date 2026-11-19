@@ -1,0 +1,105 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/cron.d/dsnvps-auto-check-3-service.cron ]; then
+echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/emailcanhbao"
+echo "========================================================================="
+echo "Su dung chuc nang nay de TAT/BAT chuc nang auto giam sat 3 dich vu: MySQL"
+echo "-------------------------------------------------------------------------"
+echo ",Nginx, PHP-FPM cua DSNVPS. Sau khi BAT chuc nang nay, toi da 5 phut sau"
+echo "-------------------------------------------------------------------------"
+echo "khi mot trong cac dich vu MySQL, Nginx & PHP-FPM stop, DSNVPS se tu dong  "
+echo "-------------------------------------------------------------------------"
+echo "gui email canh bao toi email Quản Lý VPS."
+echo "-------------------------------------------------------------------------"
+echo "De eMail canh bao khong vao folder SPAM, Ban nen chon [Not SPAM] khi nhan "
+echo "-------------------------------------------------------------------------"
+echo "duoc email thong bao login SSH vao VPS. Sau khi gui canh bao lan dau tien"
+echo "-------------------------------------------------------------------------"
+echo ",neu loi chua duoc khac phuc thi 60 phut 1 lan, DSNVPS se gui email thong"
+echo "-------------------------------------------------------------------------"
+echo "bao cho toi khi VPS hoat dong binh thuong tro lai."
+echo "=========================================================================" 
+echo "Hien tai chuc nang [Auto Send eMail Service Status] dang TAT"
+echo "========================================================================="
+read -r -p "Ban muon BAT chuc nang nay ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+ echo "-------------------------------------------------------------------------" 
+    echo "Vui lòng chờ..."
+sleep 2
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+dsnvps
+fi
+
+###################################################################
+###################################################################
+echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps-auto-check-3-service.cron
+echo "*/5 * * * * root /etc/dsnvps/menu/dsnvps-auto-check-service-status-mysql >/dev/null 2>&1" >> /etc/cron.d/dsnvps-auto-check-3-service.cron
+echo "*/5 * * * * root /etc/dsnvps/menu/dsnvps-auto-check-service-status-nginx >/dev/null 2>&1" >> /etc/cron.d/dsnvps-auto-check-3-service.cron
+echo "*/5 * * * * root /etc/dsnvps/menu/dsnvps-auto-check-service-status-php-fpm >/dev/null 2>&1" >> /etc/cron.d/dsnvps-auto-check-3-service.cron
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true >/dev/null 2>&1
+    clear
+    echo "========================================================================="
+echo "BAT chuc nang [Auto Send eMail Service Status] thanh cong !"
+echo "-------------------------------------------------------------------------"
+echo "eMail nhan thong bao: $emailmanage"
+dsnvps
+else
+ clear
+    echo "========================================================================="
+   echo "Khong BAT chuc nang [Auto Send eMail Service Status] !"
+dsnvps
+fi
+
+else
+echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/emailcanhbao"
+echo "========================================================================="
+echo "Su dung chuc nang nay de TAT/BAT chuc nang auto giam sat 3 dich vu: MySQL"
+echo "-------------------------------------------------------------------------"
+echo ",Nginx, PHP-FPM cua DSNVPS. Sau khi BAT chuc nang nay, toi da 5 phut sau"
+echo "-------------------------------------------------------------------------"
+echo "khi mot trong cac dich vu MySQL, Nginx & PHP-FPM stop, DSNVPS se tu dong  "
+echo "-------------------------------------------------------------------------"
+echo "gui email canh bao toi email Quản Lý VPS."
+echo "-------------------------------------------------------------------------"
+echo "De eMail canh bao khong vao folder SPAM, Ban nen chon [Not SPAM] khi nhan "
+echo "-------------------------------------------------------------------------"
+echo "duoc email thong bao login SSH vao VPS. Sau khi gui canh bao lan dau tien"
+echo "-------------------------------------------------------------------------"
+echo ",neu loi chua duoc khac phuc thi cu 60 phut 1 lan, DSNVPS se gui email "
+echo "-------------------------------------------------------------------------"
+echo "thong bao cho toi khi VPS hoat dong binh thuong tro lai."
+echo "=========================================================================" 
+echo "Hien tai chuc nang [Auto Send eMail Service Status] đang BẬT"
+echo "========================================================================="
+read -r -p "Ban muon TAT chuc nang nay ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+ echo "-------------------------------------------------------------------------" 
+    echo "Vui lòng chờ..."
+sleep 2
+rm -rf /etc/cron.d/dsnvps-auto-check-3-service.cron
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true >/dev/null 2>&1
+ clear
+    echo "========================================================================="
+echo "TAT chuc nang [Auto Send eMail Service Status] thanh cong !"
+dsnvps
+else
+ clear
+    echo "========================================================================="
+   echo "Khong TAT chuc nang [Auto Send eMail Service Status] !"
+dsnvps
+fi
+fi

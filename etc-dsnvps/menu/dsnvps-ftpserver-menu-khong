@@ -1,0 +1,27 @@
+#!/bin/bash
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=("Tạo Tài Khoản FTP Cho Website" "Vô Hiệu Hóa Tài Khoản FTP" "Thay Mật Khẩu Tài Khoản FTP" "Cấu Hình Quota HDD & Max Files" "Xem Thông Tin FTP Của Website" "Cấu Hình FTP Server Over TLS" )
+/etc/dsnvps/menu/dsnvps-menu-all-function
+
+printf "=========================================================================\n"
+printf "                      Quản Lý Tài Khoản FTP Cho Website \n"
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/ftp"
+echo "========================================================================="
+echo ""
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) /etc/dsnvps/menu/dsnvps-tao-ftp-user-cho-domain;;
+    2) /etc/dsnvps/menu/dsnvps-xoa-ftp-user;;
+    3) /etc/dsnvps/menu/dsnvps-thay-mat-khau-user-ftp;;
+    4) /etc/dsnvps/menu/dsnvps-cai-dat-gioi-han-dung-luong-ftp-account;;
+    5) /etc/dsnvps/menu/dsnvps-view-userftp-password;;
+    6) /etc/dsnvps/menu/dsnvps-cai-dat-ftp-server;;
+0) clear; exit 0;;
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list."; 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done

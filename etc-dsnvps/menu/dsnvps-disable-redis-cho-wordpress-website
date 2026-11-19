@@ -1,0 +1,185 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/redis/redis.conf ]; then
+clear
+echo "========================================================================="
+echo "Vui lòng cài đặt Redis Cache trước khi sử dụng chức năng này."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+
+rm -rf /etc/dsnvps/.tmp/checkredis
+
+upredis=$(/bin/systemctl status redis-server.service | grep running | grep -v not | wc -l);
+
+if [ "$upredis" -lt 1 ]; then
+redis-cli ping 2> /etc/dsnvps/.tmp/checkredis
+else
+redis-cli ping > /etc/dsnvps/.tmp/checkredis
+fi
+
+redistt=`cat /etc/dsnvps/.tmp/checkredis`
+if [ -f /etc/dsnvps/.tmp/checkredis ] && [ ! "$redistt" = "PONG" ]; then
+clear
+echo "========================================================================="
+echo "Redis Cache đang bị disable."
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải ENABLE Redis Cache trước khi sử dụng chức năng này."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu ==> Redis Cache Manage ==> Enable Redis Cache "
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để TẮT Redis cho WordPress Website"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1106"
+echo "========================================================================="
+read -r -p "Bạn muốn xem Danh sách WordPress Website trên server? [y/N] " response
+
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "========================================================================="
+echo "Danh sách WordPress Website:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/wordpresslist | pr -2 -t 
+else
+ echo "-------------------------------------------------------------------------"
+echo "Không hiển thị Danh sách WordPress Website trên server."
+fi
+rm -rf /etc/dsnvps/.tmp/checksite-list 
+echo "========================================================================="
+echo -n "Nhập tên domain  [ENTER]: " 
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn vui lòng nhập website"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website không phải là tên miền hợp lệ"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$website/public_html ] && [ -f /etc/nginx/conf.d/www.$website.conf ]; then
+website=www.$website
+fi
+if [ $(echo "$website" | cut -c 1-4) == "www." ]; then
+website_redirect=$(echo "$website" | sed 's/....//')
+fi
+#################################################################
+
+if [ -f /etc/nginx/conf.d/$website_redirect.conf ]; then
+website=$website_redirect
+fi
+
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "$website không tồn tại trên hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+if [ ! -f /home/$website/public_html/wp-config.php ]; then
+clear
+echo "========================================================================="
+echo "$website không phải website WordPress hoặc chưa cài đặt!"
+echo "-------------------------------------------------------------------------"
+echo "Hãy cài đặt WordPress trước hoặc Nhập tên domain khác."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+if [  "$(grep "WP_CACHE_KEY_SALT" /home/$website/public_html/wp-config.php)" == "" ]; then
+clear
+echo "========================================================================="
+echo "$website không sử dụng Redis Cache"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trên hệ thống"
+echo "========================================================================= "
+read -r -p "Bạn muốn TẮT Redis Cache cho $website? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ vô hiệu hóa Redis Cache cho $website"
+echo "-------------------------------------------------------------------------"
+echo "Các Plugins sẽ được xóa: Nginx-Helper, Redis Object Cache"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ... !"
+sleep 5
+echo "-------------------------------------------------------------------------"
+if [ -d /home/$website/public_html/wp-content/plugins/redis-cache ]; then
+rm -rf /home/$website/public_html/wp-content/plugins/redis-cache
+fi
+if [ -d /home/$website/public_html/wp-content/plugins/nginx-helper ]; then
+rm -rf /home/$website/public_html/wp-content/plugins/nginx-helper
+fi
+sed -i '/WP_CACHE_KEY_SALT/d' /home/$website/public_html/wp-config.php
+sed -i '/WP_CACHE/d' /home/$website/public_html/wp-config.php
+rm -rf /home/$website/public_html/wp-content/object-cache.php
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+systemctl restart redis-server.service
+
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Huỷ bỏ!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        ;;
+esac
+clear
+echo "========================================================================="
+echo "Tắt Redis cache cho $website thành công"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+
+

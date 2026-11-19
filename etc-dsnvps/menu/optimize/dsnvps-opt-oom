@@ -1,0 +1,64 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+can_neg=1
+(printf -- '-1000' > /proc/self/oom_score_adj) 2>/dev/null || can_neg=0
+
+rules=(
+    "ssh:-1000:0"
+    "sshd:-1000:0"
+    "mariadb:-600:0"
+    "mysql:-600:0"
+    "nginx:-300:50"
+    "redis-server:-200:150"
+    "valkey-server:-200:150"
+    "memcached:-200:150"
+)
+
+declare -A seen=()
+need_reload=0
+
+for entry in "${rules[@]}"; do
+    svc="${entry%%:*}"; rest="${entry#*:}"; neg="${rest%%:*}"; pos="${rest##*:}"
+    score="$neg"; ((can_neg == 0)) && score="$pos"
+    real_unit=""; load_state=""; main_pid="0"; cg_path=""
+    while IFS='=' read -r k v; do
+        case "$k" in
+            Id) real_unit="$v" ;;
+            LoadState) load_state="$v" ;;
+            MainPID) main_pid="$v" ;;
+            ControlGroup) cg_path="$v" ;;
+        esac
+    done < <(systemctl show -p Id -p LoadState -p MainPID -p ControlGroup "${svc}.service" 2>/dev/null || true)
+
+    [[ "$load_state" == "loaded" && -n "$real_unit" ]] || continue
+    [[ -n "${seen[$real_unit]:-}" ]] && continue
+    seen["$real_unit"]=1
+
+    ddir="/etc/systemd/system/${real_unit}.d"
+    cfile="${ddir}/oom-protect.conf"
+    if [[ "$svc" == "ssh" || "$svc" == "sshd" ]]; then
+        content="[Service]
+ExecStartPost=-/bin/sh -c 'if [ -n \"\$MAINPID\" ] && [ -w \"/proc/\$MAINPID/oom_score_adj\" ]; then printf \"%s\" \"${score}\" > \"/proc/\$MAINPID/oom_score_adj\" 2>/dev/null || true; fi'"
+    else
+        content="[Service]
+OOMScoreAdjust=${score}"
+    fi
+
+    mkdir -p "$ddir"
+    if [[ ! -f "$cfile" ]] || [[ "$(<"$cfile")" != "$content" ]]; then
+        printf '%s\n' "$content" > "$cfile"
+        need_reload=1
+    fi
+
+    if [[ "$svc" == "ssh" || "$svc" == "sshd" ]]; then
+        [[ "$main_pid" =~ ^[0-9]+$ ]] && ((main_pid > 1)) && printf -- '%s' "$score" > "/proc/${main_pid}/oom_score_adj" 2>/dev/null || true
+    elif [[ -n "$cg_path" && -r "/sys/fs/cgroup${cg_path}/cgroup.procs" ]]; then
+        while IFS= read -r p; do
+            [[ "$p" =~ ^[0-9]+$ ]] && printf -- '%s' "$score" > "/proc/${p}/oom_score_adj" 2>/dev/null || true
+        done < "/sys/fs/cgroup${cg_path}/cgroup.procs"
+    fi
+done
+
+((need_reload == 1)) && systemctl daemon-reload >/dev/null 2>&1 || true
+echo -e "${C_GREEN}[OK] OOM Score Protection đã kích hoạt cho SSH/MariaDB/Nginx/Cache.${C_RESET}"

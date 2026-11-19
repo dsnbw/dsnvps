@@ -1,0 +1,71 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rans=`date |md5sum |cut -c '1-5'`
+  echo "========================================================================="
+  echo "Su dung chuc nang nay de xem commment status cho wordpress website"
+  echo "========================================================================="
+echo -n "Nhập tên website: " 
+read website
+
+if [ "$website" = "" ]; then
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website không phải là tên miền hợp lệ!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "$website không tồn tại trên hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+if [ ! -f /home/$website/public_html/wp-config.php ]; then
+clear
+echo "========================================================================="
+echo "$website không phải là wordpress blog hoặc chưa cài đặt wordpress!"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng cài đặt WordPress trước hoặc chọn domain khác"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+
+echo "========================================================================="
+echo "Tìm thấy $website trên hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "$website dang su dung wordpress code"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS dang chuan bi lay thong tin comments"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+clear
+echo "========================================================================="
+echo "Commment Status For $website"
+echo "-------------------------------------------------------------------------"
+cd /home/$website/public_html
+wp comment count --allow-root
+cd
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+
+

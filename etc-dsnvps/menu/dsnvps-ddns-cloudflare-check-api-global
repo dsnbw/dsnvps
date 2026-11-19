@@ -1,0 +1,139 @@
+#!/bin/bash
+# Function để kiểm tra và lấy API từ file chung SSL Cloudflare
+# Sử dụng: source dsnvps-ddns-cloudflare-check-api-global
+
+get_ssl_global_api_token() {
+    local global_ssl_api_file="/etc/dsnvps/ssl-cloudflare-api-global.conf"
+    
+    if [ -f "$global_ssl_api_file" ]; then
+        source "$global_ssl_api_file"
+        if [ -n "$global_ssl_api_token" ]; then
+            echo "$global_ssl_api_token"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+get_ssl_global_api_email() {
+    local global_ssl_api_file="/etc/dsnvps/ssl-cloudflare-api-global.conf"
+    
+    if [ -f "$global_ssl_api_file" ]; then
+        source "$global_ssl_api_file"
+        if [ -n "$global_ssl_api_email" ]; then
+            echo "$global_ssl_api_email"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# Function để kiểm tra API token có hợp lệ không (hỗ trợ cả Global API Key và API Token)
+validate_ssl_api_token() {
+    local email="$1"
+    local api_key="$2"
+    
+    if [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    if [ -n "$email" ]; then
+        # Global API Key
+        local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json")
+    else
+        # API Token
+        local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json")
+    fi
+    
+    if echo "$response" | grep -q '"success":true'; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function để lấy zone ID cho domain (hỗ trợ cả Global API Key và API Token)
+get_zone_id() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    if [ -z "$domain" ] || [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    # Cài đặt jq nếu chưa có
+    if ! command -v jq &> /dev/null; then
+        if command -v yum &> /dev/null; then
+            apt-get install -y -qq jq >/dev/null 2>&1
+        elif command -v dnf &> /dev/null; then
+            apt-get install -y -qq jq >/dev/null 2>&1
+        elif command -v apt-get &> /dev/null; then
+            apt-get update >/dev/null 2>&1 && apt-get install -y jq >/dev/null 2>&1
+        fi
+    fi
+    
+    local response
+    if [ -n "$email" ]; then
+        # Global API Key
+        response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=${domain}" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json")
+    else
+        # API Token
+        response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=${domain}" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json")
+    fi
+    
+    local zone_id
+    if command -v jq &> /dev/null; then
+        zone_id=$(echo "$response" | jq -r '.result[0].id // empty' 2>/dev/null)
+    else
+        zone_id=$(echo "$response" | grep -oP '"id":"\K[^"]+' | head -n 1)
+    fi
+    
+    if [ -n "$zone_id" ] && [ "$zone_id" != "null" ]; then
+        echo "$zone_id"
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Function để kiểm tra domain có tồn tại trong Cloudflare không
+check_domain_exists() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    if [ -z "$domain" ] || [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    local zone_id=$(get_zone_id "$domain" "$email" "$api_key")
+    
+    if [ -n "$zone_id" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+# Backward compatibility functions
+get_global_api_token() {
+    get_ssl_global_api_token
+}
+
+validate_api_token() {
+    local token="$1"
+    validate_ssl_api_token "" "$token"
+}

@@ -1,0 +1,184 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+randomcode=-`date |md5sum |cut -c '1-18'`
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/websitelist
+cd
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+sositewp=$(cat /etc/dsnvps/.tmp/wordpresslist | wc -l)
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+echo "========================================================================="
+echo "Hiện tại có $sositewp website đang sử dụng code wordpress trên hệ thống" 
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ check và update tất cả website có thể update."
+echo "========================================================================="
+sleep 2
+file="/etc/dsnvps/.tmp/wordpresslist"
+
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+rm -rf /home/$mainsite/private_html/Listbackupwpdata*
+
+echo "=========================================================================" > /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+echo "List Backup Files - Created by DSNVPS " >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+echo "=========================================================================" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+echo "" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+echo "" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+echo "" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+
+mkdir -p /etc/dsnvps/.tmp/sowebsitecanupdatehostingaz
+mkdir -p /etc/dsnvps/.tmp/updatethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/updatethatbaihostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluudatathatbaihostingaz
+while read -r wpwebsite
+    do
+if [ -f /home/$wpwebsite/public_html/wp-config.php ]; then
+wpwebsite_upper=$(echo "$wpwebsite" | tr 'a-z' 'A-Z')
+  echo "========================================================================="
+  echo "UPDATE: $wpwebsite_upper"
+    echo "========================================================================="; sleep 4
+chown -R nginx:nginx /home/$wpwebsite/public_html
+cd /home/$wpwebsite/public_html
+date |md5sum |cut -c '1-10' > /etc/dsnvps/.tmp/abcd
+random=$(cat /etc/dsnvps/.tmp/abcd)
+tendatabase=`cat /home/$wpwebsite/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+echo "`date '+%d%m'`" > /etc/dsnvps/.tmp/datetime
+tenmo=$(cat /etc/dsnvps/.tmp/datetime)
+cd /home/$wpwebsite/public_html/
+rm -rf /etc/dsnvps/.tmp/abcdxaaxc
+wp core check-update --allow-root > /etc/dsnvps/.tmp/abcdxaaxc
+dsnvpscheckversion=$(wp core check-update --allow-root | tail -n1 | awk 'NR==1 {print $1}')
+if grep -q "latest" /etc/dsnvps/.tmp/abcdxaaxc; then
+echo "Update $wpwebsite Status:"; sleep 3
+echo "Website $wpwebsite đang chạy phiên bản wordpress mới nhất "; sleep 3
+  echo "========================================================================="
+fi
+
+if [ ! -s /etc/dsnvps/.tmp/abcdxaaxc ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể kết nối tới database của $wpwebsite"; sleep 5
+echo "-------------------------------------------------------------------------"
+echo "Chức năng này không thể thực hiện được."; sleep 5
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy kiểm tra lại $wpwebsite."; sleep 5
+  echo "abc" > /etc/dsnvps/.tmp/updatethatbaihostingaz/$wpwebsite
+fi
+if [ -s /etc/dsnvps/.tmp/abcdxaaxc ] && ! grep -q "latest" /etc/dsnvps/.tmp/abcdxaaxc; then
+ rm -rf /etc/dsnvps/.tmp/abcdxaaxc
+      if [ ! -d /home/$wpwebsite/public_html/0-DSNVPS ]; then
+mkdir -p /home/$wpwebsite/public_html/0-DSNVPS
+      fi
+ echo "Update $wpwebsite Status:"
+echo "DSNVPS sẽ update $wpwebsite từ $(wp core version --allow-root) lên $dsnvpscheckversion"
+echo "-------------------------------------------------------------------------"
+check1=$(date +"%H%m%s")
+touch /etc/dsnvps/.tmp/sowebsitecanupdatehostingaz/$check1
+
+wp db export --allow-root /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql
+tar -vczf /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql
+rm -rf /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql
+
+
+#enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+#if [ -z "$enginecheck" ]; then
+#mysqldump -u root -p$mariadbpass $tendatabase --single-transaction | gzip -6 > /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz
+#else
+#mysqldump -u root -p$mariadbpass $tendatabase --lock-tables=false | gzip -6 > /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz
+#fi
+
+wp core update --allow-root > /etc/dsnvps/.tmp/abc.txt
+wp core update-db --allow-root > /etc/dsnvps/.tmp/abc.txt
+chown -R nginx:nginx /home/$wpwebsite/public_html
+cd /home/$wpwebsite/public_html
+dsnvpscheckversion2=$(wp core check-update --allow-root | tail -n1 | awk 'NR==1 {print $1}')
+rm -rf /etc/dsnvps/.tmp/abcdxaaxcb
+wp core check-update --allow-root > /etc/dsnvps/.tmp/abcdxaaxcb
+		if grep -q "latest" /etc/dsnvps/.tmp/abcdxaaxcb; then 
+rm -rf /etc/dsnvps/.tmp/abcdxaaxcb
+     echo "Update Wordpress code cho $wpwebsite thành công"
+     echo "-------------------------------------------------------------------------"
+check2=$(date +"%H%m%s")
+touch /etc/dsnvps/.tmp/updatethanhconghostingaz/$check2  
+			if [ -f /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz ]; then
+			echo "Backup database $tendatabase thành công. Link Backup:"
+			echo "-------------------------------------------------------------------------"
+			echo "http://$wpwebsite/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz"
+			echo ""  >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+			echo "=========================================================================" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+			echo "Backup Database: $tendatabase cua website $wpwebsite" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+			echo "-------------------------------------------------------------------------" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+			echo "http://$wpwebsite/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+			echo "=========================================================================" >> /home/$mainsite/private_html/Listbackupwpdata$randomcode.txt
+			check3=$(date +"%H%m%s")
+			touch /etc/dsnvps/.tmp/saoluudatabasethanhcong/$check3
+			echo "========================================================================="
+			else
+			echo "Backup database thất bại"
+			echo "========================================================================="
+			fi   
+     else
+echo "Update wordpress code thất bại"
+  echo "-------------------------------------------------------------------------"
+  echo "abc" > /etc/dsnvps/.tmp/updatethatbaihostingaz/$wpwebsite
+  rm -rf /home/$wpwebsite/public_html/0-DSNVPS/$tendatabase-$random-$tenmo.sql.gz
+     fi
+cd
+fi
+fi
+done < "$file"
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+if [ "$(ls -1 /etc/dsnvps/.tmp/sowebsitecanupdatehostingaz | wc -l)" -eq 0 ] && [ "$(ls -1 /etc/dsnvps/.tmp/updatethatbaihostingaz | wc -l)" -eq 0 ] ; then
+#clear
+echo "========================================================================="
+echo "Có $sositewp wordpress website trong hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "Tất cả các website này đều sử dụng wordpress phiên bản mới nhất"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+else
+     /etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+echo "========================================================================="
+echo "Có $sositewp wordpress website trong hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "Website cần cập nhật: $(ls -1 /etc/dsnvps/.tmp/sowebsitecanupdatehostingaz | wc -l) | Website cập nhật thành công: $(ls -1 /etc/dsnvps/.tmp/updatethanhconghostingaz | wc -l)"
+echo "========================================================================="
+if [ "$(ls -A /etc/dsnvps/.tmp/updatethatbaihostingaz)" ]; then
+    echo "Website cập nhật thất bại: "
+    echo "-------------------------------------------------------------------------"
+    ls /etc/dsnvps/.tmp/updatethatbaihostingaz
+    echo "========================================================================="
+fi
+echo "Database sao lưu thành công: $(ls -1 /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz | wc -l)"
+if [ ! "$(ls -1 /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz | wc -l)" == "0" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Danh sách file sao lưu database: "
+    echo "-------------------------------------------------------------------------"
+    echo "http://$serverip_priport/Listbackupwpdata$randomcode.txt "
+fi
+
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi

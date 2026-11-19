@@ -1,0 +1,641 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+####################################################
+
+################################################
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+if [ "$(cat /etc/dsnvps/.tmp/checkallwebsites | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+clear
+echo "========================================================================="
+echo "Vui lòng thêm website mới vào server trước !"
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+#rm -rf /etc/dsnvps/.tmp/checkallwebsites
+random=`date |md5sum |cut -c '1-4'`
+
+
+
+
+echo "========================================================================="
+echo "DSNVPS sẽ phục hồi full code + database cho Website từ file backup được"
+echo "-------------------------------------------------------------------------"
+echo "tạo bởi chức năng: [ Sao lưu Full Web + Database ]"
+echo "-------------------------------------------------------------------------"
+echo "Khi phục hồi website, DSNVPS sẽ tự động tạo database nếu cần thiết."
+echo "========================================================================="
+########################################################
+vhost_dir="/etc/nginx/conf.d"
+home_dir="/home"
+output_file="/etc/dsnvps/.tmp/checkallwebsites"
+
+> "$output_file"
+
+for vhost_file in "$vhost_dir"/*.conf; do
+    domainc=$(basename "$vhost_file" .conf)
+
+    # Bỏ qua domain dsnvps.demo
+    if [[ "$domainc" == "dsnvps.demo" ]]; then
+        continue
+    fi
+
+    # Kiểm tra nếu thư mục /home/domain tồn tại
+    if [[ -d "$home_dir/$domainc" ]]; then
+        echo "$domainc" >> "$output_file"
+    fi
+done
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkallwebsites
+################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+
+if [ ! -f /home/$website/full_backup.zip ]; then
+echo "========================================================================="
+echo "Bạn phải upload hoặc wget file full_backup.zip vào thư mục:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$website/"
+echo "-------------------------------------------------------------------------"
+echo "Sau khi hoàn thành upload (wget), hãy nhấn [Enter] để tiếp tục."
+echo "-------------------------------------------------------------------------"
+echo "Lưu ý: Backup phải tạo bởi chức năng [ Sao lưu Full Website + Database ]"
+echo "-------------------------------------------------------------------------"
+echo "Nếu không, DSNVPS sẽ không chạy chức năng này."
+echo "========================================================================="
+read -p "Nhấn [Enter] để tiếp tục. Nhấn [ Ctrl + C ] để Huỷ bỏ."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang tìm kiếm file backup .... "
+sleep 4
+fi
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+
+###################################################################
+###################################################################
+
+if [ ! -f /home/$website/full_backup.zip ]; then
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy file full_backup.zip"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng upload lên VPS rồi chạy lại chức năng này."; sleep 2
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy file full_backup.zip"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ tiến hành kiểm tra file trước khi tiến hành phục hồi."
+
+sleep 3
+echo "-------------------------------------------------------------------------"
+rm -rf /usr/local/phuchoiwebsite
+mkdir /usr/local/phuchoiwebsite
+unzip -o /home/$website/full_backup.zip -d /usr/local/phuchoiwebsite
+
+if [ ! -f /usr/local/phuchoiwebsite/DSNVPS-DATABASE.sql.gz ]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "File full_backup.zip bạn upload (wget) có vấn đề."
+echo "-------------------------------------------------------------------------"
+echo "Hãy upload backup tạo bởi chức năng [ Sao lưu Full Website + Database ]."; sleep 2
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+
+if [ ! -f /usr/local/phuchoiwebsite/dataname.txt ]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "File full_backup.zip bạn upload (wget) có vấn đề."
+echo "-------------------------------------------------------------------------"
+echo "Hãy upload backup tạo bởi chức năng [ Sao lưu Full Website + Database ]."; sleep 2
+
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+
+if [ ! -f /usr/local/phuchoiwebsite/public_html/dsnvps.fullbackup.check ]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "File full_backup.zip bạn upload có vấn đề."
+echo "-------------------------------------------------------------------------"
+echo "Hãy upload backup tạo bởi chức năng [ Sao lưu Full Website + Database ]."; sleep 2
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+
+if [ "`cat /usr/local/phuchoiwebsite/public_html/dsnvps.fullbackup.check`" != "$website" ]; then
+clear
+echo "========================================================================="
+echo "Đây không phải là file backup của $website"
+echo "-------------------------------------------------------------------------"
+echo "File backup của website: `cat /usr/local/phuchoiwebsite/public_html/dsnvps.fullbackup.check` "
+echo "========================================================================="
+prompt="Nhập lựa chọn của bạn: "
+options=( "Sử dụng file backup này để phục hồi $website" "Huỷ bỏ (Thoát)")
+echo "LỰA CHỌN DSNVPS SẼ SỬ DỤNG FILE BACKUP NÀY ĐỂ PHỤC HỒI HAY KHÔNG"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachon="tieptuc"; break;;
+    2) luachon="huybothoat"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo danh sách";continue;;
+    esac  
+done
+
+if [ "$luachon" = "huybothoat" ]; then
+clear
+echo "========================================================================="
+echo "Huỷ bỏ."
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+else 
+thaythedomain=1
+domainthay=`cat /usr/local/phuchoiwebsite/public_html/dsnvps.fullbackup.check`
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ phục hồi $website từ file backup hiện tại."
+echo "-------------------------------------------------------------------------"
+echo "Để website không redirect sang `cat /usr/local/phuchoiwebsite/public_html/dsnvps.fullbackup.check`"
+echo "-------------------------------------------------------------------------"
+echo "Phục hồi xong, phải edit option hoặc setting của website bằng PhpMyAdmin"
+echo "-------------------------------------------------------------------------"
+read -p "Nhấn [Enter] để tiếp tục. Nhấn [ Ctrl + C ] để Huỷ bỏ."
+fi
+fi
+
+databasename=`cat /usr/local/phuchoiwebsite/dataname.txt`
+
+if [ -f /var/lib/mysql/$databasename/db.opt ]; then
+datanamebackup=$databasename
+clear
+echo "========================================================================="
+echo "Trong file backup, database của website là:"
+echo "-------------------------------------------------------------------------"
+echo "$databasename"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại, database $databasename đã tồn tại trên server."
+echo "========================================================================="
+prompt="Nhập lựa chọn của bạn: "
+options=( "Phục hồi website sử dụng database $databasename" "Tạo database mới và phục hồi website với database mới" "Huỷ bỏ (Thoát)")
+echo "LỰA CHỌN PHỤC HỒI DATABASE"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachonphuchoidatabase="dungdatabasecu"; break;;
+    2) luachonphuchoidatabase="taodatabasekhac"; break;;
+    3) luachonphuchoidatabase="thoat"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo danh sách";continue;;
+    esac  
+done
+
+if [ "$luachonphuchoidatabase" = "dungdatabasecu" ]; then
+echo "========================================================================="
+echo "Dữ liệu database hiện tại sẽ được thay thế bằng dữ liệu file backup. Nếu"
+echo "-------------------------------------------------------------------------"
+echo "database có dữ liệu, bạn nên backup database trước khi phục hồi website."
+echo "========================================================================="
+read -n1 -r -p "Nhấn [ Enter ] để tiếp tục. Nhấn phím bất kỳ khác để Huỷ bỏ." key
+
+if [[ ! $key = "" ]]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "Huỷ bỏ"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+randomwp=`date |md5sum |cut -c '1-5'`
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+if [ -z "$enginecheck" ]; then
+mysqldump --force -u root -p$mariadbpass $datanamebackup --single-transaction | gzip -6 > /home/$website/$datanamebackup.$randomwp.sql.gz
+else
+mysqldump --force -u root -p$mariadbpass $datanamebackup --lock-tables=false | gzip -6 > /home/$website/$datanamebackup.$randomwp.sql.gz
+fi
+
+if [ -f /home/$website/$datanamebackup.$randomwp.sql.gz ] && [ "`du -k /home/$website/$datanamebackup.$randomwp.sql.gz | awk 'NR==1 {print $1}' | sed 's/[^0-9]*//g'`" -gt "6" ]; then
+backupstatus=ok
+else
+rm -rf /home/$website/$datanamebackup.$randomwp.sql.gz
+fi
+databasename=`cat /usr/local/phuchoiwebsite/dataname.txt`
+
+###Check database
+if [ -f /root/DBinfo.txt ]; then
+rm -rf /etc/dsnvps/.tmp/creckdb.txt
+rm -rf /etc/dsnvps/.tmp/datanamecheckx
+grep "Data name: ${databasename}" /root/DBinfo.txt > /etc/dsnvps/.tmp/creckdb.txt
+if [ -f /etc/dsnvps/.tmp/creckdb.txt ]; then
+checknumber=$(cat /etc/dsnvps/.tmp/creckdb.txt | wc -l)
+
+if [ "$checknumber" == "2" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${databasename}/{/Data name:\ ${databasename}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+
+if [ "$checknumber" == "3" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${databasename}/{/Data name:\ ${databasename}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+if [ "$checknumber" == "4" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${databasename}/{/Data name:\ ${databasename}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+if [ "$checknumber" == "5" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${databasename}/{/Data name:\ ${databasename}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+if [ "$checknumber" == "6" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${databasename}/{/Data name:\ ${databasename}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+ cat > "/etc/dsnvps/.tmp/datanamecheck1" <<END
+awk '/Data name: ${databasename}/ {for(i=1; i<=2; i++) {getline; print}}' /root/DBinfo.txt | awk 'NR==1 {print $2}' > /etc/dsnvps/.tmp/datanamecheck
+awk '/Data name: ${databasename}/ {for(i=1; i<=2; i++) {getline; print}}' /root/DBinfo.txt | awk 'NR==2 {print $2}' >> /etc/dsnvps/.tmp/datanamecheck
+END
+sh /etc/dsnvps/.tmp/datanamecheck1
+databaseuser=`cat /etc/dsnvps/.tmp/datanamecheck | awk 'NR==1 {print $2}'`
+databasepass=`cat /etc/dsnvps/.tmp/datanamecheck | awk 'NR==2 {print $2}'`
+mroanh=deptrai
+fi
+fi
+rm -rf /etc/dsnvps/.tmp/creckdb.txt
+rm -rf /etc/dsnvps/.tmp/datanamecheckx
+#Het check database
+
+
+elif [ "$luachonphuchoidatabase" = "thoat" ]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "Huỷ bỏ."; sleep 2
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+else
+clear
+echo "-------------------------------------------------------------------------"
+echo "Tạo database mới ..."; sleep 2
+echo "$website" > /etc/dsnvps/.tmp/databasename.txt
+sed -i 's/\./_/g' /etc/dsnvps/.tmp/databasename.txt
+sed -i 's/\-/_/g' /etc/dsnvps/.tmp/databasename.txt
+databasename2=`cat /etc/dsnvps/.tmp/databasename.txt | cut -c1-11`_$random
+databaseuser2=`cat /etc/dsnvps/.tmp/databasename.txt | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | cut -c1-10`$random
+databasepass2=`date |md5sum |cut -c '14-29'`
+rm -rf /etc/dsnvps/.tmp/databasename.txt
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE $databasename2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+END
+
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE USER '$databaseuser2'@'localhost' IDENTIFIED BY '$databasepass2';
+END
+
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+GRANT ALL PRIVILEGES ON $databasename2 . * TO '$databaseuser2'@'localhost';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+FLUSH PRIVILEGES;
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+	
+if [ ! -f /var/lib/mysql/$databasename2/db.opt ]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "DSNVPS không thể tạo database mới cho $website."
+echo "-------------------------------------------------------------------------"
+echo "Quá trình phục hồi thất bại."; sleep 2
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+mroanh2=quadeptrai
+echo "-------------------------------------------------------------------------"
+echo "Thông tin database mới:"
+echo "-------------------------------------------------------------------------"
+echo "Tên database: $databasename2"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Username: $databaseuser2"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "password: $databasepass2"; sleep 2
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Database: $databasename2 - Duoc tao vao: $(date +%d/%m/%Y)" >> /root/DBinfo.txt
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Tên database: $databasename2" >> /root/DBinfo.txt
+echo "Username: $databaseuser2" >> /root/DBinfo.txt
+echo "password: $databasepass2" >> /root/DBinfo.txt
+echo "" >> /root/DBinfo.txt
+fi
+fi
+
+
+if [ ! -f /var/lib/mysql/$databasename/db.opt ]; then
+clear
+echo "-------------------------------------------------------------------------"
+echo "Tạo database mới ..."; sleep 2
+echo "$website" > /etc/dsnvps/.tmp/databasename.txt
+sed -i 's/\./_/g' /etc/dsnvps/.tmp/databasename.txt
+sed -i 's/\-/_/g' /etc/dsnvps/.tmp/databasename.txt
+databasename2=`cat /etc/dsnvps/.tmp/databasename.txt | cut -c1-11`_$random
+databaseuser2=`cat /etc/dsnvps/.tmp/databasename.txt | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | cut -c1-10`$random
+databasepass2=`date |md5sum |cut -c '14-29'`
+rm -rf /etc/dsnvps/.tmp/databasename.txt
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE $databasename2 CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+END
+
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE USER '$databaseuser2'@'localhost' IDENTIFIED BY '$databasepass2';
+END
+
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+GRANT ALL PRIVILEGES ON $databasename2 . * TO '$databaseuser2'@'localhost';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+FLUSH PRIVILEGES;
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+	
+if [ ! -f /var/lib/mysql/$databasename2/db.opt ]; then
+rm -rf /usr/local/phuchoiwebsite
+clear
+echo "========================================================================="
+echo "DSNVPS không thể tạo database mới cho $website."
+echo "-------------------------------------------------------------------------"
+echo "Quá trình phục hồi thất bại."
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+mroanh2=quadeptrai
+echo "-------------------------------------------------------------------------"
+echo "Thông tin database mới:"
+echo "-------------------------------------------------------------------------"
+echo "Tên database: $databasename2"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Username: $databaseuser2"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "password: $databasepass2"; sleep 2
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Database: $databasename2 - Duoc tao vao: $(date +%d/%m/%Y)" >> /root/DBinfo.txt
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Tên database: $databasename2" >> /root/DBinfo.txt
+echo "Username: $databaseuser2" >> /root/DBinfo.txt
+echo "password: $databasepass2" >> /root/DBinfo.txt
+echo "" >> /root/DBinfo.txt
+fi
+
+
+clear
+echo "-------------------------------------------------------------------------"
+echo "Bắt đầu quá trình phục hồi Website + Database."
+sleep 2
+echo "-------------------------------------------------------------------------"
+if [ "$mroanh2" == "quadeptrai" ]; then
+databasename=$databasename2
+databaseuser=$databaseuser2
+databasepass=$databasepass2
+fi
+if [ -f /usr/local/phuchoiwebsite/full_backup.zip ]; then
+random=`date |md5sum |cut -c '1-4'`
+mv /usr/local/phuchoiwebsite/full_backup.zip /usr/local/phuchoiwebsite/full_backup.zip.$random
+fi
+
+check_and_replace_database () {
+#Wordpress
+if [ -d /usr/local/phuchoiwebsite/public_html/wp-admin ] && [ -f /usr/local/phuchoiwebsite/public_html/wp-config.php ]; then
+autocheckddb=1
+rm -rf /etc/dsnvps/.tmp/OLD*
+cat /usr/local/phuchoiwebsite/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4 > /etc/dsnvps/.tmp/OLD1
+cat /usr/local/phuchoiwebsite/public_html/wp-config.php | grep DB_USER | cut -d \' -f 4 > /etc/dsnvps/.tmp/OLD2
+cat /usr/local/phuchoiwebsite/public_html/wp-config.php | grep DB_PASSWORD | cut -d \' -f 4 > /etc/dsnvps/.tmp/OLD3
+databasenameOLD=`cat /etc/dsnvps/.tmp/OLD1`
+databaseuserOLD=`cat /etc/dsnvps/.tmp/OLD2`
+databasepassOLD=`cat /etc/dsnvps/.tmp/OLD3`
+sed -ri "s|${databasenameOLD}|${databasename}|" /usr/local/phuchoiwebsite/public_html/wp-config.php
+sed -ri "s|${databaseuserOLD}|${databaseuser}|" /usr/local/phuchoiwebsite/public_html/wp-config.php
+sed -ri "s|${databasepassOLD}|${databasepass}|" /usr/local/phuchoiwebsite/public_html/wp-config.php
+if [ "$thaythedomain" == "1" ]; then
+sed -ri "s|${domainthay}|${website}|" /usr/local/phuchoiwebsite/public_html/wp-config.php
+fi
+fi
+
+#PHPBB
+if [ -d /usr/local/phuchoiwebsite/public_html/phpbb ] && [ -f /usr/local/phuchoiwebsite/public_html/config.php ]; then
+autocheckddb=1
+rm -rf /etc/dsnvps/.tmp/OLD*
+cat /usr/local/phuchoiwebsite/public_html/config.php | grep \$dbname | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD1
+cat /usr/local/phuchoiwebsite/public_html/config.php | grep \$dbuser | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD2
+cat /usr/local/phuchoiwebsite/public_html/config.php | grep \$dbpasswd | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD3
+databasenameOLD=`cat /etc/dsnvps/.tmp/OLD1`
+databaseuserOLD=`cat /etc/dsnvps/.tmp/OLD2`
+databasepassOLD=`cat /etc/dsnvps/.tmp/OLD3`
+sed -ri "s|${databasenameOLD}|${databasename}|" /usr/local/phuchoiwebsite/public_html/config.php
+sed -ri "s|${databaseuserOLD}|${databaseuser}|" /usr/local/phuchoiwebsite/public_html/config.php
+sed -ri "s|${databasepassOLD}|${databasepass}|" /usr/local/phuchoiwebsite/public_html/config.php
+if [ "$thaythedomain" = "1" ]; then
+sed -ri "s|${domainthay}|${website}|" /usr/local/phuchoiwebsite/public_html/config.php
+fi
+fi
+
+#Joomla
+if [ -d /usr/local/phuchoiwebsite/public_html/administrator ] && [ -f /usr/local/phuchoiwebsite/public_html/configuration.php ]; then
+autocheckddb=1
+rm -rf /etc/dsnvps/.tmp/OLD*
+cat /usr/local/phuchoiwebsite/public_html/configuration.php | grep "public\ \$db\ =" | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD1
+cat /usr/local/phuchoiwebsite/public_html/configuration.php | grep "public\ \$user\ =" | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD2
+cat /usr/local/phuchoiwebsite/public_html/configuration.php | grep "public\ \$password\ =" | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD3
+databasenameOLD=`cat /etc/dsnvps/.tmp/OLD1`
+databaseuserOLD=`cat /etc/dsnvps/.tmp/OLD2`
+databasepassOLD=`cat /etc/dsnvps/.tmp/OLD3`
+sed -ri "s|${databasenameOLD}|${databasename}|" /usr/local/phuchoiwebsite/public_html/configuration.php
+sed -ri "s|${databaseuserOLD}|${databaseuser}|" /usr/local/phuchoiwebsite/public_html/configuration.php
+sed -ri "s|${databasepassOLD}|${databasepass}|" /usr/local/phuchoiwebsite/public_html/configuration.php
+if [ "$thaythedomain" = "1" ]; then
+sed -ri "s|${domainthay}|${website}|" /usr/local/phuchoiwebsite/public_html/configuration.php
+fi
+fi
+
+#SMF Forum
+if [ -f /usr/local/phuchoiwebsite/public_html/Settings.php ] && [ -f /usr/local/phuchoiwebsite/public_html/Sources/Themes.php ]; then
+autocheckddb=1
+rm -rf /etc/dsnvps/.tmp/OLD*
+cat /usr/local/phuchoiwebsite/public_html/Settings.php | grep \$db_name | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD1
+cat /usr/local/phuchoiwebsite/public_html/Settings.php | grep \$db_user | cut -d \' -f 2 /etc/dsnvps/.tmp/OLD2
+cat /usr/local/phuchoiwebsite/public_html/Settings.php | grep \$db_passwd | cut -d \' -f 2 > /etc/dsnvps/.tmp/OLD3
+databasenameOLD=`cat /etc/dsnvps/.tmp/OLD1`
+databaseuserOLD=`cat /etc/dsnvps/.tmp/OLD2`
+databasepassOLD=`cat /etc/dsnvps/.tmp/OLD3`
+sed -ri "s|${databasenameOLD}|${databasename}|" /usr/local/phuchoiwebsite/public_html/Settings.php
+sed -ri "s|${databaseuserOLD}|${databaseuser}|" /usr/local/phuchoiwebsite/public_html/Settings.php
+sed -ri "s|${databasepassOLD}|${databasepass}|" /usr/local/phuchoiwebsite/public_html/Settings.php
+if [ "$thaythedomain" = "1" ]; then
+sed -ri "s|${domainthay}|${website}|" /usr/local/phuchoiwebsite/public_html/Settings.php
+fi
+fi
+
+#MyBB
+if [ -f /usr/local/phuchoiwebsite/public_html/inc/config.php ] && [ -f /usr/local/phuchoiwebsite/public_html/inc/mybb_group.php ]; then
+autocheckddb=1
+rm -rf /etc/dsnvps/.tmp/OLD*
+cat /usr/local/phuchoiwebsite/public_html/inc/config.php | grep "\['database'\]\['database'\]" | cut -d \' -f 6 > /etc/dsnvps/.tmp/OLD1
+cat /usr/local/phuchoiwebsite/public_html/inc/config.php | grep "\['database'\]\['username'\]" | cut -d \' -f 6 > /etc/dsnvps/.tmp/OLD2
+cat /usr/local/phuchoiwebsite/public_html/inc/config.php | grep "\['database'\]\['password'\]" | cut -d \' -f 6 > /etc/dsnvps/.tmp/OLD3
+databasenameOLD=`cat /etc/dsnvps/.tmp/OLD1`
+databaseuserOLD=`cat /etc/dsnvps/.tmp/OLD2`
+databasepassOLD=`cat /etc/dsnvps/.tmp/OLD3`
+sed -ri "s|${databasenameOLD}|${databasename}|" /usr/local/phuchoiwebsite/public_html/inc/config.php
+sed -ri "s|${databaseuserOLD}|${databaseuser}|" /usr/local/phuchoiwebsite/public_html/inc/config.php
+sed -ri "s|${databasepassOLD}|${databasepass}|" /usr/local/phuchoiwebsite/public_html/inc/config.php
+if [ "$thaythedomain" = "1" ]; then
+sed -ri "s|${domainthay}|${website}|" /usr/local/phuchoiwebsite/public_html/inc/config.php
+fi
+fi
+}
+
+check_and_replace_database
+yes | cp -rf /usr/local/phuchoiwebsite/public_html/*.* /home/$website/public_html
+yes | cp -rf /usr/local/phuchoiwebsite/public_html/* /home/$website/public_html
+
+gunzip < /usr/local/phuchoiwebsite/DSNVPS-DATABASE.sql.gz  | mysql -u root -p$mariadbpass -f $databasename
+
+rm -rf /home/$website/public_html/dsnvps.fullbackup.check
+rm -rf /usr/local/phuchoiwebsite
+chown -R nginx:nginx /home/$website/public_html
+mv /home/$website/full_backup.zip   /home/$website/full_backup.zip.$random
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+####### Restart PHP-FPM ###############
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+clear
+echo "========================================================================="
+echo "Phục hồi $website thành công."
+echo "-------------------------------------------------------------------------"
+echo "Thông tin database:"
+echo "-------------------------------------------------------------------------"
+echo "Tên Database: $databasename"
+if [ "$luachonphuchoidatabase" == "dungdatabasecu" ] && [ "$mroanh" != "deptrai" ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể check ra thông tin user và pass cho database này"
+else
+echo "-------------------------------------------------------------------------"
+echo "User: $databaseuser | Password: $databasepass "
+fi
+if [ "$autocheckddb" != "1" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải config $website sử dụng $databasename"
+echo "-------------------------------------------------------------------------"
+echo "Sau đó clear Zend Opcache để hoàn thành phục hồi."
+fi
+if [ "$backupstatus" == "ok" ]; then
+echo "========================================================================="
+echo "DSNVPS backup $datanamebackup trước khi phục hồi"
+echo "-------------------------------------------------------------------------"
+echo "File backup:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$website/$datanamebackup.$randomwp.sql.gz"; sleep 2
+fi
+/etc/dsnvps/menu/dsnvps-sao-luu

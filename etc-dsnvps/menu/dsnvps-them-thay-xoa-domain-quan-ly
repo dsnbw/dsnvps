@@ -1,0 +1,370 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+
+# Anti-debug removed
+/etc/dsnvps/menu/dsnvps-check-thay-doi-so-luong-domain-tren-server
+if [ ! -d /etc/dsnvps/domainquanly ]; then
+mkdir -p /etc/dsnvps/domainquanly
+fi
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/7341"
+
+if [ ! -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+echo "========================================================================="
+echo "Dùng chức năng này để Thêm domain Quản Lý cho server."
+echo "-------------------------------------------------------------------------"
+echo "Khi dùng domain Quản Lý, link download các file sẽ dùng domain Quản Lý"
+echo "-------------------------------------------------------------------------"
+echo "thay cho http://$serverip:$priport"
+echo "-------------------------------------------------------------------------"
+echo "Bạn nên sử dụng sub-domain làm domain Quản Lý."
+echo "========================================================================="
+while true; do
+echo -n "Nhập domain Quản Lý [0 -Thoát]: "
+    read domain
+    domain=$(echo "$domain" | tr '[A-Z]' '[a-z]')
+
+    if [ "$domain" = "0" ]; then
+            echo "========================================================================="
+        echo "Thoát..."; sleep 2
+        clear
+        echo "========================================================================="
+        echo "Thoát..."
+        /etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        exit
+    fi
+
+    if [ "$domain" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại !"
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,12}$";
+    if [[ ! "$domain" =~ $kiemtradomain3 ]]; then
+        echo "========================================================================="
+        echo "'$domain' có lẽ không phải là domain hợp lệ!" 
+                sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    #################################################################
+    ## Kiem tra WWW or NON_WWW Domain                              ##
+    if [ -d "/home/www.$domain/public_html" ] && [ -f "/etc/nginx/conf.d/www.$domain.conf" ]; then
+        domain="www.$domain"
+    fi
+    if [[ $(echo "$domain" | cut -c 1-4) == "www." ]]; then
+        domain_redirect=$(echo "$domain" | sed 's/^www\.//')
+    else
+        domain_redirect="www.$domain"
+    fi
+    #################################################################
+
+    if [ -f "/etc/nginx/conf.d/$domain.conf" ]; then
+        echo "========================================================================="
+echo "Phát hiện $domain đã tồn tại trong hệ thống!"
+sleep 3 && tput cuu 3 && tput ed
+continue
+fi
+
+if [ -f "/etc/nginx/conf.d/$domain_redirect.conf" ]; then
+    echo "========================================================================="
+    echo "Phát hiện $domain_redirect đã tồn tại trong hệ thống!"
+
+                sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    # Bo sung dieu kien nay vi no trung lap voi dieu kien tren.
+    break
+done
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$domain" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-quan-ly-truoc-khi-them-vao-server
+#################################################################
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ thêm $domain vào hệ thống "
+echo "-------------------------------------------------------------------------"
+echo "và sử dụng domain này làm domain Quản Lý"
+
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" != "OK" ]]; then
+ clear
+ echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+
+echo "-------------------------------------------------------------------------"
+    echo "Xác nhận chính xác."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+echo "Đang Thêm $domain vào hệ thống....."
+sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Đang cấu hình domain Quản Lý .." 
+sleep 2
+
+    
+if [ "`grep "\/domainquanly\/" /etc/nginx/conf.d/$mainsite.conf`" == "" ]; then
+echo "include /etc/dsnvps/domainquanly/*.conf;" >> /etc/nginx/conf.d/$mainsite.conf
+fi
+
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.quanly.conf /etc/dsnvps/domainquanly/domainquanly.conf
+sed -i "s/domain.quanly/${domain}/g" /etc/dsnvps/domainquanly/domainquanly.conf
+
+########################################################
+dsnvps_conf="/root/dsnvps.conf"
+ # Loại bỏ các dòng chứa từ "domainquanly" trong file
+    sed -i '/domainquanly/d' "$dsnvps_conf"
+    # Thêm dòng domainquanly="$domain" vào cuối file
+    echo "domainquanly=\"$domain\"" >> "$dsnvps_conf" 
+######################################################
+##
+
+
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+echo "========================================================================="
+echo "Domain Quản Lý $domain đã được thêm vào hệ thống"
+echo "----------------------------------------------------------------------"
+echo "Link Quản Lý: http://$domain"
+echo "----------------------------------------------------------------------"
+echo "Cài Cloudflare Origin SSL cho Domain Quản Lý tại:"
+echo "----------------------------------------------------------------------"
+echo "Cài Đặt Paid SSL & CloudFlare SSL => Cài đặt Cloudflare Origin SLL"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+#############################################Z###############################################################################################
+############################################################################################################################################
+############################################################################################################################################
+while true; do
+echo "========================================================================="
+printf "%-35s %s\n" "1) Thay Domain Quản Lý" "2) Xóa Domain Quản Lý"
+
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    case $choice in
+    1) luachon="themthay"; break;;
+    2) luachon="xoadomainquanly"; break;;
+    0) luachon="cancel"; break;;
+    *) echo "-------------------------------------------------------------------------"
+    echo "Bạn nhập sai, vui lòng nhập theo danh sách:";continue;;
+    esac  
+done
+
+if [ "$luachon" = "cancel" ]; then
+clear
+echo "========================================================================="
+echo "Hủy."
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit
+fi
+
+##################################################################################
+if [ "$luachon" = "themthay" ]; then
+############################################################
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+echo "========================================================================="
+echo "Dùng chức năng này THAY domain Quản Lý cho server."
+echo "-------------------------------------------------------------------------"
+echo "Domain Quản Lý hiện tại: $domainquanly"
+echo "========================================================================="
+while true; do
+    echo -n "Nhập domain Quản Lý mới [0 -Thoát]: "
+
+    read domain
+    domain=$(echo "$domain" | tr '[A-Z]' '[a-z]')
+
+    if [ "$domain" = "0" ]; then
+        echo "========================================================================="
+        echo "Thoát..."; sleep 2
+        clear
+        echo "========================================================================="
+        echo "Thoát..."
+        /etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        exit
+    fi
+
+    if [ "$domain" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại !"
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ] && [ "$domain" = "$domainquanly" ]; then
+        echo "========================================================================="
+       echo "Bạn vui lòng nhập domain mới khác domain Quản Lý cũ."
+
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,12}$";
+    if [[ ! "$domain" =~ $kiemtradomain3 ]]; then
+        echo "========================================================================="
+        echo "'$domain' có lẽ không phải là domain hợp lệ!"
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    #################################################################
+    ## Kiem tra WWW or NON_WWW Domain                              ##
+    if [ -d "/home/www.$domain/public_html" ] && [ -f "/etc/nginx/conf.d/www.$domain.conf" ]; then
+        domain="www.$domain"
+    fi
+    if [[ $(echo "$domain" | cut -c 1-4) == "www." ]]; then
+        domain_redirect=$(echo "$domain" | sed 's/^www\.//')
+    else
+        domain_redirect="www.$domain"
+    fi
+    #################################################################
+
+    if [ -f "/etc/nginx/conf.d/$domain.conf" ]; then
+        echo "========================================================================="
+        echo "Phát hiện $domain đã tồn tại trong hệ thống!"
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    if [ -f "/etc/nginx/conf.d/$domain_redirect.conf" ]; then
+        echo "========================================================================="
+        echo "Phát hiện $domain_redirect đã tồn tại trong hệ thống!"
+
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    break
+done
+
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$domain" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-quan-ly-truoc-khi-them-vao-server
+#################################################################
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ thêm $domain vào hệ thống "
+echo "-------------------------------------------------------------------------"
+echo "và sử dụng domain này làm domain Quản Lý"
+
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" != "OK" ]]; then
+ clear
+ echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+    echo "-------------------------------------------------------------------------"
+    echo "Xác nhận chính xác."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Đang thêm $domain vào hệ thống....."
+    sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Đang cấu hình domain Quản Lý .." ; sleep 2
+
+    
+rm -rf /etc/dsnvps/domainquanly/domainquanly.conf
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.quanly.conf /etc/dsnvps/domainquanly/domainquanly.conf
+sed -i "s/domain.quanly/${domain}/g" /etc/dsnvps/domainquanly/domainquanly.conf
+
+rm -rf /etc/dsnvps/.tmp/90aP
+if [ -f /etc/nginx/paidssl/$domainquanly/$domainquanly.csr ]; then
+rm -rf /etc/nginx/paidssl/$domainquanly
+echo "1" > /etc/dsnvps/.tmp/90aP
+fi
+
+########################################################
+dsnvps_conf="/root/dsnvps.conf"
+ # Loại bỏ các dòng chứa từ "domainquanly" trong file
+    sed -i '/domainquanly/d' "$dsnvps_conf"
+    # Thêm dòng domainquanly="$domain" vào cuối file
+    echo "domainquanly=\"$domain\"" >> "$dsnvps_conf" 
+######################################################
+##
+
+
+####### Reload Nginx
+#/etc/dsnvps/menu/inc/re-start-nginx-service
+systemctl reload nginx
+clear
+echo "========================================================================="
+echo "Domain Quản Lý $domain đã được thêm vào hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "Link Quản Lý mới: http://$domain"
+if [ -f /etc/dsnvps/.tmp/90aP ]; then
+echo "-------------------------------------------------------------------------"
+echo "Bạn cần cài lại chứng chỉ SSL cho domain này."
+rm -rf /etc/dsnvps/.tmp/90aP
+fi
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+fi
+##################################################################################
+if [ "$luachon" = "xoadomainquanly" ]; then
+##########################################################################
+echo "$domainquanly" > /etc/dsnvps/.tmp/klacnpqw
+domain=$(cat /etc/dsnvps/.tmp/klacnpqw)
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $domain ra khỏi hệ thống. Bạn sẽ sử dụng  "
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip:$priport thay cho http://$domainquanly"
+
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" != "OK" ]]; then
+ clear
+ echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+
+echo "-------------------------------------------------------------------------"
+    echo "Xác nhận chính xác."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+echo "Đang xóa $domain khỏi hệ thống....."
+sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Đang xóa cấu hình .." ; sleep 2
+if [ -f /etc/nginx/paidssl/$domainquanly/$domainquanly.csr ]; then
+rm -rf /etc/nginx/paidssl/$domainquanly
+fi
+sed -i '/domainquanly/d' /root/dsnvps.conf
+rm -rf /etc/dsnvps/domainquanly/domainquanly.conf
+####### Reload Nginx
+#/etc/dsnvps/menu/inc/re-start-nginx-service
+systemctl reload nginx
+clear
+    echo "========================================================================="
+echo "Domain Quản Lý $domain đã được xóa khỏi hệ thống"
+echo "----------------------------------------------------------------------"
+echo "Link Quản Lý: http://$serverip:$priport"
+
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+
+#############################################################################
+############################################################################

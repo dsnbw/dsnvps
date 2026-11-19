@@ -1,0 +1,213 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=( "Nginx Log" "PHP-FPM Log" "MySQL Log" "Secure Log" "Exim Log")
+echo "========================================================================="
+echo "Nếu không thể xem được 100 dòng dưới của Log file, hãy dùng chức năng "
+echo "-------------------------------------------------------------------------"
+echo "[Download Log (Zipped)] về máy tính để xem."
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) xemlog="nginxlog"; break;;
+    2) xemlog="phpfpm"; break;;
+    3) xemlog="mysql"; break;;
+    4) xemlog="secure"; break;;
+    5) xemlog="exim"; break;;
+    0) xemlog="cancle"; break;;
+*) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách"; continue;;
+    esac  
+done
+###################################
+#nginxlog
+###################################
+if [ "$xemlog" = "nginxlog" ]; then
+
+if [ -f /var/log/nginx/error.log  ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	find /var/log/nginx/ -name "*nginx*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+    logsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checklogzise) | tail -1 | cut -f 1)
+	if [ "$logsize" = "0" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	clear
+	echo "========================================================================= "
+echo "Không có dữ liệu trong Log file"
+	/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+	exit
+	fi
+
+	echo "========================================================================= "
+echo "100 dòng cuối cùng của Nginx Log File"
+	
+	tail -n 100 /var/log/nginx/error.log
+
+echo "========================================================================= "
+echo "========================================================================= "
+read -p "Nhấn [Enter] để quay trở lại DSNVPS ..."
+clear
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+
+
+else
+clear
+echo "========================================================================= "
+echo "File log không tồn tại hoặc bạn đã disable chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 
+
+
+
+
+###################################
+#PHP-FPM
+###################################
+elif [ "$xemlog" = "phpfpm" ]; then
+if [ -f /home/$mainsite/logs/php-fpm.log   ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	find /home/dsnvps.demo/logs/ -name "*php-fpm*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+    logsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checklogzise) | tail -1 | cut -f 1)
+	if [ "$logsize" = "0" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	clear
+	echo "========================================================================= "
+echo "Không có dữ liệu trong Log file"
+	/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+	exit
+	fi
+
+	echo "========================================================================= "
+echo "100 dòng cuối cùng của PHP-FPM Log File"	
+	tail -n 100 /home/$mainsite/logs/php-fpm.log
+
+echo "========================================================================= "
+echo "========================================================================= "
+read -p "Nhấn [Enter] để quay trở lại DSNVPS ..."
+clear
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+
+
+else
+clear
+echo "========================================================================= "
+echo "File log không tồn tại hoặc bạn đã disable chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 
+###################################
+#MySQL
+elif [ "$xemlog" = "mysql" ]; then
+if [ -f /home/$mainsite/logs/mysql.log   ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	find /home/dsnvps.demo/logs/ -name "*mysql*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+    logsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checklogzise) | tail -1 | cut -f 1)
+	if [ "$logsize" = "0" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	clear
+	echo "========================================================================= "
+echo "Không có dữ liệu trong Log file"
+/etc/dsnvps/menu/downloadlog/dsnvps-error-menu
+exit
+fi
+
+echo "========================================================================= "
+echo "100 dòng cuối cùng của MySQL Log File"
+	
+	tail -n 100 /home/$mainsite/logs/mysql.log
+
+echo "========================================================================= "
+echo "========================================================================= "
+read -p "Nhấn [Enter] để quay trở lại DSNVPS ..."	
+clear
+/etc/dsnvps/menu/downloadlog/dsnvps-error-menu
+
+else
+clear
+echo "========================================================================= "
+echo "File log không tồn tại hoặc bạn đã disable chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 
+
+###################################
+# Secure
+#######################################
+elif [ "$xemlog" = "secure" ]; then
+if [ -f /var/log/secure ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	find /var/log/ -name "*secure*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+    logsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checklogzise) | tail -1 | cut -f 1)
+	if [ "$logsize" = "0" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	clear
+	echo "========================================================================= "
+echo "Không có dữ liệu trong Log file"
+/etc/dsnvps/menu/downloadlog/dsnvps-error-menu
+exit
+fi
+
+echo "========================================================================= "
+echo "100 dòng cuối cùng của Secure Log File"
+
+tail -n 100 /var/log/secure 
+
+echo "========================================================================= "
+echo "========================================================================= "
+read -p "Nhấn [Enter] để quay trở lại DSNVPS ..."
+clear
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+
+else
+clear
+echo "========================================================================= "
+echo "File log không tồn tại hoặc bạn đã disable chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 
+
+###################################
+# EXIM
+
+elif [ "$xemlog" = "exim" ]; then
+if [ -d /var/log/exim ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	find /var/log/exim -name "*main*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+    logsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checklogzise) | tail -1 | cut -f 1)
+	if [ "$logsize" = "0" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	clear
+	echo "========================================================================= "
+echo "Không có dữ liệu trong Log file"
+/etc/dsnvps/menu/downloadlog/dsnvps-error-menu
+exit
+fi
+
+echo "========================================================================= "
+echo "100 dòng cuối cùng của Exim Log File"
+
+tail -n 100 /var/log/exim/main.log 
+
+echo "========================================================================= "
+echo "========================================================================= "
+read -p "Nhấn [Enter] để quay trở lại DSNVPS ..."	
+clear
+/etc/dsnvps/menu/downloadlog/dsnvps-error-menu
+
+else
+clear
+echo "========================================================================= "
+echo "File log không tồn tại hoặc bạn đã disable chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 
+
+
+
+else
+clear
+exit 0
+fi

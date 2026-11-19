@@ -1,0 +1,26 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+up=$(/bin/systemctl status memcached.service | grep running | grep -v not | wc -l);
+
+if [ "$up" -lt 1 ]; then
+clear
+clear
+echo "========================================================================= "
+echo "Memcached đang tắt trên server."
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+else
+echo "-------------------------------------------------------------------------"
+systemctl restart memcached.service
+clear
+echo "========================================================================= "
+echo "Khởi động lại memcached thành công!"
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+fi

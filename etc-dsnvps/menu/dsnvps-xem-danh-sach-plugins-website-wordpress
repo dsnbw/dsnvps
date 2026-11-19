@@ -1,0 +1,134 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+
+rans=`date |md5sum |cut -c '1-5'`
+  echo "========================================================================="
+ echo "Sử dụng chức năng này để xem trạng thái Plugins & Themes"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1105"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Cac doan ma xac nhan phia duoi se tiep tuc chay
+cd /home/$website/public_html
+rm -rf /etc/dsnvps/.tmp/oilas*
+echo "========================================================================="
+echo "Tìm thấy $website đang sử dụng WordPress code trên hệ thống"
+wp db check --allow-root > /etc/dsnvps/.tmp/oilas
+if ! grep -q "Success:" /etc/dsnvps/.tmp/oilas; then
+clear
+cd
+echo "========================================================================="
+echo "$website có lỗi kết nối tới database"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện được chức năng này."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+cd
+echo "Vui lòng chờ ..."; sleep 3
+clear
+cd /home/$website/public_html
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                        Thông tin Plugins & Themes  \n"
+echo "========================================================================="
+echo "Website: $website"
+echo "========================================================================="
+versionbb=$(wp core version --allow-root 2>/dev/null)
+api_url="https://api.wordpress.org/core/version-check/1.7/"
+latest_version=$(curl -s "$api_url" | jq -r '.offers[0].version')
+echo "Phiên bản WordPress mới nhất Online: $latest_version"
+echo "-------------------------------------------------------------------------"
+echo "Phiên bản WordPress Core $website: $versionbb"
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Themes & Plugins:"
+echo "-------------------------------------------------------------------------"
+echo "THEMES:"
+wp theme list --allow-root 
+echo "PLUGINS:"
+wp plugin list --allow-root 
+cd
+printf "=========================================================================\n"
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+

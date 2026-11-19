@@ -1,0 +1,33 @@
+#!/bin/bash
+#################################################
+#Fix loi Nginx Pid File trong nginx.conf
+######################################################
+CONFIG_FILE="/etc/nginx/nginx.conf"
+OLD_PID="/etc/nginx/nginx.pid"
+NEW_PID="/var/run/nginx.pid"
+if [ -f /etc/dsnvps/.tmp/1990 ]; then
+rm -rf /etc/dsnvps/.tmp/1990
+fi
+if [[ -f "$CONFIG_FILE" ]] && grep -q "$OLD_PID" "$CONFIG_FILE"; then
+    sed -i "s|$OLD_PID|$NEW_PID|g" "$CONFIG_FILE"
+echo "1" > /etc/dsnvps/.tmp/1990
+fi
+
+#########################################
+#########################################
+#################################################
+#Fix loi Nginx Pid File trong nginx.service
+######################################################
+SERVICE_FILE="/usr/lib/systemd/system/nginx.service"
+OLD_PID2="/etc/nginx/nginx.pid"
+NEW_PID2="/var/run/nginx.pid"
+if [[ -f "$SERVICE_FILE" ]] && grep -q "$OLD_PID2" "$SERVICE_FILE"; then
+    sed -i "s|$OLD_PID2|$NEW_PID2|g" "$SERVICE_FILE"
+systemctl daemon-reload
+systemctl enable nginx.service 
+systemctl restart nginx.service
+fi
+if [ -f /etc/dsnvps/.tmp/1990 ]; then
+systemctl restart nginx.service
+fi
+/bin/systemctl start nginx.service

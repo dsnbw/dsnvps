@@ -1,0 +1,88 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+printf "=========================================================================\n"
+printf "Chức năng này sẽ cài đặt LMD và ClamAV cho server\n"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn chắc chắn muốn cài đặt LMD với ClamAV? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "-------------------------------------------------------------------------"
+#echo "Nhap email ban muon nhan thong bao tu Maldet"
+#echo "-------------------------------------------------------------------------"
+#echo -n "eMail cua ban [ENTER]:" 
+#read uremail
+#if [ "$uremail" = "" ]; then
+#clear
+#echo "========================================================================="
+#echo "Bạn nhập sai, vui lòng nhập chính xác !"
+#/etc/dsnvps/menu/dsnvps-maldet-menu
+#exit
+#fi
+#clear
+#echo "========================================================================="
+#echo "Linux Malware Detect (LMD) se gui email thong bao toi $uremail"
+echo "Cài đặt Linux Malware Detect + ClamAV ...."
+sleep 3
+cd /root
+mkdir -p maldet
+cd /root/maldet
+wget http://www.rfxn.com/downloads/maldetect-current.tar.gz
+tar xfz maldetect-current.tar.gz
+rm -rf maldetect-current.tar.gz
+parent_folder="/root/maldet"
+subfolder_name=$(find "$parent_folder" -mindepth 1 -maxdepth 1 -type d -print -quit | xargs -n 1 basename)
+cd $subfolder_name
+./install.sh
+cd
+ln -s /usr/local/maldetect/maldet /bin/maldet
+hash -r
+rm -rf /root/maldet
+rm -rf /root/maldetect-current.tar.gz
+rm -rf /etc/cron.daily/maldet
+cp -r /etc/dsnvps/menu/inc/LMDconfig/maldet.conf /etc/cron.daily/maldet
+chmod +x /etc/cron.daily/maldet
+sed -i 's/quarantine_hits="1"/quarantine_hits="0"/g' /usr/local/maldetect/conf.maldet
+
+echo "========================================================================="
+echo "========================================================================="
+echo "Cài đặt ClamAV...."
+sleep 3
+apt-get update -qq && apt-get install -y -qq clamav clamav-daemon clamav-freshclam ed
+systemctl stop clamav-freshclam 2>/dev/null || true; freshclam 2>/dev/null || true 
+
+systemctl enable clamav-daemon.service && systemctl start clamav-daemon.service
+
+
+clear
+if [ -f /usr/local/maldetect/conf.maldet ]; then
+clear
+echo "========================================================================= "
+echo "Cài đặt LMD with ClamAV thành công !"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+else
+clear
+echo "========================================================================= "
+echo "Cài đặt LMD with ClamAV thất bại ! Bạn vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+fi
+;;
+    *)
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Huỷ bỏ."
+/etc/dsnvps/menu/dsnvps-maldet-menu
+
+
+
+
+
+
+

@@ -1,0 +1,215 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để ĐÓNG port (INPUT) cho server bằng IPtables"
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập port bạn muốn ĐÓNG [0 -Thoát]: "
+read portclose
+if [ "$portclose" = "0" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+    exit
+fi
+if [ "$portclose" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, hãy nhập chính xác."
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+if [[ ! ${portclose} =~ ^[0-9]+$ ]] ;then 
+clear
+echo "========================================================================="
+echo "Port bạn nhập: ${portclose} không phải là số tự nhiên."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!" 
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+if [ "$(iptables -L -n | grep :$portclose | awk 'NR==1 {print $1}')" == "DROP" ]; then
+clear
+echo "========================================================================="
+echo "Port $portclose đang CLOSED."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần phải re-close nó!"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+if ! [[ $portclose -ge 1 && $portclose -le 65535 ]] ; then  
+clear
+echo "========================================================================="
+echo "$portclose không đúng!"
+echo "-------------------------------------------------------------------------"
+echo "Port của VPS phải là số tự nhiên nằm trong khoảng (1 - 65535)."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!" 
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi  
+
+if [ "$(iptables -L -n | grep :80 | awk 'NR==1 {print $1}')" == "ACCEPT" ]; then
+if [ $portclose = 80 ]; then
+echo "========================================================================="
+echo "Bạn đang muốn đóng port 80"
+echo "-------------------------------------------------------------------------"
+echo "Nếu bạn đóng port này, không ai có thể truy cập websites trên server này"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn đóng port 80?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+clear
+echo "========================================================================="
+echo "Port bạn muốn CLOSE: $portclose"
+    echo "-------------------------------------------------------------------------"
+    iptables -I INPUT -p tcp --dport $portclose -j DROP
+    if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn hủy đóng port 80"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+esac
+exit
+fi
+fi
+
+if [ "$(iptables -L -n | grep :25 | awk 'NR==1 {print $1}')" == "ACCEPT" ]; then
+if [ $portclose = 25 ]; then
+echo "========================================================================="
+echo "Bạn đang muốn đóng port 25"
+echo "-------------------------------------------------------------------------"
+echo "Nếu bạn đóng port này, dịch vụ email sẽ không thể gửi email đúng cách!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn đóng port 25?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+clear
+echo "========================================================================="
+echo "Port bạn muốn CLOSE: $portclose"
+echo "-------------------------------------------------------------------------"
+iptables -I INPUT -p tcp --dport $portclose -j DROP
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn hủy đóng port 25"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+esac
+exit
+fi
+fi
+
+
+if [ "$(iptables -L -n | grep :21 | awk 'NR==1 {print $1}')" == "ACCEPT" ]; then
+if [ $portclose = 21 ]; then
+echo "========================================================================="
+echo "Bạn đang muốn đóng port 21"
+echo "-------------------------------------------------------------------------"
+echo "Nếu bạn đóng port này, dịch vụ FTP không thể hoạt động!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn đóng port 21? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+clear
+echo "========================================================================="
+    echo "Port bạn muốn CLOSE: $portclose"
+    echo "-------------------------------------------------------------------------"
+    iptables -I INPUT -p tcp --dport $portclose -j DROP
+    if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn hủy đóng port 21"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+esac
+exit
+fi
+fi
+
+
+if [ "$(iptables -L -n | grep :443 | awk 'NR==1 {print $1}')" == "ACCEPT" ]; then
+if [ $portclose = 443 ]; then
+echo "========================================================================="
+echo "Bạn đang muốn đóng port 443"
+echo "-------------------------------------------------------------------------"
+echo "Nếu bạn đóng port này, tất cả website dùng SSL sẽ không thể truy cập!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn đóng port 443? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+clear
+echo "========================================================================="
+    echo "Port bạn muốn CLOSE: $portclose"
+    echo "-------------------------------------------------------------------------"
+    iptables -I INPUT -p tcp --dport $portclose -j DROP
+    if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn đã hủy đóng port 443"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+esac
+exit
+fi
+fi
+
+
+if [ $portclose = 22 ]; then
+clear
+echo "========================================================================="
+echo "Bạn không thể đóng cổng SSH!"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+if [ $portclose = 3306 ]; then
+clear
+echo "========================================================================="
+echo "Bạn không thể đóng cổng MySQL!"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+if [ $portclose = $priport ]; then
+clear
+echo "========================================================================="
+echo "Cổng $portclose là cổng PhpMyAdmin. Hãy sử dụng chức năng"
+echo "-------------------------------------------------------------------------"
+echo "[Mở/Đóng cổng PhpMyAdmin] nếu bạn muốn mở/đóng cổng $portclose!"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+clear
+echo "========================================================================="
+echo "Cổng bạn muốn đóng: $portclose"
+echo "-------------------------------------------------------------------------"
+iptables -I INPUT -p tcp --dport $portclose -j DROP
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+fi

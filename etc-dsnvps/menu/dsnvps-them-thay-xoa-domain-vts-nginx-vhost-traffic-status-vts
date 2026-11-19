@@ -1,0 +1,452 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+. /etc/dsnvps/pwprotect.default
+# Anti-debug removed
+
+if [ ! -d /etc/dsnvps/domainvts ]; then
+mkdir -p /etc/dsnvps/domainvts
+fi
+
+if [ ! -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] && ! { [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] || nginx -V 2>&1 | grep -q "nginx-more"; }; then
+echo "========================================================================="
+echo "Chức năng này chỉ hoạt động trên Nginx-More."; sleep 3
+echo "-------------------------------------------------------------------------"
+echo "Kiểm Tra Phiên Bản Nginx ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Chức năng chỉ hỗ trợ Nginx-More !"
+echo "-------------------------------------------------------------------------"
+echo "Khuyến nghị: Hãy chuyển sang Nginx-More để sử dụng FULL chức năng DSNVPS."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu => Thay Đổi/Cập Nhật Nginx => Nginx-More." 
+echo "========================================================================="
+echo "========================================================================="
+read -p "Nhấn [ Enter ] để tiếp tục"
+  /etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+###############
+if [ ! -d /etc/nginx/geoip2 ]; then
+mkdir -p /etc/nginx/geoip2
+fi
+if [ ! -f /etc/nginx/geoip2/GeoLite2-City.mmdb ]; then
+echo "========================================================================="
+echo "Đang tải GeoLite2-City.mmdb ..." ; sleep 3
+cd /etc/nginx/geoip2
+curl -sO https://cdn.jsdelivr.net/npm/geolite2-city/GeoLite2-City.mmdb.gz && gzip -d GeoLite2-City.mmdb.gz
+cd
+if [ ! -f /etc/nginx/geoip2/GeoLite2-City.mmdb ]; then
+cd /etc/nginx/geoip
+curl -sO https://dsnvps/script/dsnvps/GeoIP2_data/GeoLite2-City.mmdb.gz && gzip -d GeoLite2-City.mmdb.gz
+cd
+fi
+tput cuu 2 && tput ed
+fi
+
+if [ ! -f /etc/nginx/geoip2/GeoLite2-Country.mmdb ]; then
+echo "========================================================================="
+echo "Đang tải GeoLite2-Country.mmdb ..."; sleep 3
+cd /etc/nginx/geoip2
+curl -sO https://cdn.jsdelivr.net/npm/geolite2-country/GeoLite2-Country.mmdb.gz && gzip -d GeoLite2-Country.mmdb.gz
+cd
+if [ ! -f /etc/nginx/geoip2/GeoLite2-Country.mmdb ]; then
+cd /etc/nginx/geoip2
+curl -sO https://dsnvps/script/dsnvps/GeoIP2_data/GeoLite2-Country.mmdb.gz && gzip -d GeoLite2-Country.mmdb.gz
+cd
+fi
+tput cuu 2 && tput ed
+fi
+if [ ! -f /etc/nginx/conf/GeoLite2-Country.conf ]; then
+cp /etc/dsnvps/menu/inc/conf/GeoLite2-Country.conf /etc/nginx/conf/GeoLite2-Country.conf
+fi
+grep -q 'GeoLite2-Country.conf' /etc/nginx/nginx.conf || \
+  sed -i '/include \/etc\/nginx\/conf\.d\/\*\.conf;/i include /etc/nginx/conf/GeoLite2-Country.conf;' /etc/nginx/nginx.conf
+############################
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/7371"
+if [ ! -f /etc/dsnvps/domainvts/domainvts.conf ]; then
+echo "========================================================================="
+echo "Với Domain VTS, bạn có thể kiểm tra theo thời gian thực các số liệu quan"
+echo "-------------------------------------------------------------------------"
+echo "trọng cho TỪNG WEBSITE trên server như: Số kết nối, số yêu cầu, lưu lượng  "
+echo "-------------------------------------------------------------------------"
+echo "truy cập, băng thông, số kết nối lỗi, trạng thái máy chủ... được thống kê  "
+echo "-------------------------------------------------------------------------"
+echo "chi tiết để theo dõi hiệu suất và xử lý sự cố website dễ dàng hơn."
+echo "-------------------------------------------------------------------------"
+echo "Bạn nên dùng sub-domain làm Domain VTS." 
+echo "========================================================================="
+while true; do
+    echo -n "Nhập Domain VTS [0 -Thoát]: "
+    read domain
+    domain=$(echo "$domain" | tr '[A-Z]' '[a-z]')
+
+    if [ "$domain" = "0" ]; then
+            echo "========================================================================="
+        echo "Thoát..."; sleep 2
+        clear
+        echo "========================================================================="
+        echo "Thoát..."
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    fi
+
+    if [ "$domain" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại !"
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    kiemtradomain3="^(([a-zA-Z0-9]|xn--[a-zA-Z0-9-]+)([-a-zA-Z0-9]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9-]+)$";
+    if [[ ! "$domain" =~ $kiemtradomain3 ]]; then
+        echo "========================================================================="
+echo "'$domain' có lẽ không phải là domain !"
+                sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    #################################################################
+    ## Kiem tra WWW or NON_WWW Domain                              ##
+    if [ -d "/home/www.$domain/public_html" ] && [ -f "/etc/nginx/conf.d/www.$domain.conf" ]; then
+        domain="www.$domain"
+    fi
+    if [[ $(echo "$domain" | cut -c 1-4) == "www." ]]; then
+        domain_redirect=$(echo "$domain" | sed 's/^www\.//')
+    else
+        domain_redirect="www.$domain"
+    fi
+    #################################################################
+
+    if [ -f "/etc/nginx/conf.d/$domain.conf" ]; then
+        echo "========================================================================="
+echo "Phát hiện $domain đã tồn tại trong hệ thống!"
+sleep 3 && tput cuu 3 && tput ed
+continue
+fi
+
+if [ -f "/etc/nginx/conf.d/$domain_redirect.conf" ]; then
+    echo "========================================================================="
+    echo "Phát hiện $domain_redirect đã tồn tại trong hệ thống!"
+                sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    # Bo sung dieu kien nay vi no trung lap voi dieu kien tren.
+    break
+done
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$domain" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-vts-truoc-khi-them-vao-server
+#################################################################
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ Thêm $domain vào hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "và sử dụng domain này làm Domain VTS"
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" != "OK" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Xác nhận chính xác."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+echo "-------------------------------------------------------------------------"
+echo "Đang Thêm $domain vào hệ thống....."
+sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Đang cấu hình Domain VTS .."; sleep 2
+
+    
+if [ "`grep "\/domainvts\/" /etc/nginx/conf.d/$mainsite.conf`" == "" ]; then
+echo "include /etc/dsnvps/domainvts/*.conf;" >> /etc/nginx/conf.d/$mainsite.conf
+fi
+
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.vts.conf /etc/dsnvps/domainvts/domainvts.conf
+sed -i "s/domain.vts/${domain}/g" /etc/dsnvps/domainvts/domainvts.conf
+
+########################################################
+dsnvps_conf="/root/dsnvps.conf"
+ # Loại bỏ các dòng chứa từ "domainvts" trong file
+    sed -i '/domainvts/d' "$dsnvps_conf"
+    # Thêm dòng domainvts="$domain" vào cuối file
+    echo "domainvts=\"$domain\"" >> "$dsnvps_conf" 
+######################################################
+##
+rm -rf /etc/dsnvps/.tmp/akosiu9op.txt
+nginx -t > /etc/dsnvps/.tmp/akosiu9op.txt 2>&1
+
+if ! nginx -t > /dev/null 2>&1; then
+echo "========================================================================="
+echo "Phát hiện lỗi ! ... "; sleep 4
+echo "-------------------------------------------------------------------------"
+echo "Nginx bị lỗi khi Thêm Domain VTS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+echo "-------------------------------------------------------------------------"; sleep 6
+rm -rf /etc/dsnvps/domainvts/domainvts.conf
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+echo "========================================================================="
+echo "Nginx bị lỗi khi Thêm Domain VTS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+echo "Lỗi Nginx khi Thêm Domain VTS:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/akosiu9op.txt
+/etc/dsnvps/menu/inc/re-start-nginx-service
+echo "========================================================================="
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+echo "========================================================================="
+echo "$domain đã được Thêm vào hệ thống"
+echo "----------------------------------------------------------------------"
+echo "Thông tin truy cập => User: $userdefault | Mật khẩu: $passdefault"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+#############################################Z###############################################################################################
+############################################################################################################################################
+############################################################################################################################################
+while true; do
+echo "========================================================================="
+echo "Domain VTS hiện tại: $domainvts"
+echo "========================================================================="
+printf "%-35s %s\n" "1) Thay Domain VTS" " 2) Xóa Domain VTS"
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    case $choice in
+    1) luachon="themthay"; break;;
+    2) luachon="xoadomainvts"; break;;
+    0) luachon="cancel"; break;;
+    *) echo "-------------------------------------------------------------------------"
+    echo "Bạn nhập sai, vui lòng nhập theo danh sách:";continue;;
+    esac  
+done
+
+if [ "$luachon" = "cancel" ]; then
+clear
+echo "========================================================================="
+echo "Hủy."
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+##################################################################################
+if [ "$luachon" = "themthay" ]; then
+############################################################
+
+if [ -f /etc/dsnvps/domainvts/domainvts.conf ]; then
+echo "========================================================================="
+echo "Dùng chức năng này THAY Domain VTS cho server."
+echo "========================================================================="
+while true; do
+    echo -n "Nhập Domain VTS mới [0 -Thoát]: "
+
+    read domain
+    domain=$(echo "$domain" | tr '[A-Z]' '[a-z]')
+
+    if [ "$domain" = "0" ]; then
+        echo "========================================================================="
+        echo "Thoát..."; sleep 2
+        clear
+        dsnvps
+        exit
+    fi
+
+    if [ "$domain" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại !"
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    if [ -f /etc/dsnvps/domainvts/domainvts.conf ] && [ "$domain" = "$domainvts" ]; then
+        echo "========================================================================="
+  echo "Bạn vui lòng nhập domain mới khác Domain VTS cũ."
+
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    kiemtradomain3="^(([a-zA-Z0-9]|xn--[a-zA-Z0-9-]+)([-a-zA-Z0-9]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9-]+)$";
+    if [[ ! "$domain" =~ $kiemtradomain3 ]]; then
+        echo "========================================================================="
+ echo "'$domain' có lẽ không phải là domain !"
+
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    #################################################################
+    ## Kiem tra WWW or NON_WWW Domain                              ##
+    if [ -d "/home/www.$domain/public_html" ] && [ -f "/etc/nginx/conf.d/www.$domain.conf" ]; then
+        domain="www.$domain"
+    fi
+    if [[ $(echo "$domain" | cut -c 1-4) == "www." ]]; then
+        domain_redirect=$(echo "$domain" | sed 's/^www\.//')
+    else
+        domain_redirect="www.$domain"
+    fi
+    #################################################################
+
+    if [ -f "/etc/nginx/conf.d/$domain.conf" ]; then
+        echo "========================================================================="
+echo "Phát hiện $domain đã tồn tại trong hệ thống!"
+
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    if [ -f "/etc/nginx/conf.d/$domain_redirect.conf" ]; then
+        echo "========================================================================="
+echo "Phát hiện $domain_redirect đã tồn tại trong hệ thống!"
+
+        sleep 3 && tput cuu 3 && tput ed
+        continue
+    fi
+
+    break
+done
+
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$domain" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-vts-truoc-khi-them-vao-server
+#################################################################
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ Thêm $domain vào hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "và sử dụng domain này làm Domain VTS mới"
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" != "OK" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+echo "-------------------------------------------------------------------------"
+echo "Xác nhận chính xác."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+echo "-------------------------------------------------------------------------"
+echo "Đang Thêm $domain vào hệ thống....."
+sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Đang cấu hình Domain VTS .." ; sleep 2
+
+    
+rm -rf /etc/dsnvps/domainvts/domainvts.conf
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.vts.conf /etc/dsnvps/domainvts/domainvts.conf
+sed -i "s/domain.vts/${domain}/g" /etc/dsnvps/domainvts/domainvts.conf
+
+########################################################
+dsnvps_conf="/root/dsnvps.conf"
+ # Loại bỏ các dòng chứa từ "domainvts" trong file
+    sed -i '/domainvts/d' "$dsnvps_conf"
+    # Thêm dòng domainvts="$domain" vào cuối file
+    echo "domainvts=\"$domain\"" >> "$dsnvps_conf" 
+######################################################
+##
+rm -rf /etc/dsnvps/.tmp/akosiu9op.txt
+nginx -t > /etc/dsnvps/.tmp/akosiu9op.txt 2>&1
+
+if ! nginx -t > /dev/null 2>&1; then
+echo "========================================================================="
+echo "Phát hiện lỗi ! ... "; sleep 4
+echo "-------------------------------------------------------------------------"
+echo "Nginx bi loi khi Thêm Domain VTS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+echo "-------------------------------------------------------------------------"; sleep 6
+rm -rf /etc/dsnvps/domainvts/domainvts.conf
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+echo "========================================================================="
+echo "Nginx bi loi khi Thêm Domain VTS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+echo "Loi Nginx khi Thêm Domain VTS:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/akosiu9op.txt
+/etc/dsnvps/menu/inc/re-start-nginx-service
+echo "========================================================================="
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+
+
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+echo "========================================================================="
+echo "$domain đã được thêm vào hệ thống"
+echo "----------------------------------------------------------------------"
+echo "Thông tin đăng nhập: => User: $userdefault | Mật khẩu: $passdefault"
+sleep 5
+clear
+echo "========================================================================="
+echo "$domain đã được thêm vào hệ thống"
+echo "----------------------------------------------------------------------"
+echo "Thông tin đăng nhập: => User: $userdefault | Mật khẩu: $passdefault"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+fi
+##################################################################################
+if [ "$luachon" = "xoadomainvts" ]; then
+##########################################################################
+echo "$domainvts" > /etc/dsnvps/.tmp/klacnpqw
+domain=$(cat /etc/dsnvps/.tmp/klacnpqw)
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $domain ra khỏi hệ thống."
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" != "OK" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Xác nhận chính xác."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+echo "-------------------------------------------------------------------------"
+echo "Đang xóa $domain khỏi hệ thống....."
+sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Đang xóa cấu hình .." ; sleep 2
+sed -i '/domainvts/d' /root/dsnvps.conf
+rm -rf /etc/dsnvps/domainvts/domainvts.conf
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+    echo "========================================================================="
+echo "$domain đã được xóa khỏi server."
+
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+
+#############################################################################
+############################################################################

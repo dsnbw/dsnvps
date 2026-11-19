@@ -1,0 +1,59 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+Show_menu () {
+	echo "========================================================================="
+	echo "Hướng dẫn sử dụng: http://go.dsnvps/1136 "
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+options=( "BẬT/TẮT Chạy Script Trong Writable Folder" "List Websites TẮT Chạy Script Trong Writeable Folder" )
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachon="tatbat"; break;;
+    2) luachon="danhsach"; break;;
+    0) luachon="cancle"; break;;
+    *) echo "Ban nhap sai, Vui lòng nhập số thu tu trong danh sach";continue;;
+    esac  
+done
+###################################
+#
+###################################
+if [ "$luachon" = "tatbat" ]; then
+/etc/dsnvps/menu/dsnvps-tat-bat-chan-run-script-trong-folder-upload-cho-website
+###################################
+#
+###################################
+elif [ "$luachon" = "danhsach" ]; then
+/etc/dsnvps/menu/dsnvps-list-website-dang-chan-run-script-trong-folder-upload
+###################################
+#
+###################################
+else
+clear
+exit 0
+fi
+}
+
+	if [ "`systemctl is-active nginx.service`" == "active" ]; then
+Show_menu
+	else
+systemctl start nginx.service
+	if [ "`systemctl is-active nginx.service`" == "active" ]; then
+Show_menu
+		else
+	clear
+	echo "========================================================================="
+	echo "Rất tiếc, Nginx đang dừng. Hãy bật lên trước khi dùng chức năng này!"
+	#echo "Xin lỗi, Nginx đã dừng. Vui lòng bật lại trược khi sử dụng chức năng này !"
+/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+		fi
+fi
+

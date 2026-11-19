@@ -1,0 +1,23 @@
+#!/bin/bash
+#Cai Dat VNSTART
+echo "========================================================================="
+echo "Set Up Vnstat"
+sleep 3
+set -e
+VNSTAT_VER="2.13"
+dnf -y groupinstall "Development Tools"
+dnf -y install gcc make sqlite-devel wget tar
+cd /usr/src
+wget -q https://humdi.net/vnstat/vnstat-$VNSTAT_VER.tar.gz
+tar xzf vnstat-$VNSTAT_VER.tar.gz
+cd vnstat-$VNSTAT_VER
+./configure --prefix=/usr --sysconfdir=/etc
+make
+make install
+mkdir -p /var/lib/vnstat
+chown nobody:nobody /var/lib/vnstat
+cp examples/systemd/vnstat.service /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable vnstat
+systemctl start vnstat
+cd

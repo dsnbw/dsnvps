@@ -1,0 +1,14 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/00-dsnvps.conf <<'JCONF'
+[Journal]
+SystemMaxUse=100M
+RuntimeMaxUse=20M
+SystemMaxFileSize=20M
+MaxRetentionSec=1month
+Compress=yes
+JCONF
+systemctl restart systemd-journald >/dev/null 2>&1 || true
+echo -e "${C_GREEN}[OK] Systemd Journald giới hạn 100M disk / 20M RAM / 1 month.${C_RESET}"

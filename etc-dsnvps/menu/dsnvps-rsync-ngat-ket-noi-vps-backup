@@ -1,0 +1,58 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/vps_backup_rsync.info ]; then
+clear
+echo "========================================================================="
+echo "Server hiện tại chưa được kết nối với VPS Backup"
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần chạy chức năng này."
+
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+
+ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')
+echo "========================================================================="
+echo "Sử dụng chức năng này Ngắt Kết nối và TẮT sao lưu tự động tới VPS Backup"
+echo "-------------------------------------------------------------------------"
+echo "Sau khi ngắt kết nối, dữ liệu trên VPS Backup được giữ nguyên"
+echo "-------------------------------------------------------------------------"
+echo "Nếu muốn tiếp tục backup, Bạn phải Kết Nối và cấu hình lại"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn ngắt kết nối tới VPS Backup ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "
+    sleep 3
+pkill rync
+#rm -rf ~/.ssh/id_rsa.pub
+#rm -rf ~/.ssh/id_rsa
+echo "sed -i '/$ipvpsbackup/d' ~/.ssh/known_hosts" > /etc/dsnvps/.tmp/knownhost_sedit
+chmod +x /etc/dsnvps/.tmp/knownhost_sedit
+/etc/dsnvps/.tmp/knownhost_sedit
+rm -rf /etc/dsnvps/.tmp/knownhost_sedit
+rm -rf /etc/dsnvps/vps_backup_rsync.info
+rm -rf /etc/dsnvps/Auto_backup_VPS_by_rsync 
+rm -rf /etc/cron.d/dsnvps.rsync.cron  
+systemctl restart crond
+clear
+echo "========================================================================="
+echo "Ngắt kết nối với VPS Backup thành công"
+  /etc/dsnvps/menu/dsnvps-befor-rsync
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Hủy bỏ !"
+  /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+  exit
+;;
+esac
+exit

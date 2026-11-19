@@ -1,0 +1,70 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra xem strace có đang chạy không
+# Anti-debug removed
+
+echo "--------------------------------------------------------------------------"
+read -r -p "Bạn muốn phục hồi IPtables Firewall từ file backup này? [y/N] " response
+if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "--------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."
+    sleep 2
+
+    # Sao lưu quy tắc hiện tại vào tệp tạm thời
+    temp_backup="/tmp/iptables_temp_backup_$(date +%s).bak"
+    iptables-save > "$temp_backup"
+
+    # Xóa tất cả rules hiện tại trước khi phục hồi
+    iptables -F
+    iptables -X
+    iptables -Z
+
+    # Phục hồi từ file backup, kiểm tra lỗi
+    if ! iptables-restore < "$source_file"; then
+        echo "Lỗi: Phục hồi từ file backup thất bại! Khôi phục IPtables Rules trước đó..."
+        iptables -F
+        iptables -X
+        iptables -Z
+        iptables-restore < "$temp_backup"
+        rm -f "$temp_backup"
+        rm -rf /etc/dsnvps/.tmp/all_iptables_backups
+        clear
+        echo "========================================================================="
+        echo "Phục hồi thất bại! Đã khôi phục IPtables Rules trước đó."
+        /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        exit 1
+    fi
+
+    # Xóa tệp sao lưu tạm thời nếu phục hồi thành công
+    rm -f "$temp_backup"
+
+    # Lưu cấu hình iptables
+    if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+
+    # Bật và khởi động lại dịch vụ iptables
+    systemctl enable iptables
+    systemctl restart iptables
+
+    clear
+    echo "========================================================================="
+    echo "Phục hồi IPtables Firewall Rules hoàn thành!"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup sử dụng: $selected_file"
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian backup: $file_time"
+    rm -rf /etc/dsnvps/.tmp/all_iptables_backups
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Bạn đã hủy phục hồi IPtables Firewall Rules!"
+    rm -rf /etc/dsnvps/.tmp/all_iptables_backups
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+fi

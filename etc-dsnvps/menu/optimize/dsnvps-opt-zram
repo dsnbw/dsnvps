@@ -1,0 +1,81 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+mode="${1:---auto}"
+if [[ "$mode" == "off" ]]; then
+    systemctl disable --now zramswap.service systemd-zram-setup@zram0.service dsnvps-zram.service >/dev/null 2>&1 || true
+    swapoff /dev/zram0 >/dev/null 2>&1 || true
+    rm -f /etc/default/zramswap /etc/systemd/zram-generator.conf /etc/systemd/system/dsnvps-zram.service
+    sysctl -w vm.swappiness=10 vm.page-cluster=3 >/dev/null 2>&1 || true
+    echo -e "${C_YELLOW}[OK] Đã tắt ZRAM Swap.${C_RESET}"
+    exit 0
+fi
+
+modprobe zram >/dev/null 2>&1 || true
+if [[ ! -d /sys/class/zram-control ]] && ! modprobe zram >/dev/null 2>&1; then
+    echo -e "${C_YELLOW}[SKIP] Kernel/container không hỗ trợ module zram.${C_RESET}"
+    exit 0
+fi
+
+mem_mb="$(dsnvps_ram_mb)"
+zram_pct=50
+((mem_mb > 8192)) && zram_pct=25
+zram_mb=$(( mem_mb * zram_pct / 100 ))
+((zram_mb > 4096)) && zram_mb=4096
+((zram_mb < 256)) && zram_mb=256
+
+if [[ "$(dsnvps_os_family)" == "debian" ]]; then
+    command -v zramswap >/dev/null 2>&1 || dsnvps_pkg_install zram-tools >/dev/null 2>&1 || true
+    if command -v zramswap >/dev/null 2>&1; then
+        cat > /etc/default/zramswap <<ZRAM
+ALGO=zstd
+PERCENT=${zram_pct}
+PRIORITY=100
+ZRAM
+        systemctl enable zramswap.service >/dev/null 2>&1 || true
+        systemctl restart zramswap.service >/dev/null 2>&1 || true
+    fi
+else
+    dsnvps_pkg_install zram-generator >/dev/null 2>&1 || true
+    if rpm -q zram-generator >/dev/null 2>&1; then
+        cat > /etc/systemd/zram-generator.conf <<ZGEN
+[zram0]
+zram-size = ${zram_mb}
+compression-algorithm = zstd
+swap-priority = 100
+ZGEN
+        systemctl daemon-reload
+        systemctl restart systemd-zram-setup@zram0.service >/dev/null 2>&1 || true
+    fi
+fi
+
+# Fallback direct systemd zramctl service if neither zramswap nor zram-generator activated zram0
+if ! grep -q '/dev/zram' /proc/swaps 2>/dev/null && command -v zramctl >/dev/null 2>&1; then
+    cat > /etc/systemd/system/dsnvps-zram.service <<ZSVC
+[Unit]
+Description=DSNVPS ZRAM Compressed Swap
+After=local-fs.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'modprobe zram || true; DEV=\$(zramctl --find --size ${zram_mb}M -a zstd 2>/dev/null || zramctl --find --size ${zram_mb}M -a lz4); mkswap "\$DEV" && swapon -p 100 "\$DEV"'
+ExecStop=/bin/sh -c 'swapoff /dev/zram0 2>/dev/null || true; zramctl --reset /dev/zram0 2>/dev/null || true'
+
+[Install]
+WantedBy=multi-user.target
+ZSVC
+    systemctl daemon-reload
+    systemctl enable --now dsnvps-zram.service >/dev/null 2>&1 || true
+fi
+
+if [[ -f /swapfile ]] && swapon --show=NAME --noheadings | grep -q '^/swapfile$'; then
+    swapoff /swapfile 2>/dev/null || true
+    swapon -p -2 /swapfile 2>/dev/null || true
+    if grep -q '^/swapfile ' /etc/fstab && ! grep -q 'pri=-2' /etc/fstab; then
+        sed -i 's|^/swapfile .*|/swapfile none swap sw,pri=-2 0 0|' /etc/fstab
+    fi
+fi
+
+sysctl -w vm.swappiness=100 vm.page-cluster=0 >/dev/null 2>&1 || true
+echo -e "${C_GREEN}[OK] ZRAM Swap đã kích hoạt (zstd, ${zram_mb}MB, prio=100).${C_RESET}"

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>VPS đã được cài đặt thành công bằng DSNVPS !</title>
+  <link rel="icon" href="https://dsnvps/dsnvps_icon.png" type="image/png">
+ <style>
+    * {
+      box-sizing: border-box;
+    }
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Tahoma, "Times New Roman", serif;
+  color: #333;
+  text-align: center;
+  background: linear-gradient(135deg, #ff8a8e, #f8b0c0, #f8c8e5);
+  animation: softPinkDawn 20s ease-in forwards;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  flex-direction: column;
+  overflow: hidden;
+}
+    
+    .container {
+      position: relative;
+      background: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 10px 10px rgba(0, 0, 0, 0.2);
+      max-width: 900px;
+      width: 100%;
+      word-break: break-word;
+      z-index: 1;
+    }
+    h1 {
+      font-size: 1rem;
+      color: #ff6363;
+    }
+    p {
+      font-size: 1rem;
+      color: #555;
+    }
+    .emoji {
+      font-size: 1.5rem;
+    }
+    .footer {
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: #777;
+      font-style: italic;
+    }
+    .footer span {
+      color: #e63946;
+      font-weight: bold;
+    }
+    
+
+    
+    /* Sun */
+.sun {
+  position: fixed;
+  top: 20%;
+  left: 5%;
+  width: 130px;
+  height: 130px;
+  background: radial-gradient(circle, #ffd700, #ffa500);
+  border-radius: 50%;
+  animation: riseWithDawn 20s ease-in forwards, pulse 2s infinite alternate;
+  box-shadow: 0 0 30px rgba(255, 223, 0, 0.6), 0 0 60px rgba(255, 153, 0, 0.5);
+  z-index: 0;
+}
+
+@keyframes riseWithDawn {
+  0% {
+    top: 15%;
+    width: 130px;
+    height: 130px;
+    opacity: 0.6;
+    box-shadow: 0 0 20px rgba(255, 180, 0, 0.3), 0 0 30px rgba(255, 140, 0, 0.2);
+  }
+  50% {
+    top: 10%;
+    width: 110px;
+    height: 110px;
+    opacity: 0.8;
+    box-shadow: 0 0 40px rgba(255, 200, 0, 0.5), 0 0 60px rgba(255, 160, 0, 0.4);
+  }
+  100% {
+    top: 5%;
+    width: 90px;
+    height: 90px;
+    opacity: 1;
+    box-shadow: 0 0 60px rgba(255, 255, 100, 0.9), 0 0 100px rgba(255, 200, 0, 0.8);
+  }
+}
+    @keyframes pulse {
+      0% {
+        transform: scale(1);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1.1);
+        opacity: 0.9;
+      }
+    }
+@keyframes softPinkDawn {
+  0% {
+    background: linear-gradient(135deg, #ff8a8e, #f8b0c0, #f8c8e5); 
+  }
+  50% {
+    background: linear-gradient(135deg, #ff9a9e, #fad0c4, #fbc2eb); 
+  }
+  100% {
+    background: linear-gradient(135deg, #ffadb2, #fde0e6, #fdeaf5); 
+  }
+}
+    @media (min-width: 900px) {
+      .container {
+        padding: 50px;
+        max-width: 1024px;
+      }
+      h1 {
+        font-size: 2rem;
+      }
+      p {
+        font-size: 1rem;
+        color: #555;
+      }
+      p2 {
+        font-size: 0.7rem;
+        color: #555;
+      }
+      h2 {
+        font-size: 1.6rem;
+      }
+      .emoji {
+        font-size: 2rem;
+      }
+      .footer {
+        font-size: 1rem;
+      }
+    }
+    .popup-trigger {
+      text-decoration: underline;
+      color: #007bff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .popup-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.5);
+      z-index: 999;
+    }
+    .popup {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: black;
+      color: #00ff00;
+      font-family: monospace;
+      font-size: 14px;
+      padding: 20px;
+      border: 1px solid #333;
+      z-index: 1000;
+      max-width: 800px;
+      width: 80%;
+      height: auto;
+      min-height: 600px;
+      max-height: 100vh;
+      overflow-y: auto;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    .popup.active, .popup-overlay.active {
+      display: block;
+    }
+    .close-popup {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      background: red;
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 5px 10px;
+      font-size: 16px;
+    }
+    .terminal-content {
+      text-align: left;
+    }
+    .menu-item {
+      color: #00ff00;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    .menu-item:hover {
+      color: #00ffff;
+    }
+    .logo-img {
+  max-width: 30%;
+  height: auto;
+}
+@media (max-width: 600px) {
+  .logo-img {
+    max-width: 70%;
+  }
+}
+  </style>
+</head>
+<body>
+	  <!-- Particle effect -->
+  <div class="particles" id="particles"></div>
+  
+  <!-- Sun -->
+  <div class="sun"></div>
+  <div class="container">
+    <div class="dsnvps">
+    	<a href="https://dsnvps" target="_blank" rel="noopener noreferrer">
+  <img src="https://dsnvps/logo.png" class="logo-img">
+</a></div>
+    <h1>Cài đặt VPS thành công</h1>
+    <p>Để xem tất cả thông tin quản lý VPS: </p>
+    <p><b><a href="#" class="popup-trigger" data-popup="main-menu">DSNVPS main menu</a></b> => <b><a href="#" class="popup-trigger" data-popup="status-menu">Thông Tin Quản Lý & VPS Status</a></b> => <a href="#" class="popup-trigger" data-popup="info">Thông Tin Quản Lý VPS</a></p>
+    
+    <!-- Original popup overlay -->
+    <div class="popup-overlay" id="popup-overlay"></div>
+    
+    <!-- Original Info popup -->
+    <div class="popup" id="info-popup">
+      <button class="close-popup">X</button>
+      <div class="terminal-content">
+<pre>
+=========================================================================
+        DSNVPS (6.3.1) - Quản Lý VPS/Server By HTTP://DSNVPS.VN
+=========================================================================
+                        Thông Tin Quản Lý Server
+=========================================================================
+Múi Giờ || Server: GMT+07 - Thu Jul 31 15:31 | PHP: Asia/Bangkok
+=========================================================================
+Domain Quản Lý: http://abc.abc.com | Bảo Vệ: ON
+=========================================================================
+Domain VTS: Chưa Cài Đặt => Cài Đặt Trong [Thêm Website & Code]
+=========================================================================
+Tài khoản root MySQL:
+-------------------------------------------------------------------------
+User: root | Password: 4c845af77837738254d82eb39184a9b0
+=========================================================================
+Đường dẫn truy cập: phpMyAdmin, File Manager, Status, backup files ...
+-------------------------------------------------------------------------
+http://abc.abc.com
+http://171.236.149.107:34618
+-------------------------------------------------------------------------
+Thông tin truy cập (Mật khẩu mặc định):
+User: oanhuser | Password: matkhaubaove
+Thay User & mật khẩu:
+DSNVPS menu ==> Bảo Mật Server & Website ==> Thay Đổi Mật Khẩu Mặc Định
+=========================================================================
+File Manager:
+-------------------------------------------------------------------------
+Thông tin truy cập:
+User: dsnvps | Password: 8d36a25407e144a6336f15332d2530cf
+Thay User & mật khẩu:
+DSNVPS menu > Quản Lý phpMyAdmin, Filemanager > Thay Mật Khẩu File Manager
+=========================================================================
+Quản Lý Resilio Sync:
+-------------------------------------------------------------------------
+Resilio Sync chưa được cài đặt.
+Cài đặt Resilio Sync:
+DSNVPS menu > Quản Lý Resilio Sync > Cài Đặt Resilio Sync
+=========================================================================
+Cổng truy cập SSH: Hiện tại: 22
+-------------------------------------------------------------------------
+Thay đổi Port SSH để tăng bảo mật:
+DSNVPS menu > Bảo Mật Server & Website > Thay Đổi Port SSH
+=========================================================================
+VPS chưa cấu hình chống DDoS và tăng khả năng chịu tải:
+-------------------------------------------------------------------------
+Bạn có thể tăng khả năng chịu tải VPS lên nhiều lần bằng cách:
+19) Tăng Chịu Tải Web & ModSec => Tăng Chịu Tải Cho Website
+Xem hướng dẫn: http://help.dsnvps/2891
+=========================================================================
+=========================================================================
+Nhấn [Enter] để quay trở lại DSNVPS menu ...
+</pre>
+      </div>
+    </div>
+
+    <!-- Main Menu popup -->
+    <div class="popup" id="main-menu-popup">
+      <button class="close-popup">X</button>
+      <div class="terminal-content">
+<pre>
+=========================================================================
+           DSNVPS (6.3.1) - Quản Lý VPS/Server by DSNVPS.VN
+=========================================================================
+Phiên Bản: PRO |              Main Menu             |Kích Hoạt: 11/06/25
+=========================================================================
+Websites: 42 | Databases: 12 | Home Free: 29 GB | Inodes Used: 2%
+=========================================================================
+1) Thêm Website & Code              20) Sao Lưu Data Tới VPS Backup
+2) Fix Lỗi Permission & Chown       21) Sao Lưu Backup Tới Google Drive
+3) Xóa Web, Domain & Subsite        22) Chuyển Server Siêu Nhanh
+4) Sao Lưu & Phục Hồi Website       23) Quản Lý Resilio Sync
+5) Quản Lý & Kiểm Tra Database      24) Cài Đặt Free SSL (Let's Encrypt)
+6) Sao Lưu & Phục Hồi Database      25) Cài Đặt Paid SSL & CloudFlare SSL
+7) Tiện Ích WordPress/Flarum/YourLS 26) Công Cụ Tiện Ích Khác
+8) Quản Lý Wordpress Multisite      27) Thay Đổi Phiên Bản PHP
+9) Quản Lý phpMyAdmin, Filemanager  28) Config Nginx: GeoIP,Error Pages..
+10) Quản Lý Zend OPcache            29) Cài Đặt CloudFlare Dynamic DNS
+11) Quản Lý Redis Cache/Memcache    30) Cài Đặt & Cấu Hình V2Ray (VPN)
+12) Quản Lý Tài Khoản FTP           31) Cài Đặt Múi Giờ Server Timezone
+13) Quản Lý Swap / Log File         32) Thông Tin Quản Lý & VPS Status
+14) Quản Lý Cronjob                 33) DSNVPS Shortcut / Update System
+15) Tùy Chỉnh Cấu Hình PHP          34) Xóa Caches / Tự Động Chạy DSNVPS
+16) Bảo Mật Server & Website        35) Auto Check Login/Nginx/MySQL/PHP
+17) Quản Lý CSF Firewall            36) Change Language To English
+18) Quản Lý IPtables Firewall       37) Cập Nhật Phiên Bản Mới
+19) Tăng Chịu Tải Web & ModSec      38) Nâng Cấp DSNVPS PRO
+=========================================================================
+Lựa chọn của bạn [0 -Thoát]:
+</pre>
+      </div>
+    </div>
+
+    <!-- Status Menu popup -->
+    <div class="popup" id="status-menu-popup">
+      <button class="close-popup">X</button>
+      <div class="terminal-content">
+<pre>
+=========================================================================
+           DSNVPS (6.3.1) - Quản Lý VPS/Server by DSNVPS.VN
+=========================================================================
+Phiên Bản: PRO |              Main Menu             |Kích Hoạt: 11/06/25
+=========================================================================
+Websites: 42 | Databases: 12 | Home Free: 29 GB | Inodes Used: 2%
+=========================================================================
+1) Thêm Website & Code              20) Sao Lưu Data Tới VPS Backup
+2) Fix Lỗi Permission & Chown       21) Sao Lưu Backup Tới Google Drive
+3) Xóa Web, Domain & Subsite        22) Chuyển Server Siêu Nhanh
+4) Sao Lưu & Phục Hồi Website       23) Quản Lý Resilio Sync
+5) Quản Lý & Kiểm Tra Database      24) Cài Đặt Free SSL (Let's Encrypt)
+6) Sao Lưu & Phục Hồi Database      25) Cài Đặt Paid SSL & CloudFlare SSL
+7) Tiện Ích WordPress/Flarum/YourLS 26) Công Cụ Tiện Ích Khác
+8) Quản Lý Wordpress Multisite      27) Thay Đổi Phiên Bản PHP
+9) Quản Lý phpMyAdmin, Filemanager  28) Config Nginx: GeoIP,Error Pages..
+10) Quản Lý Zend OPcache            29) Cài Đặt CloudFlare Dynamic DNS
+11) Quản Lý Redis Cache/Memcache    30) Cài Đặt & Cấu Hình V2Ray (VPN)
+12) Quản Lý Tài Khoản FTP           31) Cài Đặt Múi Giờ Server Timezone
+13) Quản Lý Swap / Log File         32) Thông Tin Quản Lý & Status info
+14) Quản Lý Cronjob                 33) DSNVPS Shortcut / Update System
+15) Tùy Chỉnh Cấu Hình PHP          34) Xóa Caches / Tự Động Chạy DSNVPS
+16) Bảo Mật Server & Website        35) Auto Check Login/Nginx/MySQL/PHP
+17) Quản Lý CSF Firewall            36) Change Language To English
+18) Quản Lý IPtables Firewall       37) Cập Nhật Phiên Bản Mới
+19) Tăng Chịu Tải Web & ModSec      38) Nâng Cấp DSNVPS PRO
+=========================================================================
+Lựa chọn của bạn [0 -Thoát]: 32
+=========================================================================
+1) Thông Tin Quản Lý Server   | 3) Service Đang Chạy Và Ram Sử Dụng     |
+2) Check Băng Thông UP/Down   | 4) Trạng Thái Server Hiện Tại           |
+------------------------------| 5) Thông Tin Phần Cứng & Cấu Hình Server|
+=========================================================================
+Lựa chọn của bạn [0 -Thoát]:
+</pre>
+      </div>
+    </div>
+    <p>Liên kết hữu ích:</p>
+    <p2><a href="https://how.dsnvps/d/126" target="_blank"><b>Giới thiệu link quản lý</b></a> | <a href="https://how.dsnvps/d/43" target="_blank"><b>Lưu ý khi thêm website</b></a> |  <a href="https://how.dsnvps/d/127" target="_blank"><b>Cấu hình tăng tải VPS</b></a> | <a href="https://go.dsnvps/6789" target="_blank"><b>Đăng Ký DSNVPS Pro Key</b></a></p2>
+  </div><br>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const overlay = document.getElementById('popup-overlay');
+      const closeButtons = document.querySelectorAll('.close-popup');
+      
+            // Create particles
+      function createParticles() {
+        const particlesContainer = document.getElementById('particles');
+        const particleCount = 20;
+        
+        for (let i = 0; i < particleCount; i++) {
+          const particle = document.createElement('div');
+          particle.className = 'particle';
+          particle.style.left = Math.random() * 100 + 'vw';
+          particle.style.top = Math.random() * 100 + 'vh';
+          particle.style.animationDelay = Math.random() * 5 + 's';
+          particle.style.animationDuration = (Math.random() * 3 + 2) + 's';
+          particlesContainer.appendChild(particle);
+          particle.style.animationDuration = (Math.random() * 3 + 4) + 's';
+        }
+      }
+      
+      createParticles();
+      
+      // Handle all popup triggers
+      document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('popup-trigger')) {
+          e.preventDefault();
+          const popupType = e.target.getAttribute('data-popup');
+          const popup = document.getElementById(popupType + '-popup');
+          
+          if (popup) {
+            overlay.classList.add('active');
+            popup.classList.add('active');
+          }
+        }
+      });
+
+      // Close popup when clicking close buttons
+      closeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+          overlay.classList.remove('active');
+          document.querySelectorAll('.popup').forEach(popup => {
+            popup.classList.remove('active');
+          });
+        });
+      });
+
+      // Close popup when clicking overlay
+      overlay.addEventListener('click', function(e) {
+        if (e.target === overlay) {
+          overlay.classList.remove('active');
+          document.querySelectorAll('.popup').forEach(popup => {
+            popup.classList.remove('active');
+          });
+        }
+      });
+    });
+  </script>
+</body>
+</html>

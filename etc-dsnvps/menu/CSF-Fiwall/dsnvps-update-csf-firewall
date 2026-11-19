@@ -1,0 +1,55 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# ==================== LẤY VERSION ====================
+
+# Version đang cài
+versioncaidat_csf=$(csf -v 2>/dev/null | grep -o 'v[0-9]\+\.[0-9]\+' | head -n1)
+
+# Kiểm tra CSF có đang tắt không
+if csf -l 2>/dev/null | grep -q "csf disabled"; then
+    clear
+    echo "CSF Firewall đang tắt trên server !"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy bật CSF Firewall trước khi dùng chức năng này!"
+    /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+    exit
+fi
+
+# Version online (từ csf -c)
+versiononline_csf=$(csf -c 2>/dev/null | grep -o 'v[0-9]\+\.[0-9]\+' | head -n1)
+
+if [ -z "$versioncaidat_csf" ]; then
+    echo "Không thể lấy được version CSF hiện tại."
+    exit 1
+fi
+
+# So sánh version
+if [ "$versioncaidat_csf" != "$versiononline_csf" ] && [ -n "$versiononline_csf" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang cập nhật CSF Firewall lên phiên bản mới nhất..."
+    sleep 2
+    csf -u
+    clear
+    echo "========================================================================="
+    echo "Bạn đã cập nhật CSF Firewall lên phiên bản mới nhất."
+    echo "-------------------------------------------------------------------------"
+    echo "Phiên bản: $versiononline_csf"
+else
+    clear
+    echo "========================================================================="
+    echo "Bạn đang sử dụng CSF Firewall phiên bản mới nhất."
+    echo "-------------------------------------------------------------------------"
+    echo "Phiên bản: ${versioncaidat_csf#v}"   # Bỏ chữ v nếu có
+fi
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu

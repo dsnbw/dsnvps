@@ -1,0 +1,43 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/php.d/opcache.ini ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache đang tắt"
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải bật Zend Opcache mới được sử dụng chức năng này"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+fi
+if [  "$(grep home /etc/dsnvps/opcache.blacklist)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Hiện tại Zend Opcache Blacklist chưa có website nào"
+
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+fi
+cat /etc/dsnvps/opcache.blacklist > /etc/dsnvps/.tmp/view-blacklist
+cat > "/etc/dsnvps/.tmp/viewzendcacheblacklist" <<END	
+sed -i 's/\/home\///g' /etc/dsnvps/.tmp/view-blacklist
+sed -i 's/\///g' /etc/dsnvps/.tmp/view-blacklist
+END
+chmod +x /etc/dsnvps/.tmp/viewzendcacheblacklist
+/etc/dsnvps/.tmp/viewzendcacheblacklist
+rm -rf /etc/dsnvps/.tmp/viewzendcacheblacklist
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..." 
+sleep 2
+clear
+echo "========================================================================="
+echo "Danh sách website trong Zend Opcache BlackList: "
+
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/view-blacklist | pr -2 -t
+rm -rf /etc/dsnvps/.tmp/view-blacklist
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache

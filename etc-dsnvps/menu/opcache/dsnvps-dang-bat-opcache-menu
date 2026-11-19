@@ -1,0 +1,60 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+ramzenduse=$(grep opcache.memory_consumption /etc/php.d/opcache.ini | grep -o '[0-9]*')
+maxphpzen=$(grep opcache.max_accelerated_files /etc/php.d/opcache.ini | grep -o '[0-9]*')
+cleartime=$(grep opcache.revalidate_freq /etc/php.d/opcache.ini | grep -o '[0-9]*')
+
+
+show_phan_tren_menu()
+{
+	
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                      Quản Lý Zend OPcache (Đã Bật)\n"
+printf "=========================================================================\n"
+# Chuỗi cần căn giữa
+text="RAM: $ramzenduse MB - Max Files: $maxphpzen - Auto Xóa Cache: $cleartime Giây"
+# Căn giữa với chiều rộng 73 ký tự
+printf "%$(( (73 - ${#text}) / 2 ))s%s\n" "" "$text"
+printf "=========================================================================\n"
+echo "Bạn cần [Xóa/Clear Zend Opcache Cache] mỗi khi edit file PHP để thay đổi "
+echo "-------------------------------------------------------------------------"
+echo "có hiệu lực. Nếu website bị TẮT Zend OPcache thì file PHP sẽ không được "
+echo "-------------------------------------------------------------------------"
+echo "cache PHP. Thay đổi áp dụng ngay lập tức mỗi khi bạn chỉnh sửa code."
+echo "-------------------------------------------------------------------------"
+echo -e "\e[31mĐể hiệu suất website tốt nhất: Hãy luôn BẬT Zend Opache cho nó !\e[0m"
+echo "========================================================================="
+#fi
+#touch /etc/dsnvps/.tmp/90addsdta 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/7519"
+echo "=========================================================================" 
+}
+while true; do
+clear
+show_phan_tren_menu
+
+printf "%-43s %s\n" "1) BẬT/TẮT Zend OPcache Cho Server" "3) Cấu Hình Zend OPcache"
+printf "%-43s %s\n" "2) BẬT/TẮT Zend Opache Cho Website" "4) Xóa/Clear Zend Opcache Cache"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1) /etc/dsnvps/menu/opcache/dsnvps-tat-opcache;;
+    2) /etc/dsnvps/menu/opcache/dsnvps-them-xoa-website-vao-zend-opcache-blacklist;;
+    3) /etc/dsnvps/menu/opcache/dsnvps-opcache-change-size;;
+    4) /etc/dsnvps/menu/opcache/dsnvps-clear-opcache;;
+0) clear; exit 0;;
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list."; 3
+        tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6;; esac; done

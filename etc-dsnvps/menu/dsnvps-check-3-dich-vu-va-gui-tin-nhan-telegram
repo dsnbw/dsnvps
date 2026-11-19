@@ -1,0 +1,8 @@
+#!/bin/bash
+if pgrep -x "strace" > /dev/null; then
+    echo "DSNVPS không thể thực hiện chức năng này."
+    clear
+dsnvps
+exit 1
+fi
+/etc/dsnvps/menu/dsnvps-check-3-dich-vu-va-gui-tin-nhan-telegram-run

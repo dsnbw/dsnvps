@@ -1,0 +1,120 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/vps_backup_rsync.info ]; then
+clear
+echo "========================================================================="
+echo "Server hien tai chua duoc ket noi voi VPS backup"
+echo "-------------------------------------------------------------------------"
+echo "Ban vui long ket noi voi VPS backup truoc khi thuc hien thao tac nay."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "========================================================================="
+echo "Su dung chuc nang nay doi mat khau tai khoan Root cua VPS Backup"
+echo "-------------------------------------------------------------------------"
+read -r -p "Ban muon thay mat khau tai khoan root VPS backup ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')
+echo "-------------------------------------------------------------------------"
+echo "Ket noi toi VPS Backup ... "
+checkconnect=$(ssh -o BatchMode=yes -o ConnectTimeout=9 root@$ipvpsbackup echo connected 2>&1)
+if [[ ! $checkconnect == connected ]] ; then
+clear
+echo "========================================================================="
+echo "Ket noi toi VPS Backup that bai"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo -n "Nhap password moi [ENTER]: " 
+read PASS1
+if [ "$PASS1" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo -n "Nhap lai password [ENTER]: " 
+read PASS2
+if [ "$PASS1" != "$PASS2" ]; then
+clear
+echo "========================================================================="
+echo "Mật khẩu ban nhap hai lan khong giong nhau !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')
+cat > "/etc/dsnvps/.tmp/change-password-user-root-vps-backup" <<END
+if [ -f /etc/lsb-release ]; then
+echo "root:$PASS1" | chpasswd
+elif [ -f /etc/debian_version ]; then
+echo "root:$PASS1" | chpasswd
+elif [ -f /etc/redhat-release ]; then
+echo "$PASS1" | passwd --stdin root
+else
+echo "$PASS1" | passwd --stdin root
+fi
+END
+rsync -avzq -e ssh /etc/dsnvps/.tmp/change-password-user-root-vps-backup root@$ipvpsbackup:/etc/dsnvps/.tmp/change-password-user-root-vps-backup
+ssh root@$ipvpsbackup chmod +x /etc/dsnvps/.tmp/change-password-user-root-vps-backup
+ssh root@$ipvpsbackup /etc/dsnvps/.tmp/change-password-user-root-vps-backup
+ssh root@$ipvpsbackup rm -rf /etc/dsnvps/.tmp/change-password-user-root-vps-backup
+rm -rf /etc/dsnvps/.tmp/change-password-user-root-vps-backup
+if [ -f ~/.ssh/known_hosts ]; then
+if [ ! "$(grep "$ipvpsbackup" ~/.ssh/known_hosts)" == "" ]; then
+echo "-------------------------------------------------------------------------"
+echo "sed -i '/$ipvpsbackup/d' ~/.ssh/known_hosts" > /etc/dsnvps/.tmp/knownhost_sedit
+chmod +x /etc/dsnvps/.tmp/knownhost_sedit
+/etc/dsnvps/.tmp/knownhost_sedit
+rm -rf /etc/dsnvps/.tmp/knownhost_sedit
+fi
+fi
+cat > "/etc/dsnvps/.tmp/rsync_ketnoi" <<END
+sshpass -p '$PASS1' ssh-copy-id -i ~/.ssh/id_rsa.pub $ipvpsbackup > /etc/dsnvps/.tmp/abc
+END
+chmod +x /etc/dsnvps/.tmp/rsync_ketnoi
+/etc/dsnvps/.tmp/rsync_ketnoi
+rm -rf /etc/dsnvps/.tmp/rsync_ketnoi
+checkconnect=$(ssh -o BatchMode=yes -o ConnectTimeout=9 root@$ipvpsbackup echo connected 2>&1)
+if [[ ! $checkconnect == connected ]] ; then
+clear
+echo "========================================================================="
+echo "Ket noi toi VPS Backup that bai"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+clear
+echo "========================================================================="
+echo "Thay mat khau cho tai khoan root cua VPS backup thanh cong"
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu moi la: $PASS1"
+echo "-------------------------------------------------------------------------"
+echo "Neu dang nhap VPS tren may tinh that bai, truoc khi dang nhap"
+echo "-------------------------------------------------------------------------"
+echo "ban thu chay lenh sau:  ssh-keygen -R $ipvpsbackup"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "You cancel change password for root user in vps backup!"
+  /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+;;
+esac

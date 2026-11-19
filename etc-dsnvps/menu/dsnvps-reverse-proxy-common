@@ -1,0 +1,61 @@
+#!/bin/bash
+# Hiển thị danh sách domain theo 2 cột (theo dsnvps-cai-dat-paidssl-website-park-domain-origin-V2)
+display_reverse_proxy_domains_2cols() {
+    local list_file="${1:-/etc/dsnvps/.tmp/reverse_proxy_domains_list}"
+    local -a arr
+    mapfile -t arr < "$list_file" 2>/dev/null
+    local total=${#arr[@]}
+    local half=$(( (total + 1) / 2 ))
+    local i left_index right_index left_item right_item
+    for ((i = 0; i < half; i++)); do
+        left_index=$((i + 1))
+        right_index=$((half + i + 1))
+        left_item="${arr[i]:- }"
+        if (( right_index <= total )); then
+            right_item="${arr[right_index-1]}"
+            printf "%-2s %-30s %-2s %-30s\n" "$left_index." "$left_item" "$right_index." "$right_item"
+        else
+            printf "%-2s %-30s\n" "$left_index." "$left_item"
+        fi
+    done
+}
+get_reverse_proxy_domains_list() {
+    true > /etc/dsnvps/.tmp/reverse_proxy_domains_list
+    for vhost in /etc/nginx/conf.d/*.conf; do
+        [ -f "$vhost" ] || continue
+        domain=$(basename "$vhost" .conf)
+        if [ -d "/home/$domain/proxy_html" ]; then
+            echo "$domain" >> /etc/dsnvps/.tmp/reverse_proxy_domains_list
+        fi
+    done
+}
+read_proxy_info() {
+    local dom="$1"
+    proxy_scheme=""
+    proxy_forward_host=""
+    proxy_forward_port=""
+    
+    if [ -f "/home/$dom/proxy.info" ]; then
+        proxy_scheme=$(grep "^scheme=" "/home/$dom/proxy.info" | cut -d= -f2)
+        proxy_forward_host=$(grep "^forward_host=" "/home/$dom/proxy.info" | cut -d= -f2)
+        proxy_forward_port=$(grep "^forward_port=" "/home/$dom/proxy.info" | cut -d= -f2)
+    fi
+    
+    if [ -z "$proxy_scheme" ] || [ -z "$proxy_forward_host" ]; then
+           local vhost_file="/etc/nginx/conf.d/$dom.conf"
+        if [ -f "$vhost_file" ]; then
+            local proxy_line
+            proxy_line=$(grep -E "proxy_pass\s+" "$vhost_file" | head -1 | sed 's/.*proxy_pass\s*//' | tr -d ';' | tr -d ' ')
+            if [ -n "$proxy_line" ]; then
+                if [[ "$proxy_line" == https://* ]]; then
+                    proxy_scheme="https"
+                else
+                    proxy_scheme="http"
+                fi
+                proxy_line="${proxy_line#*://}"
+                proxy_forward_host="${proxy_line%%:*}"
+                proxy_forward_port="${proxy_line##*:}"
+            fi
+        fi
+    fi
+}

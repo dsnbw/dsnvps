@@ -1,0 +1,72 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/vps_backup_rsync.info ]; then
+clear
+echo "========================================================================="
+echo "Máy chủ hiện tại chưa được kết nối với VPS Backup"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng kết nối với VPS Backup trước khi thực hiện thao tác này."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+if [ ! -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải chạy chức năng [ Cấu hình thời gian đồng bộ ] trước khi sử dụng"
+echo "-------------------------------------------------------------------------"
+echo "chức năng này."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để đồng bộ dữ liệu tới VPS Backup ngay lập tức"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn đồng bộ dữ liệu ngay? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+sshport=$(grep "sshport" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới VPS Backup ... "
+checkconnect=$(ssh -p $sshport -o BatchMode=yes -o ConnectTimeout=9 root@$ipvpsbackup echo connected 2>&1)
+if [[ ! $checkconnect == connected ]] ; then
+clear
+echo "========================================================================="
+echo "Kết nối tới VPS Backup thất bại"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Kết nối => OK."
+        sleep 4  
+        tput cuu 4 
+        tput ed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+/etc/dsnvps/Auto_backup_VPS_by_rsync
+sleep 3
+clear
+echo "========================================================================="
+echo "Đồng bộ dữ liệu tới VPS Backup hoàn thành!"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Bạn đã hủy đồng bộ dữ liệu tới VPS Backup ngay lập tức!"
+  /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+  exit
+;;
+esac
+exit

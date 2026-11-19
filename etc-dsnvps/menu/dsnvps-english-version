@@ -1,0 +1,16 @@
+#!/bin/bash
+cur="VN"
+[ -f /etc/dsnvps/menu/dsnvps-check-language ] && cur=$(tr -d '[:space:]' < /etc/dsnvps/menu/dsnvps-check-language)
+clear
+echo "========================================================================="
+echo " Ngôn ngữ hiện tại / Current Language: $cur"
+echo "-------------------------------------------------------------------------"
+echo " 1) Tiếng Việt (VN)"
+echo " 2) English (EN)"
+echo " 0) Quay lại / Back"
+echo "========================================================================="
+read -r -p "Chọn [0-2]: " lch
+case "$lch" in
+    1) echo "VN" > /etc/dsnvps/menu/dsnvps-check-language; echo "Đã chuyển sang Tiếng Việt!"; sleep 1 ;;
+    2) echo "EN" > /etc/dsnvps/menu/dsnvps-check-language; echo "Switched to English!"; sleep 1 ;;
+esac

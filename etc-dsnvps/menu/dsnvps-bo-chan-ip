@@ -1,0 +1,53 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+if [ -f /etc/csf/csf.conf ]; then
+echo "========================================================================="
+echo "Chức năng này sẽ Bật CSF Firewall nếu bạn đang Tắt CSF!"
+echo "-------------------------------------------------------------------------" 
+echo -n "Nhập IP bạn muốn bỏ chặn: " 
+read ipbochan
+if [ "$ipbochan" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập chính xác"
+/etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+exit
+fi
+csf -e
+csf -dr "$ipbochan"
+    csf -r
+clear
+echo "========================================================================="
+echo "IP $ipbochan bây giờ có thể truy cập Website hoặc VPS"
+/etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+fi
+clear
+
+echo "========================================================================= "
+echo "Chức năng này sử dụng CSF Firewall để hoạt động"
+echo "CSF Firewall chưa được cài trên server! "
+read -r -p "Bạn có muốn cài đặt CSF Firewall không ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/dsnvps-cai-dat-csf-ddos
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình CSF Firewall thành công"
+/etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Hủy bỏ ! "
+/etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+exit
+fi

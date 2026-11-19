@@ -1,0 +1,93 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Xác định serverip_priport
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+if [ ! -f /etc/dsnvps/telegram.conf ]; then
+clear
+echo "========================================================================="
+echo "Dùng chức năng này TẮT/BẬT gửi thông báo Telegram sau hoàn thành sao lưu "
+echo "-------------------------------------------------------------------------"
+echo "tất cả website trong chức năng [ Tự Động Sao Lưu Tất Cả Website ]."
+echo "========================================================================="
+echo "========================================================================="
+echo "Bạn hãy cấu hình Telegram trước khi chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+echo "Cách cấu hình:"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu => Auto Check Login/Nginx/MySQL/PHP => Cấu Hình Telegram "
+echo "-------------------------------------------------------------------------"
+echo "Sau khi cấu hình xong, hãy quay lại chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+
+if [ ! -f /etc/cron.d/auto.backup.all.websites.cron ] || [ ! -f /etc/dsnvps/auto.backup.all.websites.conf ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa cấu hình tự động sao lưu tất cả Website."
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS không thể chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-sao-luu
+fi
+
+echo "========================================================================="
+echo "Dùng chức năng này TẮT/BẬT gửi thông báo Telegram sau hoàn thành sao lưu "
+echo "-------------------------------------------------------------------------"
+echo "tất cả website trong chức năng [ Tự Động Sao Lưu Tất Cả Website ]."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/8781"
+telegram_toggle_file="/etc/dsnvps/auto.backup.all.websites.telegram.conf"
+
+if [ -f "$telegram_toggle_file" ]; then
+echo "========================================================================="
+    echo "Hiện tại Gửi thông báo Telegram đang BẬT."
+            echo "-------------------------------------------------------------------------"
+    echo -n "Bạn có muốn TẮT chức năng này không? [Y/n]: "
+    read tgbat
+    tgbat=${tgbat,,} # chuyển thành chữ thường
+
+    if [[ "$tgbat" == "y" || "$tgbat" == "Y" ]]; then
+        rm -f "$telegram_toggle_file"
+        sleep 2
+        clear
+        echo "========================================================================="
+        echo "Đã TẮT chức năng gửi thông báo Telegram sau khi sau lưu tự động website."
+        /etc/dsnvps/menu/dsnvps-sao-luu
+    else
+    clear
+        echo "========================================================================="
+        echo "Không thay đổi. Gửi thông báo Telegram vẫn đang BẬT."
+        /etc/dsnvps/menu/dsnvps-sao-luu
+    fi
+else
+echo "========================================================================="
+    echo "Hiện tại Gửi thông báo Telegram đang TẮT."
+    echo "-------------------------------------------------------------------------"
+    echo -n "Bạn có muốn BẬT chức năng này không? [Y/n]: "
+    read tgbat
+    tgbat=${tgbat,,}
+
+    if [[ "$tgbat" == "y" || "$tgbat" == "Y" ]]; then
+        touch "$telegram_toggle_file"
+        sleep 2
+        clear
+        echo "========================================================================="
+        echo "Đã BẬT chức năng gửi thông báo Telegram sau khi sau lưu tự động website."
+        /etc/dsnvps/menu/dsnvps-sao-luu
+    else
+    clear
+       echo "========================================================================="
+        echo "Không thay đổi. Gửi thông báo Telegram vẫn đang TẮT."
+        /etc/dsnvps/menu/dsnvps-sao-luu
+    fi
+fi
+
+

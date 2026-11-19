@@ -1,0 +1,17 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/sysconfig/memcached ]; then
+
+up=$(/bin/systemctl status memcached.service | grep running | grep -v not | wc -l);
+if [ "$up" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ...";sleep 2
+echo "flush_all" | nc 127.0.0.1 11211
+fi
+fi

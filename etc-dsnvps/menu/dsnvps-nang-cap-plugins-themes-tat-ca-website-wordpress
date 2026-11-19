@@ -1,0 +1,136 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/websitelist
+cd
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+acction1="/etc/dsnvps/.tmp/websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$acction1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+echo "========================================================================="
+#prompt="Nhap lua chon cua ban: "
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Update PLugins" "Update Themes")
+printf "LỰA CHỌN CẬP NHẬT PLUGINS HOẶC THEMES\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachonupdate="updateplugin"; break;;
+    2) luachonupdate="updatethemes"; break;;
+    0) luachonupdate="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    
+    esac  
+done
+###################################
+#Update plugin
+###################################
+if [ "$luachonupdate" = "updateplugin" ]; then
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+sositewp=$(cat /etc/dsnvps/.tmp/wordpresslist | wc -l)
+echo "========================================================================="
+echo "Hiện tại có $sositewp website đang sử dụng wordpress code trên server" 
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ check và update tất cả plugins của $sositewp website này"
+sleep 2
+acction2="/etc/dsnvps/.tmp/wordpresslist"
+while read -r wpwebsite
+    do
+website_upper=$(echo "$wpwebsite" | tr 'a-z' 'A-Z')
+if [ -f /home/$wpwebsite/public_html/wp-config.php ]; then
+chown -R nginx:nginx /home/$wpwebsite/public_html/wp-content/plugins
+echo "=========================================================================";sleep 2
+echo "Update Plugins $website_upper status:";sleep 2
+echo "=========================================================================";sleep 3
+cd /home/$wpwebsite/public_html
+#echo "========================================================================="
+#echo "Update Status For: $wpwebsite"
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+rm -rf /etc/dsnvps/.tmp/oilas
+wp db check --allow-root > /etc/dsnvps/.tmp/oilas
+if grep -q "Success:" /etc/dsnvps/.tmp/oilas; then
+wp plugin update --all --allow-root
+else
+echo "-------------------------------------------------------------------------";sleep 2
+echo "DSNVPS không thể cập nhật plugins cho $website_upper"; sleep 2
+fi
+chown -R nginx:nginx /home/$wpwebsite/public_html/wp-content/plugins
+
+  fi
+done < "$acction2"
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+echo "-------------------------------------------------------------------------"
+
+     /etc/dsnvps/menu/inc/re-start-php-fpm-service 
+echo "Nhấn [Enter] để quay lại menu DSNVPS"
+read
+clear && /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+###################################
+#Update tat ca themes
+###################################
+elif [ "$luachonupdate" = "updatethemes" ]; then
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+sositewp=$(cat /etc/dsnvps/.tmp/wordpresslist | wc -l)
+echo "========================================================================="
+echo "Hiện tại có $sositewp website đang sử dụng wordpress code trên server" 
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ check và update tất cả Themes của $sositewp website này"
+sleep 2
+acction2="/etc/dsnvps/.tmp/wordpresslist"
+while read -r wpwebsite
+    do
+website_upper=$(echo "$wpwebsite" | tr 'a-z' 'A-Z')
+if [ -f /home/$wpwebsite/public_html/wp-config.php ]; then
+chown -R nginx:nginx /home/$wpwebsite/public_html/wp-content/themes
+cd /home/$wpwebsite/public_html
+echo "=========================================================================";sleep 2
+echo "Update Status cho: $website_upper";sleep 2
+echo "=========================================================================";sleep 3
+
+rm -rf /etc/dsnvps/.tmp/oilas
+wp db check --allow-root > /etc/dsnvps/.tmp/oilas
+if grep -q "Success:" /etc/dsnvps/.tmp/oilas; then
+wp theme update --all --allow-root
+else
+echo "-------------------------------------------------------------------------";sleep 2
+echo "DSNVPS không thể cập nhật themes cho $website_upper"; sleep 2
+
+fi
+chown -R nginx:nginx /home/$wpwebsite/public_html/wp-content/themes
+  fi
+done < "$acction2"
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+echo "=========================================================================";sleep 2
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+echo "Nhấn [Enter] để quay lại menu DSNVPS"
+read
+clear && /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+###################################
+#Huy bo update
+###################################
+else
+clear
+exit 0
+fi

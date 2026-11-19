@@ -1,0 +1,211 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+ rm -rf /etc/dsnvps/.tmp/kiemtasncg
+rm -rf /etc/dsnvps/.tmp/klaixx.txt
+rm -rf /etc/dsnvps/.tmp/alizb
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+if [ -f /etc/nginx/auth-acme/$checksite/$checksite.crt ]; then
+if [ "`grep "/etc/nginx/auth-acme/$checksite/$checksite.crt" /etc/nginx/conf.d/$checksite.conf`" != "" ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+ done
+
+
+###################################################################################################
+########################################################################
+#check Subsite
+#########################################################################
+rm -rf /etc/dsnvps/.tmp/klaixx.txt
+klaixx_file="/etc/dsnvps/.tmp/klaixx.txt"
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+# Xóa file cũ nếu tồn tại
+> "$klaixx_file"
+# Duyệt qua tất cả các file .conf trong thư mục cấu hình Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    # Lấy tên miền từ file vhost
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+
+    # Kiểm tra nếu domain chạy WordPress (tồn tại wp-config.php)
+    if [[ -f "$domain_home/wp-config.php" ]]; then
+        multisite_folder="$home_folder/$domain/multisite.conf.d"
+
+        # Nếu thư mục multisite.conf.d tồn tại và có file vhost
+        if [[ -d "$multisite_folder" && $(ls -A "$multisite_folder"/*.conf 2>/dev/null) ]]; then
+            for subsite_vhost in "$multisite_folder"/*.conf; do
+                subsite=$(basename "$subsite_vhost" .conf)
+                echo "$subsite" >> "$klaixx_file"
+            done
+        fi
+    fi
+done
+# Kiểm tra kết quả
+if [[ -s "$klaixx_file" ]]; then
+# Đường dẫn tệp chứa danh sách sub-domain
+input_file="/etc/dsnvps/.tmp/klaixx.txt"
+output_file="/etc/dsnvps/.tmp/alizb"
+
+# Đọc từng dòng từ tệp input
+while IFS= read -r sub_domain; do
+    # Tìm domain chính từ sub-domain
+    domain=$(echo "$sub_domain" | awk -F. '{print $(NF-1)"."$NF}')
+    
+    # Đường dẫn đến vhost của sub-domain
+    vhost_path="/home/$domain/multisite.conf.d/$sub_domain.conf"
+    
+    # Kiểm tra nếu tệp vhost tồn tại
+    if [[ -f "$vhost_path" ]]; then
+        # Kiểm tra nội dung file vhost
+        if grep -q "/etc/nginx/auth-acme/$sub_domain/$sub_domain.crt" "$vhost_path" && \
+           grep -q "https://$sub_domain\$request_uri;" "$vhost_path"; then
+            # Sub-domain đang dùng SSL, thêm vào tệp output
+            echo "$sub_domain" >> "$output_file"
+        fi
+    fi
+done < "$input_file"
+
+if [[ -s "$output_file" ]]; then
+cat "$output_file" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+
+########################################################################################################
+#Park Domains
+######################################################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+> "$output_file"
+
+# Lấy danh sách domain chính từ file .conf
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+
+    # Kiểm tra nếu domain có thư mục public_html và không phải domain chính
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+
+if [[ ! -s "$output_file" ]]; then
+    exit 1
+fi
+
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+> "$output_file"
+
+# Đọc danh sách domain chính để kiểm tra park domain
+while IFS= read -r mainsite; do
+    domain_conf_folder="$home_folder/$mainsite/conf.d"
+
+    # Kiểm tra nếu thư mục conf.d tồn tại và có file .conf
+    if [[ -d "$domain_conf_folder" ]] && compgen -G "$domain_conf_folder/*.conf" > /dev/null; then
+        for vhost in "$domain_conf_folder"/*.conf; do
+            subdomain=$(basename "$vhost" .conf)
+            # Kiểm tra nếu subdomain khác domain chính và chứa SSL
+            if [[ "$subdomain" != "$mainsite" ]] && grep -q "/etc/nginx/auth-acme/$subdomain/$subdomain.crt" "$vhost"; then
+                echo "$subdomain" >> "$output_file"
+            fi
+        done
+    fi
+done < "$klaoxcy_file"
+
+# Chỉ xuất danh sách park domain có SSL
+if [[ -s "$output_file" ]]; then
+    cat "$output_file" >> /etc/dsnvps/.tmp/checksite-list
+fi
+###############################################################
+#####################################################################
+
+if [[ ! -s /etc/dsnvps/.tmp/checksite-list ]]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Chưa có website cài đặt Free SSL trên server"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+
+echo "========================================================================="
+echo "Bắt đầu kiểm tra ..."; sleep 3
+
+echo "-------------------------------------------------------------------------"
+
+###################################################################################
+
+# Đọc danh sách các website từ file klaoxcy
+websites=$(cat /etc/dsnvps/.tmp/checksite-list)
+
+# Đường dẫn file output để ghi kết quả
+output_file="/etc/dsnvps/.tmp/kiemtasncg"
+
+# Duyệt qua từng website
+for website in $websites; do
+            cert_file="/etc/nginx/auth-acme/${website}/$website.crt"
+            
+if [ -f "$cert_file" ]; then
+    # Lấy thông tin ngày bắt đầu và hết hạn của chứng chỉ
+    cert_dates=$(openssl x509 -in "$cert_file" -noout -dates)
+    cert_notbefore=$(echo "$cert_dates" | grep "notBefore" | sed 's/notBefore=//' | awk '{print $1, $2, $4}')
+    cert_notafter=$(echo "$cert_dates" | grep "notAfter" | sed 's/notAfter=//' | awk '{print $1, $2, $4}')
+    
+    # Ghi kết quả vào file output
+
+    echo "Domain: $website" >> "$output_file"
+    echo "-------------------------------------------------------------------------" >> "$output_file"
+    echo "Thời gian đăng ký: $cert_notbefore" >> "$output_file"
+echo "Thời gian hết hạn: $cert_notafter" >> "$output_file"
+    echo "=========================================================================" >> "$output_file"
+fi
+
+done
+
+
+
+if [[ -s "/etc/dsnvps/.tmp/kiemtasncg" ]]; then
+sed -i '$d' /etc/dsnvps/.tmp/kiemtasncg
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                    Danh Sách Website Cài FreeSSL \n"
+
+printf "=========================================================================\n"
+cat /etc/dsnvps/.tmp/kiemtasncg
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+else
+clear
+printf "=========================================================================\n"
+echo "Không tìm thấy domain cài đặt FreeSSL trên server."; sleep 2
+
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi

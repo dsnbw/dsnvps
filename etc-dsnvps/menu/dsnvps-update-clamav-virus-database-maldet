@@ -1,0 +1,26 @@
+#!/bin/bash 
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+clear
+echo "========================================================================= "
+echo "LMD with ClamAV chưa được cài đặt trên VPS "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng cài đặt LMD trước khi chạy chức năng này !"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+exit
+fi
+echo "========================================================================= "
+echo "Cập nhật cơ sở dữ liệu virus cho Maldet & ClamAV."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+echo "-------------------------------------------------------------------------"
+maldet -u
+rm -rf /etc/cron.daily/maldet
+cp -r /etc/dsnvps/menu/inc/LMDconfig/maldet.conf /etc/cron.daily/maldet
+chmod +x /etc/cron.daily/maldet
+freshclam
+echo "-------------------------------------------------------------------------"
+sleep 2
+clear
+echo "========================================================================= "
+echo "Hoàn thành cập nhật cơ sở dữ liệu virus."
+/etc/dsnvps/menu/dsnvps-maldet-menu

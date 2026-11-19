@@ -1,0 +1,30 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+ROOT_FSTYPE="$(findmnt -n -o FSTYPE /)"
+CUR_OPTS="$(findmnt -n -o OPTIONS /)"
+
+if [[ "$CUR_OPTS" == *"noatime"* ]] && grep -qE '^[^#].*[[:space:]]/[[:space:]].*noatime' /etc/fstab; then
+    echo -e "${C_GREEN}[OK] Disk I/O (noatime trên ${ROOT_FSTYPE}) đã bật sẵn.${C_RESET}"
+else
+    cp -a /etc/fstab /etc/fstab.dsnvps.bak
+    awk -v fstype="$ROOT_FSTYPE" '{
+        if ($1 !~ /^#/ && $2 == "/") {
+            if ($4 !~ /noatime/) { $4 = $4 ",noatime" }
+            if (fstype == "xfs" && $4 !~ /logbsize=256k/) { $4 = $4 ",logbsize=256k" }
+        }
+        print $0
+    }' /etc/fstab > /tmp/fstab.dsnvps.new
+    if [[ -s /tmp/fstab.dsnvps.new ]]; then
+        mv -f /tmp/fstab.dsnvps.new /etc/fstab
+        mount -o remount /
+        echo -e "${C_GREEN}[OK] Đã bật noatime cho phân vùng / (${ROOT_FSTYPE}) và remount thành công.${C_RESET}"
+    else
+        cp -a /etc/fstab.dsnvps.bak /etc/fstab
+        rm -f /tmp/fstab.dsnvps.new
+        echo -e "${C_RED}[ERR] Không thể cập nhật /etc/fstab.${C_RESET}"
+    fi
+fi
+
+systemctl enable --now fstrim.timer >/dev/null 2>&1 || true
+echo -e "${C_GREEN}[OK] SSD/NVMe fstrim.timer đã kích hoạt.${C_RESET}"

@@ -1,0 +1,301 @@
+#!/bin/bash
+# Ensure bc is installed for calculations
+if ! command -v bc &> /dev/null; then
+    apt-get install -y -qq bc
+fi
+
+# Get total RAM (MB)
+svram=$(free -m | awk '/^Mem:/{print $2}')
+
+# Calculate RAM allocation: 50% for database, 50% for PHP/Nginx/OS
+ramfordb=$(echo "$svram * 0.5" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+ramforphpnginx=$(echo "$svram - $ramfordb" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+
+# Calculate pm.max_children (assume 40MB per process)
+pmmaxchildren=$(echo "$ramforphpnginx / 40" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+if [ $pmmaxchildren -lt 5 ]; then
+    pmmaxchildren=5  # Minimum 5 children
+fi
+
+# Calculate memory_limit (20% of ramforphpnginx, cap at 512M)
+memory_limit=$(echo "$ramforphpnginx * 0.2" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+if [ $(echo "$memory_limit > 512" | bc) -eq 1 ]; then
+    memory_limit=512
+elif [ $(echo "$memory_limit < 128" | bc) -eq 1 ]; then
+    memory_limit=128
+fi
+memory_limit="${memory_limit}M"
+
+# Calculate MySQL buffer and log sizes
+buff_size=$(echo "$ramfordb / 10 * 8" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+if [ $(echo "$buff_size > $ramfordb" | bc) -eq 1 ]; then
+    buff_size=$ramfordb  # Cap at ramfordb
+fi
+buff_size="${buff_size}M"
+
+log_size=$(echo "$ramfordb / 10 * 2" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+if [ $(echo "$log_size > 512" | bc) -eq 1 ]; then
+    log_size=512  # Cap at 512M
+fi
+log_size="${log_size}M"
+
+# Configuration based on RAM levels
+if [[ $svram -ge 32 && $svram -le 400 ]]; then 
+    pmstartservers=2
+    pmminspareservers=1
+    pmmaxspareservers=3
+    pmmaxrequests=200
+    realpath_cache_size=4096k
+    realpath_cache_ttl=7200
+elif [[ $svram -ge 401 && $svram -le 900 ]]; then  # RAM ~512MB
+    pmstartservers=3
+    pmminspareservers=1
+    pmmaxspareservers=4
+    pmmaxrequests=250
+    realpath_cache_size=4096k
+    realpath_cache_ttl=10800
+elif [[ $svram -ge 901 && $svram -le 1300 ]]; then  # RAM ~1GB
+    pmstartservers=4
+    pmminspareservers=2
+    pmmaxspareservers=6
+    pmmaxrequests=300
+    realpath_cache_size=4096k
+    realpath_cache_ttl=14400
+elif [[ $svram -ge 1302 && $svram -le 1800 ]]; then
+    pmstartservers=6
+    pmminspareservers=3
+    pmmaxspareservers=8
+    pmmaxrequests=400
+    realpath_cache_size=4096k
+    realpath_cache_ttl=14400
+elif [[ $svram -ge 1801 && $svram -le 2800 ]]; then
+    pmstartservers=8
+    pmminspareservers=4
+    pmmaxspareservers=10
+    pmmaxrequests=500
+    realpath_cache_size=4096k
+    realpath_cache_ttl=21600
+elif [[ $svram -ge 2801 && $svram -le 4000 ]]; then
+    pmstartservers=8
+    pmminspareservers=6
+    pmmaxspareservers=12
+    pmmaxrequests=500
+    realpath_cache_size=4096k
+    realpath_cache_ttl=21600
+elif [[ $svram -ge 4001 && $svram -le 8000 ]]; then
+    pmstartservers=10
+    pmminspareservers=6
+    pmmaxspareservers=16
+    pmmaxrequests=600
+    realpath_cache_size=4096k
+    realpath_cache_ttl=28800
+elif [[ $svram -ge 8001 && $svram -le 16000 ]]; then
+    pmstartservers=12
+    pmminspareservers=8
+    pmmaxspareservers=20
+    pmmaxrequests=800
+    realpath_cache_size=4096k
+    realpath_cache_ttl=43200
+elif [[ $svram -ge 16001 && $svram -le 32000 ]]; then
+    pmstartservers=16
+    pmminspareservers=10
+    pmmaxspareservers=24
+    pmmaxrequests=1000
+    realpath_cache_size=4096k
+    realpath_cache_ttl=43200
+elif [[ $svram -ge 32001 && $svram -le 64000 ]]; then
+    pmstartservers=20
+    pmminspareservers=12
+    pmmaxspareservers=32
+    pmmaxrequests=1000
+    realpath_cache_size=4096k
+    realpath_cache_ttl=86400
+else
+    pmstartservers=24
+    pmminspareservers=16
+    pmmaxspareservers=40
+    pmmaxrequests=1000
+    realpath_cache_size=4096k
+    realpath_cache_ttl=86400
+fi
+
+# Tạo file cấu hình PHP-FPM
+cat > "/etc/php-fpm.d/www.conf" <<END
+[www]
+user = nginx
+group = nginx
+
+listen = 127.0.0.1:9000
+listen.allowed_clients = 127.0.0.1
+
+listen.owner = nginx
+listen.group = nginx
+listen.mode = 0660
+
+pm = dynamic
+pm.max_children = $pmmaxchildren
+pm.start_servers = $pmstartservers
+pm.min_spare_servers = $pmminspareservers
+pm.max_spare_servers = $pmmaxspareservers
+pm.max_requests = $pmmaxrequests
+
+slowlog = /var/log/php-fpm/php-fpm-slow.log
+
+pm.status_path = /php_status
+ping.path = /phpping
+ping.response = pong
+
+request_terminate_timeout = 120s
+pm.process_idle_timeout = 10s
+request_slowlog_timeout = 5s
+
+rlimit_files = 131072
+rlimit_core = unlimited
+
+security.limit_extensions = .php .php3 .php4 .php5
+
+php_admin_value[error_log] = /var/log/php-fpm/php-fpm-error.log
+php_value[session.save_handler] = files
+php_value[session.save_path] = /var/lib/php/session
+END
+
+# Tạo file cấu hình PHP
+: > /etc/php.ini
+cat > "/etc/php.ini" <<END
+[PHP]
+engine = On
+short_open_tag = On
+asp_tags = Off
+precision = 14
+output_buffering = 4096
+zlib.output_compression = Off
+implicit_flush = Off
+unserialize_callback_func =
+serialize_precision = 17
+disable_functions = 
+disable_classes =
+zend.enable_gc = On
+expose_php = Off
+max_execution_time = 120
+max_input_time = 120
+memory_limit = $memory_limit
+max_input_vars = 10000
+realpath_cache_size = $realpath_cache_size
+realpath_cache_ttl = $realpath_cache_ttl
+error_reporting = E_ALL & ~E_DEPRECATED & ~E_STRICT
+display_errors = Off
+display_startup_errors = Off
+log_errors = On
+log_errors_max_len = 1024
+ignore_repeated_errors = Off
+ignore_repeated_source = Off
+report_memleaks = On
+track_errors = Off
+html_errors = On
+variables_order = "GPCS"
+request_order = "GP"
+register_argc_argv = Off
+auto_globals_jit = On
+post_max_size = 64M
+auto_prepend_file =
+auto_append_file =
+default_mimetype = "text/html"
+default_charset = "UTF-8"
+doc_root =
+user_dir =
+enable_dl = Off
+cgi.fix_pathinfo=0
+file_uploads = On
+upload_max_filesize = $memory_limit
+always_populate_raw_post_data=-1
+max_input_nesting_level = 64
+max_file_uploads = 20
+allow_url_fopen = On
+allow_url_include = Off
+default_socket_timeout = 60
+cli_server.color = On
+
+[Date]
+date.timezone = Asia/Bangkok
+
+[Pdo_mysql]
+pdo_mysql.cache_size = 2000
+pdo_mysql.default_socket=/var/lib/mysql/mysql.sock
+
+[Phar]
+
+[mail function]
+SMTP = localhost
+smtp_port = 25
+sendmail_path = /usr/sbin/sendmail -t -i
+mail.add_x_header = Off
+
+[SQL]
+sql.safe_mode = Off
+
+[MySQL]
+mysql.allow_local_infile = On
+mysql.allow_persistent = On
+mysql.cache_size = 2000
+mysql.max_persistent = -1
+mysql.max_links = -1
+mysql.default_port =
+mysql.default_socket =
+mysql.default_host =
+mysql.default_user =
+mysql.default_password =
+mysql.connect_timeout = 60
+mysql.trace_mode = Off
+
+[MySQLi]
+mysqli.max_persistent = -1
+mysqli.allow_persistent = On
+mysqli.max_links = -1
+mysqli.cache_size = 2000
+mysqli.default_port = 3306
+mysqli.default_socket = /var/lib/mysql/mysql.sock
+mysqli.default_host =
+mysqli.default_user =
+mysqli.default_pw =
+mysqli.reconnect = Off
+
+[mysqlnd]
+mysqlnd.collect_statistics = On
+mysqlnd.collect_memory_statistics = Off
+mysqlnd.net_cmd_buffer_size = 16384
+
+[bcmath]
+bcmath.scale = 0
+
+[Session]
+session.save_handler = files
+session.use_cookies = 1
+session.use_only_cookies = 1
+session.name = PHPSESSID
+session.auto_start = 0
+session.cookie_lifetime = 0
+session.cookie_path = /
+session.cookie_domain =
+session.cookie_httponly =
+session.serialize_handler = php
+session.gc_probability = 1
+session.gc_divisor = 1000
+session.gc_maxlifetime = 1440
+session.bug_compat_42 = Off
+session.bug_compat_warn = Off
+session.referer_check =
+session.cache_limiter = nocache
+session.cache_expire = 180
+session.use_trans_sid = 0
+session.hash_function = 0
+session.hash_bits_per_character = 5
+url_rewriter.tags = "a=href,area=href,frame=src,input=src,form=fakeentry"
+END
+
+# Uncomment and adjust if needed for systemd limits
+#if [ ! -d /etc/systemd/system/php-fpm.service.d ]; then
+#    mkdir -p /etc/systemd/system/php-fpm.service.d
+#    echo -en "[Service]\nLimitNOFILE=262144\nLimitNPROC=16384\n" > /etc/systemd/system/php-fpm.service.d/limit.conf
+#else
+#    echo -en "[Service]\nLimitNOFILE=262144\nLimitNPROC=16384\n" > /etc/systemd/system/php-fpm.service.d/limit.conf
+#fi

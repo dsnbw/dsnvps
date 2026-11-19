@@ -1,0 +1,24 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+clear
+cur_ver="$(cat /etc/dsnvps/menu/inc/dsnvps.version 2>/dev/null || echo '7.1.0')"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_YELLOW}           CẬP NHẬT DSNVPS TỪ REPOSITORY CHÍNH THỨC (GITHUB)${C_RESET}"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e " Phiên bản hiện tại : ${C_GREEN}${cur_ver}${C_RESET}"
+echo -e " Nguồn cập nhật     : ${C_CYAN}https://github.com/dsnbw/dsnvps${C_RESET}"
+echo "-------------------------------------------------------------------------"
+echo " Lưu ý: Quá trình cập nhật CHỈ cập nhật script DSNVPS, giữ nguyên toàn bộ"
+echo " website, database, chứng chỉ SSL và cấu hình /root/dsnvps.conf của bạn."
+echo "========================================================================="
+read -r -p "Bạn muốn kiểm tra và cập nhật DSNVPS ngay bây giờ? [y/N]: " ans
+if [[ "$ans" =~ ^[Yy]$ ]]; then
+    curl -sSL "https://raw.githubusercontent.com/dsnbw/dsnvps/main/install.sh" -o /tmp/dsnvps-install.sh
+    if [[ -s /tmp/dsnvps-install.sh ]] && grep -q "DSNVPS" /tmp/dsnvps-install.sh; then
+        bash /tmp/dsnvps-install.sh --upgrade --auto
+        rm -f /tmp/dsnvps-install.sh
+    else
+        echo -e "${C_RED}[ERR] Không tải được bộ cài từ GitHub!${C_RESET}"
+    fi
+    read -r -p "Nhấn [Enter] để quay lại menu..."
+fi

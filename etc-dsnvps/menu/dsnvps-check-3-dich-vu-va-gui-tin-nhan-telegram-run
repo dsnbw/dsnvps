@@ -1,0 +1,87 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Danh sach dich vu can kiem tra
+php_svc=$(php -r 'echo "php".PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION."-fpm";' 2>/dev/null || echo "php-fpm"); services=("nginx" "$php_svc" "mariadb")
+log_file="/etc/dsnvps/log-auto-start-nginx-mysql-php.txt"
+telegram_config_file="/etc/dsnvps/telegram.conf"
+last_telegram_time_file="/etc/dsnvps/last_telegram_time.txt"
+
+# Kiem tra phien ban Pro
+is_pro_version=false
+if [ -f /usr/bin/gxred ]; then
+    banquyenchecks=$(stat -c %y "/usr/bin/gxred" | awk '{print $1 $2}' | sed 's/[-:]//g' | cut -c1-14)
+    if [[ "$banquyenchecks" == "20180218013009" || "$banquyenchecks" == "20180218013007" ]]; then
+        is_pro_version=true
+    fi
+fi
+
+# Xoa file log neu vuot qua 3MB
+if [[ -f "$log_file" && $(stat -c%s "$log_file") -gt 5145728 ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] File log $log_file vuot qua 5MB. Dang xoa va tao lai file moi." > "$log_file"
+fi
+
+# Ham kiem tra va khoi dong lai dich vu
+check_and_restart_service() {
+    local service=$1
+
+    # Kiểm tra trạng thái của dịch vụ
+    systemctl is-active --quiet "$service"
+    service_status=$?
+
+    if [[ $service_status -ne 0 ]]; then
+        # Nếu dịch vụ không hoạt động, khởi động lại
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Dich vu $service bi dung. đang BẬT lai ..." >> "$log_file"
+        
+        # Khởi động lại dịch vụ
+        systemctl start "$service" &>/dev/null
+
+        # Kiểm tra lại trạng thái sau khi khởi động lại
+        systemctl is-active --quiet "$service"
+        if [[ $? -eq 0 ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Dich vu $service Đã BẬT THANH CONG." >> "$log_file"
+
+            # Gửi thông báo Telegram ngay khi khởi động thành công
+            if [[ "$is_pro_version" == true && -f "$telegram_config_file" ]]; then
+                source "$telegram_config_file"
+                MESSAGE="$serverip: Phát hiện service $service bị Stop. DSNVPS Đã BẬT lai $service thành công."
+                curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                    -d chat_id="$CHAT_ID" \
+                    -d text="$MESSAGE"
+            fi
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Bat lai $service that bai." >> "$log_file"
+
+            # Gửi thông báo Telegram nếu khởi động thất bại và chưa gửi trong 15 phút
+            if [[ "$is_pro_version" == true && -f "$telegram_config_file" ]]; then
+                if [[ -f "$last_telegram_time_file" ]]; then
+                    last_telegram_time=$(cat "$last_telegram_time_file")
+                    current_timestamp=$(date +%s)
+                    time_diff=$((current_timestamp - last_telegram_time))
+                    
+                    # Gửi thông báo sau 15 phút nếu chưa gửi
+                    if [[ $time_diff -ge 900 ]]; then
+                        source "$telegram_config_file"
+                        MESSAGE="$serverip: Phát hiện service $service bị Stop. DSNVPS không thể BẬT lại $service. Để kiểm tra: DSNVPS menu => Auto Check Login/Nginx/MySQL/PHP => Xem Log Service Stop."
+                        curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                            -d chat_id="$CHAT_ID" \
+                            -d text="$MESSAGE"
+                        echo "$current_timestamp" > "$last_telegram_time_file"
+                    fi
+                else
+                    source "$telegram_config_file"
+                    MESSAGE="$serverip: Phát hiện service $service bị Stop. DSNVPS không thể BẬT lại $service. Để kiểm tra: DSNVPS menu => Auto Check Login/Nginx/MySQL/PHP => Xem Log Service Stop."
+                    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                        -d chat_id="$CHAT_ID" \
+                        -d text="$MESSAGE"
+                    echo "$(date +%s)" > "$last_telegram_time_file"
+                fi
+            fi
+        fi
+    fi
+}
+
+# Kiem tra va xu ly cac dich vu
+for service in "${services[@]}"; do
+    check_and_restart_service "$service"
+done

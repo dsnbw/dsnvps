@@ -1,0 +1,260 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+######Check Nginx Service I
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ Nginx"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, nginx đã dừng. Vui lòng BẬT lại trước khi sử dụng chức năng này."
+	echo "------------------------------------------------------------------------"
+	nginx -t
+	dsnvps
+else
+clear
+echo "========================================================================="
+echo "Nginx started !"
+dsnvps
+fi
+fi
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+clear
+echo "========================================================================="
+echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Nginx: "
+echo "-------------------------------------------------------------------------"
+nginx -t
+dsnvps
+fi
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+echo "-------------------------------------------------------------------------"
+echo "Bạn cần cài đặt WordPress Code cho Website trước khi chạy chức năng này."
+sleep 4
+dsnvps
+exit
+fi
+echo "========================================================================="
+#echo "Dùng chức năng này để cài đặt và Quản Lý Wordpress Multisite cho website."
+
+
+curTime=$(date +%s)
+if [ ! -f /etc/dsnvps/.tmp/90asdta ]; then
+touch -a -m -t 201602180130.09 /etc/dsnvps/.tmp/90asdta 
+fi
+fileTimevpsimscc=$(date -r /etc/dsnvps/.tmp/90asdta +%s); showbbb=$(($curTime-$fileTimevpsimscc));
+#f [ "$showbbb" -gt 1800 ]; then
+#echo "-------------------------------------------------------------------------"
+echo "Website chưa cài Multisite => Chọn Website để cài đặt."
+echo "-------------------------------------------------------------------------"
+echo "Website đã cài Multisite => Chọn Website để quản lý (thêm/xóa Subsite)."
+#fi
+touch /etc/dsnvps/.tmp/90asdta 
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1108"
+echo "========================================================================="
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
+echo "Danh sách WordPress Website trên server:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ dsnvps
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+                sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 3   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<3; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 3   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue
+    fi
+done
+
+# Cac doan ma xac nhan phia duoi se tiep tuc chay
+
+
+
+#if [ ! "$(grep "WP_ALLOW_MULTISITE" /home/$website/public_html/wp-config.php)" == "" ]; then
+#if [ ! "$(grep "define( 'SUBDOMAIN_INSTALL', false );" /home/$website/public_html/wp-config.php)" == "" ]; then
+#clear
+#echo "========================================================================="
+#echo "$website da cai dat Wordpress Multisite thanh cong"
+#echo "-------------------------------------------------------------------------"
+#echo "Multisite duoc cai dat theo dang Sub-directories"
+#echo "-------------------------------------------------------------------------"
+#echo "Hay dang nhap WP-Admin de Thêm Sub-Site cho Wordpress Multisite."
+#echo "-------------------------------------------------------------------------"
+#echo "Hướng dẫn sử dụng: http://go.dsnvps/1108"
+#dsnvps
+#exit
+#fi
+#fi
+
+if grep -q "WP_ALLOW_MULTISITE" /home/$website/public_html/wp-config.php; then
+if grep -q "define( 'SUBDOMAIN_INSTALL', true );" /home/$website/public_html/wp-config.php; then
+rm -rf /etc/dsnvps/.tmp/subdomainwp*
+echo "$website" > /etc/dsnvps/.tmp/subdomainwp.txt
+echo "$website" > /etc/dsnvps/.tmp/subdomainwpOK.txt
+/etc/dsnvps/menu/dsnvps-kich-hoat-sub-multisite-wordpress
+fi
+fi
+
+if grep -q "WP_ALLOW_MULTISITE" /home/$website/public_html/wp-config.php; then
+if grep -q "define( 'SUBDOMAIN_INSTALL', false );" /home/$website/public_html/wp-config.php; then
+rm -rf /etc/dsnvps/.tmp/subdomainwp*
+echo "$website" > /etc/dsnvps/.tmp/subdomainwp.txt
+echo "$website" > /etc/dsnvps/.tmp/subdomainwpOK.txt
+/etc/dsnvps/menu/dsnvps-kich-hoat-sub-folder-multisite-wordpress
+fi
+fi
+
+
+
+rm -rf /etc/dsnvps/.tmp/listsubsite*
+rm -rf /etc/dsnvps/.tmp/subdomainwp*
+echo "$website" > /etc/dsnvps/.tmp/subdomainwp.txt
+
+#prompt="Type in your choice: "
+  echo "========================================================================="
+echo "Lựa chọn cách cài đặt Wordpress Multisite:"
+  echo "-------------------------------------------------------------------------"
+  echo "Sub-domain: http://username.website.com"
+  echo "-------------------------------------------------------------------------"
+  echo "Sub-directories: http://website.com/username"
+echo "========================================================================="
+    while true; do
+printf "%-35s  %s\n" " 1) Sub-Domain"  "2) Sub-directories"
+    echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    #read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+    case $choice in
+    1) multisitehow="subdomain"; break;;
+    2) multisitehow="subdirectories"; break;;
+    0) multisitehow="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+
+########## XOA 4 DONG PHIA TREN ################
+sleep 3
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        
+        continue;;
+    #*) echo "You typed wrong, Please type in the ordinal number on the list";continue;;
+    esac  
+done
+###################################
+#subdomain
+###################################
+if [ "$multisitehow" = "subdomain" ]; then
+/etc/dsnvps/menu/dsnvps-setup-wp-multisite-sub-domain-wordpress
+###################################
+#Super Cache
+###################################
+elif [ "$multisitehow" = "subdirectories" ]; then
+/etc/dsnvps/menu/dsnvps-setup-wp-multisite-sub-folder-wordpress
+###################################
+else
+clear
+exit 0
+fi
+

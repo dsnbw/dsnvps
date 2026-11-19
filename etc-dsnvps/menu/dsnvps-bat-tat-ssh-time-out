@@ -1,0 +1,104 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/ssh/sshd_config ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy tệp /etc/ssh/sshd_config"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này trên server này"
+echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [ "$(grep dsnvpssshconfig /etc/ssh/sshd_config)" == "" ]; then
+echo "========================================================================="
+echo "Dùng chức năng này để cấu hình thời gian tự động thoát kết nối SSH tới server"
+echo "-------------------------------------------------------------------------"
+echo "SSH Timeout BẬT: Kết nối SSH tới server thoát với cấu hình mặc định"
+echo "-------------------------------------------------------------------------"
+echo "SSH Timeout TẮT: Kết nối SSH tới server thoát sau 24 giờ không thao tác."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1119 "
+echo "========================================================================="
+echo "SSH Timeout status: đang BẬT"
+echo "========================================================================="
+read -r -p "Bạn muốn TẮT SSH Timeout? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "
+    sleep 3
+sed -i '1 i\#dsnvpssshconfig\ #Do\ not\ edit\ or\ remove\ this\ line\ or\ DSNVPS \will\ not\ run' /etc/ssh/sshd_config
+sed -i "s/.*TCPKeepAlive.*/TCPKeepAlive\ no/g" /etc/ssh/sshd_config
+sed -i "s/.*ClientAliveInterval.*/ClientAliveInterval\ 30/g" /etc/ssh/sshd_config
+sed -i "s/.*ClientAliveCountMax.*/ClientAliveCountMax\ 100/g" /etc/ssh/sshd_config
+
+
+systemctl restart sshd
+
+clear
+echo "========================================================================="
+echo "TẮT SSH Timeout thành công! "
+echo "-------------------------------------------------------------------------"
+echo "Trình SSH chỉ ngắt kết nối tới Server sau 24 giờ nếu không có thao tác."
+ /etc/dsnvps/menu/dsnvps-tien-ich
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Huỷ bỏ "
+ /etc/dsnvps/menu/dsnvps-tien-ich
+  exit
+;;
+esac
+fi
+
+if [ ! "$(grep dsnvpssshconfig /etc/ssh/sshd_config)" == "" ]; then
+echo "========================================================================="
+echo "Dùng chức năng này cấu hình thời gian tự động thoát kết nối SSH tới server "
+echo "-------------------------------------------------------------------------"
+echo "SSH Timeout BẬT: Kết nối SSH tới server thoát với cấu hình mặc định"
+echo "-------------------------------------------------------------------------"
+echo "SSH Timeout TẮT: Kết nối SSH tới server thoát sau 24 giờ không thao tác."
+echo "========================================================================="
+echo "SSH Timeout status: Đang TẮT"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn BẬT SSH Timeout? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "
+    sleep 3
+
+sed -i '/dsnvpssshconfig/d' /etc/ssh/sshd_config
+sed -i "s/.*TCPKeepAlive.*/#TCPKeepAlive\ no/g" /etc/ssh/sshd_config
+sed -i "s/.*ClientAliveInterval.*/#ClientAliveInterval\ 30/g" /etc/ssh/sshd_config
+sed -i "s/.*ClientAliveCountMax.*/#ClientAliveCountMax\ 100/g" /etc/ssh/sshd_config
+
+
+systemctl restart sshd
+
+
+clear
+echo "========================================================================="
+echo "BẬT SSH Timeout thành công! "
+echo "-------------------------------------------------------------------------"
+echo "Kết nối SSH tới server thoát với cấu hình mặc định"
+ /etc/dsnvps/menu/dsnvps-tien-ich
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Huỷ bỏ "
+ /etc/dsnvps/menu/dsnvps-tien-ich
+  exit
+;;
+esac
+fi
+

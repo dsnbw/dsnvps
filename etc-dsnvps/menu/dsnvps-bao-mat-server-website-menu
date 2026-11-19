@@ -1,0 +1,54 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/nginx/conf/blockbadbots.conf ]; then
+cp /etc/dsnvps/menu/inc/conf/blockbadbots.conf /etc/nginx/conf/
+fi
+show_phan_tren_menu()
+{
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                         Bảo Mật Server & Website\n"
+printf "=========================================================================\n"
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-47s %b\n" " 1) Thay Đổi Mật Khẩu Mặc Định" "\e[33m6) Bảo Vệ wp-login.php Wordpress\e[0m"
+printf "%-35s %s\n" " 2) Linux Malware Detect & ClamAV" "7) Chặn Exploits, SQL Injections"
+printf "%-47b %s\n" " \e[33m3) Thay Đổi Port SSH\e[0m" "8) Chặn Bad Bots Scan Website"
+printf "%-55b %s\n" " \e[33m4) Đặt Mật Khẩu Bảo Vệ Folder\e[0m" "9) Chạy Script Trong Writable Folder"
+printf "%-53b %s\n" " \e[33m5) Bảo Vệ Website Bằng Mật Khẩu\e[0m" "10) Thay Mật Khẩu Tài Khoản Root"
+
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1 ) /etc/dsnvps/menu/dsnvps-befor-dat-mat-khau-bao-ve-folder-mac-dinh-bao-mat;;
+    2) clear && /etc/dsnvps/menu/childmenu/dsnvps-maldet-menu;;
+    3) /etc/dsnvps/menu/dsnvps-thay-doi-port-ssh;;
+    4) /etc/dsnvps/menu/dsnvps-dat-mat-khau-bao-ve-folder-website;;
+    5) /etc/dsnvps/menu/dsnvps-dat-mat-khau-bao-ve-domain;;
+    6) /etc/dsnvps/menu/dsnvps-dat-mat-khau-bao-ve-wp-login-bao-mat-website-server;;
+    7) /etc/dsnvps/menu/dsnvps-tat-bat-chong-sql-injection-cho-website;;
+    8) /etc/dsnvps/menu/dsnvps-tat-bat-chong-badbots-scan-website;;
+    9) /etc/dsnvps/menu/dsnvps-tat-bat-chan-run-script-trong-folder-upload-cho-website;;
+    #13) /etc/dsnvps/menu/dsnvps-geoip-block-country-menu;;
+    #14) /etc/dsnvps/menu/dsnvps-geoip-gioi-han-country-menu;;
+    #10) /etc/dsnvps/menu/dsnvps-bat-tat-email-thong-bao-dang-nhap-server;;
+    10) /etc/dsnvps/menu/dsnvps-doi-pass-root-vps;;
+0) clear; exit 0;;
+    
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 9; for ((i=0; i<9; i++)); do tput el; tput cud1; done; tput cuu 9;; esac; done
+

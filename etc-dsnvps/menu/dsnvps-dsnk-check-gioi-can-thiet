@@ -1,0 +1,11 @@
+#!/bin/bash 
+#/etc/dsnvps/menu/dsnvps-dsnk-check-gioi-can-thiet  
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+

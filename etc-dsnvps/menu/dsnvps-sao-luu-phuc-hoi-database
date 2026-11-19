@@ -1,0 +1,27 @@
+#!/bin/bash
+prompt="Nhập lựa chọn của bạn (5-Thoat):"
+options=( "Thoat")
+printf "=========================================================================\n"
+printf "               DSNVPS - Quản Lý VPS/Server by DSNVPS.VN \n"
+printf "=========================================================================\n"
+printf "                      Backup & Restore Database\n"
+printf "=========================================================================\n"
+
+PS3="$prompt"
+select opt in "${options[@]}" ; do 
+
+    case "$REPLY" in
+
+    1 ) /etc/dsnvps/menu/dsnvps-sao-luu-data;;
+    2 ) /etc/dsnvps/menu/dsnvps-lan-luot-sao-luu-het-tat-ca-database;;
+    3 ) /etc/dsnvps/menu/dsnvps-phuc-hoi-database-chon-dinh-dang;;
+    4 ) /etc/dsnvps/menu/dsnvps-lay-link-sao-luu-database-backup-menu;;
+    #5 ) /etc/dsnvps/menu/dsnvps-list-database-tren-vps;; "Danh Sach Database Tren Server"
+    5 ) clear && /etc/dsnvps/menu/dsnvps-them-xoa-database;;
+
+    
+    *) echo "Bạn nhập sai, vui lòng nhập theo danh sách";continue;;
+
+    esac
+
+done

@@ -1,0 +1,73 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html ]; then
+clear
+echo "========================================================================="
+echo "Bạn không thể sử dụng chức năng này"
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để xóa tất cả các bản backup của Website trên VPS"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn xóa tất cả các file backup? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+cd /home/$mainsite/private_html/backup/
+# Tìm các file .zip và .zip.*, chỉ lấy file, loại bỏ . và ..
+find . -type f \( -name "*.zip" -o -name "*.zip.*" \) -not -path . -not -path .. > /etc/dsnvps/.tmp/deletebackupdb
+checksize=$(du -sb /etc/dsnvps/.tmp/deletebackupdb | awk 'NR==1 {print $1}')
+	if [ "$checksize" = "0" ]; then
+	echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+	clear
+	echo "========================================================================= "
+	echo "không tìm thấy các file sao lưu website trên VPS"
+	/etc/dsnvps/menu/dsnvps-sao-luu
+	exit
+	fi
+# Lưu danh sách thư mục cha để xóa sau
+declare -A parent_dirs
+# Xóa từng file
+while IFS= read -r file; do
+    if [ -f "$file" ]; then
+        # Lấy thư mục cha của file
+        parent_dir=$(dirname "$file")
+        parent_dirs["$parent_dir"]=1
+        rm -f "$file"
+    fi
+done < /etc/dsnvps/.tmp/deletebackupdb
+# Xóa các thư mục cha nếu trống
+for dir in "${!parent_dirs[@]}"; do
+    if [ -d "$dir" ] && [ -z "$(ls -A "$dir")" ]; then
+        rmdir "$dir" 2>/dev/null
+    fi
+done
+cd
+rm -rf /etc/dsnvps/.tmp/deletebackupdb
+rm -rf /home/$mainsite/private_html/listbackup*
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+clear
+echo "========================================================================= "
+echo "Xóa backup tất cả website thành công"
+/etc/dsnvps/menu/dsnvps-sao-luu
+;;
+    *)
+        echo ""
+        ;;
+esac
+clear
+echo "========================================================================="
+echo "Huỷ bỏ !"
+/etc/dsnvps/menu/dsnvps-sao-luu

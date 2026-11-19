@@ -1,0 +1,85 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ ! -f /etc/dsnvps/dsnvps.config.firstime ]; then
+
+#if [ -f /root/.bashrc ]; then
+#grep /home /root/.bashrc > /etc/dsnvps/.tmp/checkbashrc
+#if [ `ls -l /etc/dsnvps/.tmp/checkbashrc | awk '{print $5}'` -lt 3 ]; then
+#echo "cd /home" >> /root/.bashrc
+#fi
+#fi
+
+
+cat > "/etc/logrotate.d/nginx" <<END
+/var/log/nginx/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /bin/kill -USR1 $(cat /etc/nginx/nginx.pid 2>/dev/null) 2>/dev/null || true
+    endscript
+}
+END
+cat > "/etc/logrotate.d/php-fpm" <<END
+/home/*/logs/*.log /var/log/php-fpm/*.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 nginx nginx
+    sharedscripts
+    postrotate
+        if [ -f /var/run/php-fpm/php-fpm.pid ]; then
+            kill -USR1 $(cat /var/run/php-fpm/php-fpm.pid)
+        fi
+    endscript
+}
+
+END
+cat > "/etc/logrotate.d/mysql" <<END
+/var/log/mysql/*.log {
+    daily
+    rotate 7
+    missingok
+    compress
+    delaycompress
+    notifempty
+    create 640 mysql mysql
+    sharedscripts
+    postrotate
+        if test -x /usr/bin/mysqladmin && \
+           /usr/bin/mysqladmin ping > /dev/null 2>&1; then
+            /usr/bin/mysqladmin flush-logs
+        fi
+    endscript
+}
+END
+fi
+if [ "$(grep opcache.blacklist /etc/php.d/opcache.ini)" == "" ]; then
+echo "opcache.blacklist_filename=/etc/dsnvps/opcache.blacklist" >> /etc/php.d/opcache.ini
+fi
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+/home/$mainsite/private_html/*
+/home/*/public_html/wp-content/plugins/backwpup/*
+/home/*/public_html/wp-content/plugins/duplicator/*
+/home/*/public_html/wp-content/plugins/updraftplus/*
+END
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+fi
+
+echo "Configured logrotate DONE !" > /etc/dsnvps/dsnvps.config.firstime

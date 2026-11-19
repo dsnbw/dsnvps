@@ -1,0 +1,51 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+	if [ "`systemctl is-active php-fpm.service`" == "active" ]; then
+clear
+echo "========================================================================"
+systemctl stop php-fpm
+systemctl start php-fpm
+/etc/dsnvps/menu/dsnvps-tien-ich
+	else
+clear
+echo "========================================================================"
+echo "Hiện tại, dịch vụ PHP không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+		echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ PHP!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+	if [ "`systemctl is-active php-fpm.service`" == "active" ]; then
+clear
+echo "========================================================================"
+systemctl start php-fpm
+systemctl stop php-fpm
+/etc/dsnvps/menu/dsnvps-tien-ich
+		else
+				clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ PHP"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Rất tiếc, DSNVPS không thể khởi động lại được php-fpm!"
+	#echo "Sorry, DSNVPS can not restart php-fpm service !"
+	/etc/dsnvps/menu/dsnvps-tien-ich
+		fi
+fi
+fi

@@ -1,0 +1,110 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+checktruenumber='^[0-9]+$'
+if [ ! -f /etc/dsnvps/minfreedisc.info ]; then
+echo "1000" > /etc/dsnvps/minfreedisc.info
+fi
+minfreedisc=`cat /etc/dsnvps/minfreedisc.info`
+if ! [[ $minfreedisc =~ $checktruenumber ]] ; then
+echo "1000" > /etc/dsnvps/minfreedisc.info
+fi 
+
+# ===================================================================
+# PHẦN ĐÃ SỬA HOÀN CHỈNH - TỰ ĐỘNG LẤY ĐÚNG DUNG LƯỢNG /home TRÊN MỌI SERVER
+# ===================================================================
+if mountpoint -q /home 2>/dev/null; then
+    # Lấy dung lượng trống ở định dạng dễ đọc (ví dụ: 15G, 850M)
+    FREE_SPACE=$(df -h /home | awk 'NR==2 {print $4}')
+    # Lấy dung lượng trống ở KB để tính toán số học (chính xác hơn)
+    disfree_kb=$(df /home | awk 'NR==2 {print $4}')
+else
+    FREE_SPACE=$(df -h / | awk 'NR==2 {print $4}')
+    disfree_kb=$(df / | awk 'NR==2 {print $4}')
+fi
+
+# Chuyển sang MB để so sánh và hiển thị
+disfreehientai=$(calc $disfree_kb/1024)
+
+# Phần hiển thị đẹp (tùy chọn, có thể dùng để thông báo rõ ràng hơn)
+NUMBER=$(echo "$FREE_SPACE" | sed 's/[^0-9.]//g')
+UNIT=$(echo "$FREE_SPACE" | sed 's/[0-9.]//g')
+case "$UNIT" in
+    "G") FULL_UNIT="GB" ;;
+    "T") FULL_UNIT="TB" ;;
+    "M") FULL_UNIT="MB" ;;
+    "K") FULL_UNIT="KB" ;;
+    *) FULL_UNIT="$UNIT" ;;
+esac
+HOME_FREE="$NUMBER $FULL_UNIT"
+
+if ! [[ $disfreehientai =~ $checktruenumber ]] ; then
+clear
+echo "========================================================================="
+echo "Rất tiếc !"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này trên server của bạn"
+echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+if [ "$disfreehientai" -lt "1000" ]; then
+clear
+echo "========================================================================="
+echo "Rất tiếc ! FREE DISC hiện tại < 1000 MB"
+echo "-------------------------------------------------------------------------"
+echo "Bạn không thể sử dụng chức năng này"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+
+echo "========================================================================="
+echo "Hiện tại FREE DISC: $disfreehientai MB ($HOME_FREE) | FREE DISC Cảnh Báo: $minfreedisc MB"
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình cảnh báo FULL DISC trên DSNVPS menu và"
+echo "-------------------------------------------------------------------------"
+echo "gửi thông báo Telegram nếu dung lượng free disc server < $minfreedisc MB."
+echo "-------------------------------------------------------------------------"
+echo "Cấu hình Telegram: DSNVPS Main menu => Auto Check Login/Nginx/MySQL/PHP"
+echo "-------------------------------------------------------------------------"
+echo "Giá trị bạn chọn phải > 1000 và < ${disfreehientai}"
+echo "========================================================================="
+echo -n "Nhập FREE DISC Cảnh Báo: "
+read minfreedisca
+
+if [ "$minfreedisca" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn chưa nhập giá trị FREE DISC Cảnh Báo!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+
+if ! [[ ${minfreedisca} -ge 1000 && ${minfreedisca} -le ${disfreehientai} ]] ; then  
+clear
+echo "========================================================================="
+echo "$minfreedisca không đúng!"
+echo "-------------------------------------------------------------------------"
+echo "Giá trị bạn nhập phải là số tự nhiên nằm trong khoảng (1000 - ${disfreehientai})"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+echo "-------------------------------------------------------------------------"  
+echo "DSNVPS sẽ cảnh báo DISC FULL khi dung lượng disc của server < ${minfreedisca} MB"
+echo "-------------------------------------------------------------------------" 
+echo "Vui lòng chờ ..." ; sleep 2
+echo "${minfreedisca}" > /etc/dsnvps/minfreedisc.info 
+clear
+echo "========================================================================="
+echo "Cấu hình cảnh báo FULL DISC cho server hoàn tất"
+echo "-------------------------------------------------------------------------" 
+echo "Dung lượng FREE DISC Cảnh Báo: ${minfreedisca} MB "
+/etc/dsnvps/menu/dsnvps-tien-ich

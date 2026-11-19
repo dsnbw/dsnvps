@@ -1,0 +1,117 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ ! -f /home/$mainsite/logs ]; then
+mkdir -p /home/$mainsite/logs
+chmod -R 777 /home/$mainsite/logs
+fi
+if [ ! -f /var/log/nginx/error.log ]; then
+touch /var/log/nginx/error.log 
+chown -R nginx:nginx /var/log/nginx/error.log
+fi
+
+if [ ! -f /home/$mainsite/logs/php-fpm.log ]; then 
+touch /home/$mainsite/logs/php-fpm.log
+touch /home/$mainsite/logs/php-fpm-slow.log
+chown -R nginx:nginx /home/$mainsite/logs/php-fpm*
+fi
+
+if [ ! -f /home/$mainsite/logs/mysql.log ]; then
+touch /home/$mainsite/logs/mysql.log
+touch /home/$mainsite/logs/mysql-slow.log
+chown -R mysql:mysql /home/$mainsite/logs/mysql*
+fi
+
+
+
+if [ -f /var/log/nginx/error.log ]; then
+nginxlogsize1=$(du -h /var/log/nginx/error.log | awk 'NR==1 {print $1}')
+	if [ "$nginxlogsize1" = "0" ]; then
+	nginxlogsize=0K
+	else
+	nginxlogsize=$(du -h /var/log/nginx/error.log | awk 'NR==1 {print $1}')
+	fi
+else
+nginxlogsize=0K
+fi
+if [ -f /var/log/secure ]; then
+securelogsize1=$(du -h /var/log/secure | awk 'NR==1 {print $1}')
+	if [ "$securelogsize1" = "0" ]; then
+	securelogsize=0K
+	else
+	securelogsize=$(du -h /var/log/secure | awk 'NR==1 {print $1}')
+	fi
+else
+securelogsize=0K
+fi
+
+find /home/$mainsite/logs/ -name "*mysql*" > /etc/dsnvps/.tmp/dsnvps-checkmysqllogzise
+numberfiles=$(cat /etc/dsnvps/.tmp/dsnvps-checkmysqllogzise | wc -l)
+if [ ! "$numberfiles" = "0" ]; then
+mysqllogsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checkmysqllogzise) | tail -1 | cut -f 1)
+else
+mysqllogsize=0K
+fi
+
+find /home/$mainsite/logs/ -name "*php-fpm*" > /etc/dsnvps/.tmp/dsnvps-checkphplogzise
+numberfiles=$(cat /etc/dsnvps/.tmp/dsnvps-checkphplogzise | wc -l)
+if [ ! "$numberfiles" = "0" ]; then
+phpfpmlogsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checkphplogzise) | tail -1 | cut -f 1)
+else
+phpfpmlogsize=0KB
+fi
+
+
+find /var/log/exim/ -name "*log*" > /etc/dsnvps/.tmp/dsnvps-checkeximlogzise
+numberfiles=$(cat /etc/dsnvps/.tmp/dsnvps-checkeximlogzise | wc -l)
+if [ ! "$numberfiles" = "0" ]; then
+eximlogsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checkeximlogzise) | tail -1 | cut -f 1)
+else
+eximlogsize=0K
+fi
+
+log_errorsshow=$(grep "log_errors\ =" /etc/php.ini | awk 'NR==1 {print $3}')
+rm -rf /etc/dsnvps/.tmp/*.log
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=("Tải Log (Dưới dạng nén)" "Xem 100 dòng cuối của file Log" "Xóa tất cả Logs" "Xóa liên kết tải về" "Bật/Tắt Log lỗi PHP")
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                             Quản Lý File Log                           \n"
+printf "=========================================================================\n"
+printf "Kích thước file log: \n"
+printf "=========================================================================\n"
+printf "Nginx Log: $nginxlogsize | PHP-FPM Log: $phpfpmlogsize | MySQL Log: $mysqllogsize \n"
+printf "=========================================================================\n"
+printf "Secure Log: $securelogsize | Exim Log: $eximlogsize \n"
+echo "========================================================================="
+echo "Write PHP Error Log: $log_errorsshow"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/howlogfile"
+printf "=========================================================================\n"
+printf "   \n"
+printf "\n"
+PS3="$prompt"
+select opt in "${options[@]}" ; do 
+
+    case "$REPLY" in
+
+    1) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-menu-child;;
+    2) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-file-menu-view-100-line-only;;
+    3) /etc/dsnvps/menu/downloadlog/dsnvps-clear-all-log;;
+    4) /etc/dsnvps/menu/downloadlog/dsnvps-xoa-link-log;;
+    5) /etc/dsnvps/menu/dsnvps-cau-hinh-log-errors-php.ini;;
+0) clear; exit 0;;  
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+
+    esac
+
+done
+
+ 

@@ -1,0 +1,47 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+show_phan_tren_menu()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                          Quản Lý Zend OPcache \n"
+printf "=========================================================================\n"
+printf "                Trạng Thái Hiện Tại Của Zend OPcache: Tắt\n"
+echo "=========================================================================" 
+echo -e "\e[31mĐể hiệu suất website tốt nhất: Hãy luôn BẬT Zend Opache cho nó !\e[0m"
+printf "=========================================================================\n"    
+echo "Hướng dẫn sử dụng: http://go.dsnvps/7519"
+printf "=========================================================================\n"	
+
+}
+while true; do
+clear
+show_phan_tren_menu
+
+printf "%-43s %s\n" "1) BẬT/TẮT Zend OPcache Cho Server" "3) Cấu Hình Zend OPcache"
+printf "%-43s %s\n" "2) BẬT/TẮT Zend Opache Cho Website" "4) Xóa/Clear Zend Opcache Cache"
+
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1) /etc/dsnvps/menu/opcache/dsnvps-bat-opcache;;
+    2) /etc/dsnvps/menu/opcache/dsnvps-them-xoa-website-vao-zend-opcache-blacklist;;
+    3) /etc/dsnvps/menu/opcache/dsnvps-opcache-change-size;;
+    4) /etc/dsnvps/menu/opcache/dsnvps-clear-opcache;;
+0) clear; exit 0;;
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list."; 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+
+    esac
+done

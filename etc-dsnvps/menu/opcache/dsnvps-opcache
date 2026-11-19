@@ -1,0 +1,82 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /etc/php.d/opcache.ini ]; then
+echo "========================================================================="
+echo "Zend OPcache đã được kích hoạt!"
+read -r -p "Bạn có muốn vô hiệu hóa nó không? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "Vui lòng chờ....";sleep 2
+	mv /etc/php.d/opcache.ini /etc/php.d/opcache.bak
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+echo "========================================================================="
+echo "Vô hiệu hóa Zend OPcache thành công!"
+/etc/dsnvps/menu/dsnvps-opcache-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng điền chính xác"
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+        ;;
+esac
+exit
+fi
+echo "OPcache đã bị vô hiệu hóa! Hãy kích hoạt nó để tận dụng tối đa hiệu suất của VPS."
+read -r -p "Bạn có muốn kích hoạt nó không? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+	mv /etc/php.d/opcache.bak /etc/php.d/opcache.ini
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+
+ 
+test_php=$(/bin/systemctl is-active php-fpm)
+if [ "$test_php" == "inactive" ]; then
+clear
+echo "========================================================================="
+echo "PHP không thể khởi động lại! Có thể bạn đã cấu hình sai!"
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+exit
+fi
+
+
+test_php=$(/bin/systemctl status  php-fpm.service | awk 'NR==3 {print $2}')
+if [ "$test_php" == "failed" ]; then
+clear
+echo "========================================================================="
+echo "PHP không thể khởi động lại! Có thể bạn đã cấu hình sai!"
+/etc/dsnvps/menu/dsnvps-opcache-menu
+exit
+fi
+
+clear
+echo "========================================================================="
+echo "Kích hoạt Zend OPcache thành công!"
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng điền chính xác"
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+        ;;
+esac

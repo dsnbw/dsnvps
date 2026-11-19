@@ -1,0 +1,27 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."; sleep 2
+tput cuu 2; tput ed
+echo "========================================================================="
+echo "Thông tin user Root của MySQL:"
+echo "-------------------------------------------------------------------------"
+echo "User: root"
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu: $mariadbpass"
+sleep 4
+clear
+echo "========================================================================="
+echo "Thông tin tài khỏan Root của MySQL:"
+echo "-------------------------------------------------------------------------"
+echo "User: root"
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu: $mariadbpass"
+sleep 2
+dsnvps

@@ -1,0 +1,42 @@
+#!/bin/bash
+
+if [ ! -f /var/log/mysqld.log ]; then
+touch /var/log/mysqld.log
+chown -R mysql:mysql /var/log/mysqld.log
+else
+chown -R mysql:mysql /var/log/mysqld.log
+fi
+if [ ! -f /home/dsnvps.demo/logs/mysql.log ]; then
+touch /home/dsnvps.demo/logs/mysql.log
+chown -R mysql:mysql /var/log/mysqld.log
+else
+chown -R mysql:mysql /home/dsnvps.demo/logs/mysql.log
+fi
+
+UP1=$(/etc/init.d/mysql status | grep running | grep -v not | wc -l);
+if [ ! "$UP1" -ne 1 ];
+then
+#rm -rf /var/lib/mysql/ib_logfile*
+service mysql start >/dev/null 2>&1
+fi
+UP2=$(/etc/init.d/mysql status | grep running | grep -v not | wc -l);
+if [ ! "$UP2" -ne 1 ];
+then
+service mysql start >/dev/null 2>&1
+fi
+UP3=$(/etc/init.d/mysql status | grep running | grep -v not | wc -l);
+if [ ! "$UP3" -ne 1 ];
+then
+service mysql start >/dev/null 2>&1
+fi
+UP4=$(/etc/init.d/mysql status | grep running | grep -v not | wc -l);
+if [ ! "$UP4" -ne 1 ];
+then
+service mysql start >/dev/null 2>&1
+fi
+UP5=$(/etc/init.d/mysql status | grep running | grep -v not | wc -l);
+if [ ! "$UP5" -ne 1 ];
+then
+service mysql start >/dev/null 2>&1
+fi
+service mysql restart

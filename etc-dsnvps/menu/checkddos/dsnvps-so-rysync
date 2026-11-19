@@ -1,0 +1,7 @@
+#!/bin/bash
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+echo "========================================================================="
+echo "Connections SYN_RECV: $(netstat -n | grep -E ':80|:443' | grep SYN_RECV | wc -l)"
+/etc/dsnvps/menu/dsnvps-kiem-tra-ddos

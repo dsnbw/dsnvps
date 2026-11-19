@@ -1,0 +1,171 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+. /etc/dsnvps/pwprotect.default
+####################################################
+########## Check File check ban quyen. Khong hop le thi out
+rm -rf /etc/dsnvps/.tmp/sllokie
+mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+if [ ! -f /etc/dsnvps/.tmp/sllokie ]; then
+clear
+echo "========================================================================="
+echo "Vui lòng cập nhật DSNVPS lên phiên bản Pro để sử dụng chức năng này !"
+dsnvps
+fi
+rm -rf /etc/dsnvps/.tmp/sllokie
+############################################
+################################################
+echo "========================================================================="
+echo "MySQL Dumper la cong cu backup database rat manh."
+echo "-------------------------------------------------------------------------"
+echo "Sử dụng chức năng này để thêm Domain + MySQLDumper 1.24.4"
+echo "-------------------------------------------------------------------------"
+echo "Day la phien ban cai tien MyOOSDumper cua MySQLDumper giup tuong thich"
+echo "-------------------------------------------------------------------------"
+echo "voi PHP 7. Moi chuc nang van giu nguyen nhu MySQLDumper nguyen ban."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1137"
+echo "========================================================================="
+echo -n "Nhập tên domain [ENTER]: " 
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải nhập tên domain."
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website co le khong dung dinh dang domain!"
+echo "-------------------------------------------------------------------------"
+echo "Vui long thu lai !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$website/public_html ] && [ -f /etc/nginx/conf.d/www.$website.conf ]; then
+website=www.$website
+fi
+if [ $(echo "$website" | cut -c 1-4) == "www." ]; then
+website_redirect=$(echo "$website" | sed 's/....//')
+else
+website_redirect=www.$website
+fi
+#################################################################
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "$website đã tồn tại trên hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+if [ -f /etc/nginx/conf.d/$website_redirect.conf ]; then
+clear
+echo "========================================================================="
+echo "Phát hiện $website_redirect đã tồn tại trên hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+if [[ ! "$website_redirect" =~ $kiemtradomain3 ]]; then
+clear
+echo "========================================================================="
+echo "DSNVPS khong ho tro Thêm $website vao he thong."
+echo "-------------------------------------------------------------------------"
+echo "Vui long su dung domain khac !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$website" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-truoc-khi-them-vao-server
+#################################################################
+mkdir -p /home/$website/public_html
+mkdir -p /home/$website/logs
+mkdir -p /home/$website/errorpage_html && cp -r /etc/dsnvps/menu/inc/errorpage_html/*.html /home/$website/errorpage_html
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 3
+    mkdir -p "/home/$website/public_html"
+    mkdir -p "/home/$website/logs"
+    cd "/home/$website/public_html"
+    echo "-------------------------------------------------------------------------"
+    unzip -o /etc/dsnvps/menu/inc/msd-mqldumper.zip -d /home/$website/public_html
+    chmod -R 777 /home/$website/public_html/work
+    sed -i "s/XXXXXXXXXX/${mariadbpass=}/g" /home/$website/public_html/work/config/myoosdumper.php
+    sed -i "s/XXXXXXXXXX/${mariadbpass=}/g" /home/$website/public_html/config.php
+    cd
+chown -R nginx:nginx "/home/$website/public_html/"
+chmod -R 644 /home/$website/public_html/config.php
+\cp -uf /etc/dsnvps/menu/robots.txt "/home/$website/public_html/"
+ 
+### Create Vhost ###########################################################
+rm -rf /etc/nginx/conf.d/$website.conf
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.normal.conf /etc/nginx/conf.d/$website.conf
+sed -i "s/main_domain/${website}/g" /etc/nginx/conf.d/$website.conf
+sed -i "s/redirect_domain/${website_redirect}/g" /etc/nginx/conf.d/$website.conf
+#############################################################################
+
+rm -rf /etc/dsnvps/.tmp/baovedumper
+   cat >> "/etc/dsnvps/.tmp/baovedumper" <<END
+sed -i "/server_name\ $website;/aauth_basic \"Authorization Required\";" /etc/nginx/conf.d/$website.conf
+sed -i "/.*Authorization\ Required.*/aauth_basic_user_file  /etc/nginx/.htpasswd;" /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/baovedumper
+/etc/dsnvps/.tmp/baovedumper
+rm -rf /etc/dsnvps/.tmp/baovedumper
+####### Create Symlink For Vhost
+mkdir -p /home/$website/0-Vhost
+cd /home/$website/0-Vhost
+echo "$website.conf là shortcut (symlink) tới Vhost của $website (/etc/nginx/conf/$website.conf)
+Nếu bạn edit file này, File vhost của $website cũng sẽ được edit.
+
++ File /home/$website/0-Vhost/$website.conf chỉ có thể edit trên SSH. Nếu muốn edit bằng trình edit txt, bạn 
+phải download file này về máy tính, edit sau đó upload lên server. 
+(Upload vào /etc/nginx/conf/ hoặc /home/$website/0-Vhost/ đều được) 
+
++ File Vhost gốc (/etc/nginx/conf/$website.conf), bạn có thể edit trên SSH, edit bằng trình edit trực tiếp bằng
+các phần mềm edit txt trực tiếp khi sử dụng các trình upload sFTP.
+" > readme.txt
+ln -s /etc/nginx/conf.d/$website.conf /home/$website/0-Vhost/$website.conf
+cd
+####################
+
+#######################################################################
+#######################################################################
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+clear
+echo "========================================================================="
+echo "Thêm $website + MySQLDumper thanh cong."
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+echo "-------------------------------------------------------------------------"
+echo "Thay thong tin dang nhap nay:"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS Menu ==> Bao Mat Server & Website ==> Dat Mat Khau Bao Ve Website"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+

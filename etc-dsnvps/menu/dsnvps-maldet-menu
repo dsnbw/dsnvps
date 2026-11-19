@@ -1,0 +1,93 @@
+#!/bin/bash
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+show_phan_tren_menu()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function 
+printf "=========================================================================\n"
+printf "                      Quản Lý Linux Malwear Detect\n"
+printf "=========================================================================\n"
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+printf "                       LMD & ClamAV - Chưa Cài Đặt\n"
+else
+printf "                       LMD & ClamAV - Đã Cài Đặt\n"
+fi
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1130 "
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+
+printf "%-35s %s\n" "1) Quét 1 Website" "4) Xem Báo Cáo Quét Mới Nhất"
+printf "%-39s %s\n" "2) Quét Tất Cả Websites" "5) Cập Nhật Cơ Sở Dữ Liệu Virus ClamAV"
+printf "%-42s %s\n" "3) Quét Các Tệp Tin Gần Đây" "6) Cài Đặt LMD & ClamAV"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+
+
+    
+    1) /etc/dsnvps/menu/dsnvps-scan-website-maldet;;
+    2) /etc/dsnvps/menu/dsnvps-scan-home-maldet;;
+    3) /etc/dsnvps/menu/dsnvps-scan-file-tao-ra-chinh-sua-xday-maldet;;
+    4) /etc/dsnvps/menu/dsnvps-view-last-scan-report;;
+    5) /etc/dsnvps/menu/dsnvps-update-clamav-virus-database-maldet;;
+    6) /etc/dsnvps/menu/dsnvps-befor-maldet-cai-dat;;
+0) clear; exit 0;;
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+
+
+else
+show_phan_tren_menu()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function 
+printf "=========================================================================\n"
+printf "                      Quản Lý Linux Malwear Detect\n"
+printf "=========================================================================\n"
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+printf "                       LMD & ClamAV - Chưa Cài Đặt\n"
+else
+printf "                       LMD & ClamAV - Đã Cài Đặt\n"
+fi
+
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1130 "
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+
+printf "%-35s %s\n" "1) Quét 1 website" "4) Xem Báo Cáo Quét Mới Nhất"
+printf "%-39s %s\n" "2) Quét Tất Cả Websites" "5) Cập Nhật Cơ Sở Dữ Liệu Virus ClamAV"
+printf "%-42s %s\n" "3) Quét Các Tệp Tin Gần Đây" "6) Gỡ Cài Đặt LMD & ClamAV"
+
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+
+
+    
+    1) /etc/dsnvps/menu/dsnvps-scan-website-maldet;;
+    2) /etc/dsnvps/menu/dsnvps-scan-home-maldet;;
+    3) /etc/dsnvps/menu/dsnvps-scan-file-tao-ra-chinh-sua-xday-maldet;;
+    4) /etc/dsnvps/menu/dsnvps-view-last-scan-report;;
+    5) /etc/dsnvps/menu/dsnvps-update-clamav-virus-database-maldet;;
+    6) /etc/dsnvps/menu/dsnvps-befor-maldet-cai-dat;;
+0) clear; exit 0;;
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+fi
+

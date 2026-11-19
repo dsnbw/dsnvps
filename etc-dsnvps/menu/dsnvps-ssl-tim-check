@@ -1,0 +1,128 @@
+#!/bin/bash
+# Load config
+. /root/dsnvps.conf
+
+
+#################
+# Neu khong có thì thoat ngay:
+if [ ! -f "/etc/dsnvps/.tmp/zz1o0z" ]; then
+echo "1" >/dev/null 2>&1
+exit
+fi
+# Xóa file check Neu khong có thì thoat ngay:
+if [ -f "/etc/dsnvps/.tmp/zz1o0z" ]; then
+rm -rf /etc/dsnvps/.tmp/zz1o0z
+fi
+##########
+# Khai báo hàm unset_api
+unset_api() {
+    unset API_KEY >/dev/null 2>&1
+    unset API_URL >/dev/null 2>&1
+}
+
+# Hàm parse JSON bằng Python hoặc sed
+parse_json() {
+    local json="$1" key="$2" value
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import json' 2>/dev/null; then
+        value=$(echo "$json" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"$key\", \"\"))" 2>/dev/null)
+        [ "$value" = "None" ] && value=""
+        echo "$value"
+    else
+        value=$(echo "$json" | sed -n "s/.*\"$key\":\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}.*/\\1/p" | head -1)
+        [ "$value" = "null" ] && value=""
+        echo "$value"
+    fi
+}
+
+# API settings
+API_URL="https://$(cat /dev/urandom | tr -dc 'a-f0-9' | head -c6).dsnvps.top"
+API_KEY="HALINH-Dq1r68x4EHYgqmBphIKgZpw4Ka"
+TMP_DIR="/etc/dsnvps/.tmp"
+DSNVPS_VERSION_FILE="/etc/dsnvps/menu/inc/dsnvps.version"
+
+# Set serverip_priport
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Check if strace is running
+# Anti-debug removed
+
+# Create tmp directory if not exists
+mkdir -p "$TMP_DIR"
+
+# Function to display error and exit
+error_exit() {
+unset_api
+    clear
+    echo "========================================================================="
+    echo "$1"
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS không kiểm tra được phiên bản hiện tại. Bạn vui lòng thử lại."
+    dsnvps
+    exit 1
+}
+
+# Function to check DSNVPS version via API
+check_dsnvps_version() {
+    local local_version=$(cat "$DSNVPS_VERSION_FILE" 2>/dev/null)
+    if [ -z "$local_version" ]; then
+        error_exit "Không thể đọc DSNVPS - FREE FOR ALL"
+    fi
+
+    local response
+    response=$(curl -s --max-time 15 -X POST "$API_URL/?action=get_latest_version" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{}")
+    
+    if [ -z "$response" ] || ! echo "$response" | grep -q '"status":"success"'; then
+        error_exit "Lỗi khi kiểm tra DSNVPS - FREE FOR ALL"
+    fi
+
+    local remote_version=$(parse_json "$response" "version" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+    if [ -z "$remote_version" ]; then
+        error_exit "Phiên bản từ API không hợp lệ."
+    fi
+
+    if [ "$local_version" != "$remote_version" ]; then
+        local update_time=$(parse_json "$response" "updated_at")
+        unset_api
+        clear
+        echo "========================================================================="
+        echo "Bạn phải update DSNVPS lên phiên bản mới nhất để sử dụng chức năng này."
+        echo "-------------------------------------------------------------------------"
+        echo "You must update DSNVPS to latest version to use this function."
+        echo "-------------------------------------------------------------------------"
+        echo "Your Version: $local_version | Latest Version: $remote_version"
+        echo "-------------------------------------------------------------------------"
+        echo "Thời gian update: $update_time"
+        echo "-------------------------------------------------------------------------"
+        echo "Cách Update: DSNVPS menu => Cập Nhật Phiên Bản Mới"
+        dsnvps
+        exit 1
+    fi
+}
+
+# Clear tmp files
+rm -rf "$TMP_DIR/dsnvps.newversio*"
+
+# Display checking message
+echo "========================================================================="
+echo "Đang lấy DSNVPS - FREE FOR ALL"
+echo "-------------------------------------------------------------------------"
+echo "Getting Current DSNVPS Version ..."; sleep 3
+tput cuu 4 && tput el
+
+# Check version via API
+check_dsnvps_version
+
+# Switch language
+unset_api
+if [ "$(grep EN /etc/dsnvps/menu/dsnvps-check-language)" == "EN" ]; then
+    /etc/dsnvps/menu/dsnvps-chuyen-ngon-ngu-sang-tieng-viet
+else
+    /etc/dsnvps/menu/dsnvps-chuyen-ngon-ngu-sang-tieng-anh
+fi

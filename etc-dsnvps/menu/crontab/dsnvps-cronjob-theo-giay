@@ -1,0 +1,268 @@
+#!/bin/bash
+
+set -euo pipefail
+
+# DSNVPS - Tạo systemd timer chạy job theo giây (>=5s)
+# Sử dụng: chạy script và làm theo hướng dẫn. Yêu cầu quyền root.
+# Hệ thống cần dùng systemd (CentOS 7+, Alma/Rocky/Ubuntu 16.04+).
+
+if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+  echo "[Lỗi] Vui lòng chạy với quyền root (sudo)." >&2
+  exit 1
+fi
+
+command -v systemctl >/dev/null 2>&1 || { echo "[Lỗi] systemctl không tồn tại. Máy này không dùng systemd?" >&2; exit 1; }
+
+echo "========================================================================="
+echo "Tạo Micro Cronjob (chạy theo giây)"
+echo "========================================================================="
+
+# Hỏi tên job (để đặt tên unit). Chỉ cho phép [a-zA-Z0-9_-]
+while :; do
+  read -r -p "Nhập tên Micro Cronjob (ví dụ: Check-RAM): " JOB_NAME_INPUT
+  if [[ "${JOB_NAME_INPUT}" == "0" ]]; then
+  echo "-------------------------------------------------------------------------"
+    echo "Hủy bỏ!"
+    exit 0
+  fi
+  # Giới hạn 20 ký tự (tính cả khoảng trống)
+  if [[ -z "${JOB_NAME_INPUT}" ]]; then
+  echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] Tên job không được rỗng." >&2
+    continue
+  fi
+  if (( ${#JOB_NAME_INPUT} > 28 )); then
+  echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] Tên job tối đa 28 ký tự." >&2
+    continue
+  fi
+  # Chuẩn hóa tên job cho systemd: thay khoảng trắng bằng '-'
+  JOB_NAME=${JOB_NAME_INPUT// /-}
+  if [[ ! "${JOB_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+  echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] Tên job chỉ được chứa a-z, A-Z, 0-9, '_' và '-'" >&2
+    continue
+  fi
+  break
+done
+echo "-------------------------------------------------------------------------"
+
+# Hỏi đường dẫn script cần chạy (hiển thị theo mẫu yêu cầu) - cho phép nhập lại
+echo "Nhập đường dẫn tới file bash cần chạy (vd: /home/task.sh)"
+echo "-------------------------------------------------------------------------"
+while :; do
+  read -r -p "Đường dẫn [0 -Thoát]:  " SCRIPT_PATH
+  if [[ "${SCRIPT_PATH}" == "0" ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Hủy bỏ!"
+    exit 0
+  fi
+  if [[ -z "${SCRIPT_PATH}" || "${SCRIPT_PATH}" != /* ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] Cần nhập đường dẫn tuyệt đối (bắt đầu bằng /)." >&2
+    continue
+  fi
+  if [[ ! -f "${SCRIPT_PATH}" ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] File không tồn tại: ${SCRIPT_PATH}" >&2
+    continue
+  fi
+  if [[ ! -x "${SCRIPT_PATH}" ]]; then
+    echo "-------------------------------------------------------------------------"
+    read -r -p "File chưa có quyền thực thi. Cấp quyền 'chmod +x'? [y/N]: " CHMOD_ANS
+    if [[ "${CHMOD_ANS}" =~ ^[Yy]$ ]]; then
+      chmod +x "${SCRIPT_PATH}"
+      break
+    else
+      echo "-------------------------------------------------------------------------"
+      echo "[Lỗi] File cần có quyền thực thi để chạy." >&2
+      continue
+    fi
+  fi
+  break
+done
+
+# Ngăn cách trước khi hỏi khoảng lặp
+echo "-------------------------------------------------------------------------"
+
+# Hỏi khoảng giây (tối thiểu 1) - cho phép nhập lại
+while :; do
+  read -r -p "Nhập chu kỳ chạy (giây, tối thiểu 1) [0 -Thoát]: " INTERVAL_SEC
+  if [[ "${INTERVAL_SEC}" == "0" ]]; then
+   echo "-------------------------------------------------------------------------"
+    echo "Hủy bỏ!"
+    exit 0
+  fi
+  if ! [[ "${INTERVAL_SEC}" =~ ^[0-9]+$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] Khoảng lặp phải là số nguyên. Ví dụ: 5" >&2
+    continue
+  fi
+  if (( INTERVAL_SEC < 1 )); then
+    echo "-------------------------------------------------------------------------"
+    echo "[Lỗi] Tối thiểu 1 giây." >&2
+    continue
+  fi
+  break
+done
+
+# Luôn chạy dưới root theo yêu cầu
+RUN_AS_USER=root
+
+# Bỏ qua WorkingDirectory theo yêu cầu
+
+SERVICE_NAME="${JOB_NAME}.service"
+TIMER_NAME="${JOB_NAME}.timer"
+
+SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
+TIMER_PATH="/etc/systemd/system/${TIMER_NAME}"
+
+# Nếu tên đã tồn tại, yêu cầu nhập lại cho đến khi hợp lệ hoặc thoát
+while [[ -e "${SERVICE_PATH}" || -e "${TIMER_PATH}" ]]; do
+echo "-------------------------------------------------------------------------"
+  echo "[Lỗi] Unit cùng tên đã tồn tại: ${JOB_NAME}. Hãy chọn tên khác."
+  echo "-------------------------------------------------------------------------"
+  while :; do
+    read -r -p "Nhập tên job mới [0 -Thoát]: " JOB_NAME_INPUT
+    if [[ "${JOB_NAME_INPUT}" == "0" ]]; then
+      echo "Hủy bỏ!"
+      exit 0
+    fi
+    if [[ -z "${JOB_NAME_INPUT}" ]]; then
+      echo "-------------------------------------------------------------------------"
+      echo "[Lỗi] Tên job không được rỗng." >&2
+      continue
+    fi
+    if (( ${#JOB_NAME_INPUT} > 25 )); then
+      echo "-------------------------------------------------------------------------"
+      echo "[Lỗi] Tên job tối đa 25 ký tự." >&2
+      continue
+    fi
+    JOB_NAME=${JOB_NAME_INPUT// /-}
+    if [[ ! "${JOB_NAME}" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+      echo "-------------------------------------------------------------------------"
+      echo "[Lỗi] Tên job chỉ được chứa a-z, A-Z, 0-9, '_' và '-'" >&2
+      continue
+    fi
+    break
+  done
+  SERVICE_NAME="${JOB_NAME}.service"
+  TIMER_NAME="${JOB_NAME}.timer"
+  SERVICE_PATH="/etc/systemd/system/${SERVICE_NAME}"
+  TIMER_PATH="/etc/systemd/system/${TIMER_NAME}"
+done
+
+echo "-------------------------------------------------------------------------"
+echo "Tóm tắt cấu hình sẽ tạo:"
+echo "-------------------------------------------------------------------------"
+echo "- Tên Micro Cronjob : ${JOB_NAME}"
+echo "- Script            : ${SCRIPT_PATH}"
+echo "- Chu kỳ chạy       : ${INTERVAL_SEC} giây"
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra script trước khi tạo:"
+echo "-------------------------------------------------------------------------"
+if [[ -f "${SCRIPT_PATH}" ]]; then
+  echo "✓ File script tồn tại: ${SCRIPT_PATH}"
+  if [[ -x "${SCRIPT_PATH}" ]]; then
+    echo "✓ File script có quyền thực thi"
+  else
+    echo "⚠ File script chưa có quyền thực thi, sẽ cấp quyền..."
+    chmod +x "${SCRIPT_PATH}"
+  fi
+else
+  echo "✗ File script không tồn tại: ${SCRIPT_PATH}"
+  echo "Hãy tạo file script trước khi tiếp tục!"
+  exit 1
+fi
+echo "========================================================================="
+read -r -p "DSNVPS sẽ tạo Micro Cronjob này? (y/N): " confirm
+if [[ ! "${confirm}" =~ ^[Yy]$ ]]; then
+  echo "========================================================================="
+  echo "Hủy bỏ!"
+  echo "========================================================================="
+  exit 0
+fi
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-theo-giay-menu
+fi
+
+
+###################################################################
+###################################################################
+# Tạo nội dung service
+BASE_DIR="/etc/dsnvps/seconcronjob"
+mkdir -p "${BASE_DIR}"
+
+SERVICE_STORE_PATH="${BASE_DIR}/${SERVICE_NAME}"
+TIMER_STORE_PATH="${BASE_DIR}/${TIMER_NAME}"
+
+cat > "${SERVICE_STORE_PATH}" <<EOF
+[Unit]
+Description=DSNVPS seconds job: ${JOB_NAME}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=${RUN_AS_USER}
+Group=root
+ExecStart=/usr/bin/flock -n /tmp/${JOB_NAME}.lock ${SCRIPT_PATH}
+StandardOutput=journal
+StandardError=journal
+EOF
+
+cat >> "${SERVICE_STORE_PATH}" <<'EOF'
+Nice=5
+IOSchedulingClass=best-effort
+IOSchedulingPriority=6
+NoNewPrivileges=true
+PrivateTmp=false
+ProtectSystem=false
+ProtectHome=false
+ProtectControlGroups=false
+ProtectKernelModules=false
+ProtectKernelTunables=false
+LockPersonality=false
+RestrictRealtime=false
+RestrictSUIDSGID=false
+EOF
+
+# Tạo nội dung timer
+ cat > "${TIMER_STORE_PATH}" <<EOF
+[Unit]
+Description=Run ${JOB_NAME} every ${INTERVAL_SEC}s
+
+[Timer]
+OnActiveSec=${INTERVAL_SEC}s
+OnUnitActiveSec=${INTERVAL_SEC}s
+AccuracySec=1s
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+EOF
+
+cp -f "${SERVICE_STORE_PATH}" "${SERVICE_PATH}"
+cp -f "${TIMER_STORE_PATH}" "${TIMER_PATH}"
+chmod 0644 "${SERVICE_PATH}" "${TIMER_PATH}" "${SERVICE_STORE_PATH}" "${TIMER_STORE_PATH}"
+
+systemctl daemon-reload
+systemctl enable --now "${TIMER_NAME}"
+
+echo "========================================================================="
+echo "Thêm Cronjob theo giây thành công."
+echo "========================================================================="
+echo "Nhấn Enter để quay về menu chính..."
+read -r
+
+# Clear screen and return to main menu
+clear
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-theo-giay-menu
+

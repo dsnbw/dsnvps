@@ -1,0 +1,54 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+curTime=$(date +%s)
+
+if [ ! -f /etc/dsnvps/.tmp/automysql ]; then
+touch -a -m -t 201602180130.09 /etc/dsnvps/.tmp/automysql  
+fi
+fileTimemysql=$(date -r /etc/dsnvps/.tmp/automysql +%s);diffmysql=$(($curTime-$fileTimemysql));
+
+###############################################################
+#################################################################
+if [ -f /var/lib/mysql/dsnvpscheckauto/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpscheckauto
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpscheckauto COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpscheckauto/db.opt ]; then
+if [ "$diffmysql" -gt 3600 ]; then
+cat > "/etc/dsnvps/.tmp/guiemailmysqldie1.sh" <<END
+#!/bin/bash 
+echo "
+Chu y: MySQL service on $serverip Die.
+
+Hien tai dich vu MySQL dang stop tren VPS IP $serverip .
+
+Ban nen dang nhap va kiem tra.
+
+
+ "
+END
+chmod +x /etc/dsnvps/.tmp/guiemailmysqldie1.sh
+ cat > "/etc/dsnvps/.tmp/guiemailmysqldie.sh" <<END
+#!/bin/bash 
+/etc/dsnvps/.tmp/guiemailmysqldie1.sh | mail -s "Chu y: MySQL service on $serverip Die" $emailmanage
+END
+chmod +x /etc/dsnvps/.tmp/guiemailmysqldie.sh
+/etc/dsnvps/.tmp/guiemailmysqldie.sh
+rm -f /etc/dsnvps/.tmp/guiemailmysqldie*
+touch /etc/dsnvps/.tmp/automysql 
+fi
+fi
+rm -rf /var/lib/mysql/dsnvpscheckauto
+###############################################################
+#################################################################

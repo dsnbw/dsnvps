@@ -1,0 +1,55 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/php.d/opcache.ini ]; then
+
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+
+test_php=$(/bin/systemctl status  php-fpm.service | awk 'NR==3 {print $2}')
+if [ "$test_php" == "inacctive" ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache không thể clear vì PHP-FPM không thể khởi động lại. "
+echo "-------------------------------------------------------------------------"
+echo "Có thể bạn đã config sai gì đó!"
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+exit
+fi
+
+
+
+test_php=$(/bin/systemctl status  php-fpm.service | awk 'NR==3 {print $2}')
+if [ "$test_php" == "failed" ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache không thể clear vì PHP-FPM không thể khởi động lại. "
+echo "-------------------------------------------------------------------------"
+echo "Có thể bạn đã config sai gì đó!"
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+exit
+fi
+
+echo "Vui lòng chờ...";sleep 2
+clear
+echo "========================================================================= "
+echo "Hoàn thành Clear Opcache "
+/etc/dsnvps/menu/dsnvps-opcache-menu
+fi
+clear
+echo "========================================================================= "
+echo "Zend OPcache đang Disable trên Server"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật Zend Opcache lên để VPS có hiệu suất tốt nhất."
+
+/etc/dsnvps/menu/dsnvps-opcache-menu
+exit
+fi

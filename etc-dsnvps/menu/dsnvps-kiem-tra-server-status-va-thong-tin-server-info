@@ -1,0 +1,35 @@
+#!/bin/bash
+printf "=========================================================================\n"
+while true; do
+
+printf "%-34b %s\n" "\e[31m1) Thông Tin Quản Lý VPS\e[0m      |" "3) Service Đang Chạy Và Ram Sử Dụng     |"
+printf "%-30s %s\n" "------------------------------|" "4) Trạng Thái Server Hiện Tại           |"
+printf "%-33s %s\n" "2) Check Băng Thông UP/Down   |" "5) Thông Tin Phần Cứng & Cấu Hình Server|"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1) clear && /etc/dsnvps/menu/dsnvps-thong-tin-quan-ly-server;;
+    2) clear && /etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps;;
+    3) /etc/dsnvps/menu/tienich/dsnvps-dich-vu-dang-chay-va-ram-dung;;
+    4) clear && /etc/dsnvps/menu/dsnvps-vps-info;;
+    5) echo "-------------------------------------------------------------------------" && echo "Vui lòng chờ..." && sleep 2 && /etc/dsnvps/menu/tienich/dsnvps-view-thong-tin-ip-vps;;
+0) clear; exit 0;;
+     *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+     ########## XOA 4 DONG PHIA TREN ################
+ sleep 3
+ tput cuu 6   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<6; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 6   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+continue;;
+
+    esac
+
+done
+
+

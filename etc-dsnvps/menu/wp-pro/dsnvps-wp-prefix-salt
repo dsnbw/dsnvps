@@ -1,0 +1,27 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="$(dsnvps_pick_domain wp)" || exit 0
+echo "1) Tạo mới toàn bộ Security Salts Keys (wp-config.php)"
+echo "2) Đổi Tiền Tố Bảng Database (Table Prefix) An Toàn"
+read -r -p "Chọn [1-2]: " ch
+if [[ "$ch" == "1" ]]; then
+    dsnvps_wp "$dom" config shuffle-salts
+    echo -e "${C_GREEN}✔ Đã tạo mới Security Salts cho ${dom}!${C_RESET}"
+elif [[ "$ch" == "2" ]]; then
+    old_prefix="$(dsnvps_wp "$dom" db prefix)"
+    read -r -p "Prefix hiện tại là '${old_prefix}'. Nhập prefix mới (VD: dsn_$(openssl rand -hex 2)_): " new_prefix
+    if [[ ! "$new_prefix" =~ ^[a-zA-Z0-9_]+$ ]]; then
+        echo -e "${C_RED}Prefix chỉ được chứa chữ, số và dấu _!${C_RESET}"
+        exit 1
+    fi
+    dsnvps_wp "$dom" db export "/etc/dsnvps/.tmp/pre_prefix_${dom}.sql"
+    for tbl in $(dsnvps_wp "$dom" db tables "${old_prefix}*" --all-tables-with-prefix); do
+        new_tbl="${new_prefix}${tbl#$old_prefix}"
+        dsnvps_wp "$dom" db query "RENAME TABLE \`${tbl}\` TO \`${new_tbl}\`;"
+    done
+    dsnvps_wp "$dom" db query "UPDATE \`${new_prefix}options\` SET option_name = REPLACE(option_name, '${old_prefix}', '${new_prefix}') WHERE option_name LIKE '${old_prefix}%';"
+    dsnvps_wp "$dom" db query "UPDATE \`${new_prefix}usermeta\` SET meta_key = REPLACE(meta_key, '${old_prefix}', '${new_prefix}') WHERE meta_key LIKE '${old_prefix}%';"
+    dsnvps_wp "$dom" config set table_prefix "$new_prefix"
+    echo -e "${C_GREEN}✔ Đã đổi prefix từ '${old_prefix}' sang '${new_prefix}' thành công!${C_RESET}"
+fi

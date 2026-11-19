@@ -1,0 +1,50 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/redis/redis.conf ]; then
+clear
+echo "=========================================================================="
+echo "Redis Cache chưa được cài đặt trên server."
+
+dsnvps
+fi
+
+
+rm -rf /etc/dsnvps/.tmp/checkredis
+upredis=$(/bin/systemctl status redis-server.service | grep running | grep -v not | wc -l);
+if [ "$upredis" -lt 1 ]; then
+redis-cli ping 2> /etc/dsnvps/.tmp/checkredis
+else
+redis-cli ping > /etc/dsnvps/.tmp/checkredis
+fi
+
+
+redistt=`cat /etc/dsnvps/.tmp/checkredis`
+if [ -f /etc/dsnvps/.tmp/checkredis ] && [ ! "$redistt" = "PONG" ]; then
+checkok=notokie
+fi
+
+
+
+if [  "$checkok" = "notokie" ]; then
+clear
+echo "========================================================================="
+echo "Redis Cache đang bị TẮT."
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải BẬT Redis Cache trước khi sử dụng chức năng này."
+dsnvps
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+( echo "flushall" ) | redis-cli
+clear
+echo "========================================================================= "
+echo "Hoàn thành xóa cache của Redis cache => Done !"
+dsnvps
+exit

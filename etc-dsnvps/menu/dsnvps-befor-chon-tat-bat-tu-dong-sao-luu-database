@@ -1,0 +1,177 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/check*
+echo "========================================================================="
+echo "Dùng chức năng này để BẬT/TẮT chế độ Auto sao lưu database trên server."
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/check*
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase)
+checksizeabc=$(du -sb /etc/dsnvps/.tmp/checkalldatabase | awk 'NR==1 {print $1}')
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)
+for database in $listdatabasetrenserver 
+do
+if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+if [ "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabaseempty-list
+fi
+ done
+ if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+	if [ "$checksizeabc" == "1" ]; then
+		clear
+		
+	echo "========================================================================="
+	echo "Bạn chưa tạo database trên server"
+		 /etc/dsnvps/menu/dsnvps-sao-luu
+	else
+		clear
+	echo "========================================================================="
+	echo "Tất cả database đều không có dữ liệu"
+		 /etc/dsnvps/menu/dsnvps-sao-luu
+	fi
+###
+ else
+#echo "========================================================================="
+# echo "Danh sách database co du lieu tren server:"
+#  echo "-------------------------------------------------------------------------"
+dsnvps_check_size=`cat /etc/dsnvps/.tmp/checkdatabase-list`
+rm -rf /etc/dsnvps/.tmp/checksiztungdb
+for datbase123 in $dsnvps_check_size 
+do
+#sizetungdb=`du -sh /var/lib/mysql/$datbase123 | awk 'NR==1 {print $1}'`
+echo "$datbase123" >> /etc/dsnvps/.tmp/checksiztungdb
+done
+#cat /etc/dsnvps/.tmp/checksiztungdb | pr -2 -t 
+ fi
+ 
+ 
+ 
+ ######################################################################################
+rm -rf /etc/dsnvps/.tmp/dsnvps-databaselist
+ls /var/lib/mysql > /etc/dsnvps/.tmp/dsnvps-databaselist
+rm -rf /etc/dsnvps/.tmp/checkautobackupdsnvps
+mkdir -p /etc/dsnvps/.tmp/checkautobackupdsnvps
+checkautobackup=$(cat /etc/dsnvps/.tmp/dsnvps-databaselist)
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto
+randomcode=`date |md5sum |cut -c '1-12'`
+for databasecheck in $checkautobackup 
+do
+if [ -f /bin/auto-backupdb-$databasecheck ]; then
+ if [ -f /etc/cron.d/dsnvps.db.cron ]; then
+     if [ ! "$(grep auto-backupdb-$databasecheck /etc/cron.d/dsnvps.db.cron)" == "" ]; then
+     touch /etc/dsnvps/.tmp/checkautobackupdsnvps/$databasecheck
+     fi
+ fi
+fi  
+done
+rm -rf /etc/dsnvps/.tmp/kland
+SOURCE_DIR="/etc/dsnvps/.tmp/checkautobackupdsnvps/"
+OUTPUT_FILE="/etc/dsnvps/.tmp/kland"
+> "$OUTPUT_FILE"
+for file in "$SOURCE_DIR"/*; do
+    # Check if it is a file
+    if [ -f "$file" ]; then
+        # Extract the file name and append it to the output file
+        echo "$(basename "$file")" >> "$OUTPUT_FILE"
+    fi
+done
+###################################################################################
+##################################################################
+#Thêm (V)
+if [ -s "/etc/dsnvps/.tmp/kland" ]; then
+ALL_WEBSITES_FILE="/etc/dsnvps/.tmp/checksiztungdb"
+KLAND_FILE="/etc/dsnvps/.tmp/kland"
+OUTPUT_FILE="/etc/dsnvps/.tmp/checksiztungdb_with_status"
+> "$OUTPUT_FILE"
+while read -r domain; do
+    if grep -q "^$domain$" "$KLAND_FILE"; then
+        echo "$domain**" >> "$OUTPUT_FILE"
+    else
+        echo "$domain" >> "$OUTPUT_FILE"
+    fi
+done < "$ALL_WEBSITES_FILE"
+else
+mv /etc/dsnvps/.tmp/checksiztungdb /etc/dsnvps/.tmp/checksiztungdb_with_status
+fi
+##################################################################### 
+ mapfile -t file_list < /etc/dsnvps/.tmp/checksiztungdb_with_status
+#echo "========================================================================="
+echo "List Databases có thể cài đặt tự động sao lưu:  | ** : Config đang BẬT"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-4s %-30s %-4s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-4s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+   echo "========================================================================="
+echo -n "Nhập số tương ứng với database bạn muốn cài đặt [0 -Thoát]:"
+
+    read -r choice
+    if [[ $choice == "0" ]]; then
+       clear
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+        break
+    fi
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+dataname=$(echo "${file_list[choice-1]}" | sed 's/**$//')
+fi
+rm -rf /etc/dsnvps/.tmp/databaseautobackup
+echo "$dataname" > /etc/dsnvps/.tmp/databaseautobackup
+if [ -f /bin/auto-backupdb-$dataname ]; then
+ if [ -f /etc/cron.d/dsnvps.db.cron ]; then
+     if [ ! "$(grep auto-backupdb-$dataname /etc/cron.d/dsnvps.db.cron)" == "" ]; then
+echo "=========================================================================" 
+echo "$dataname đang được thiết lập tự động sao lưu."
+echo "-------------------------------------------------------------------------"  
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=( "Cấu hình lại Auto Backup" "Tắt Tự Động Sao Lưu: $dataname")
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachon="reconfig"; break;;
+    2) luachon="tat"; break;;
+    0) luachon="thoat"; break;;    
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+if [ "$luachon" = "tat" ]; then
+ echo "========================================================================="
+echo "OK, Vui lòng chờ ...."; sleep 3
+     /etc/dsnvps/menu/dsnvps-TAT-tu-dong-sao-luu-database
+elif [ "$luachon" = "reconfig" ]; then
+echo "========================================================================="
+echo "OK, Vui lòng chờ ...."; sleep 3
+echo "cxc" > /etc/dsnvps/.tmp/xafdf0askfhcv9z
+else
+ clear
+ echo "========================================================================="
+ echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+fi
+     fi
+ fi
+fi 
+ /etc/dsnvps/menu/dsnvps-BAT-tu-dong-sao-luu-database
+done

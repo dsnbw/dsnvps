@@ -1,0 +1,170 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+. /etc/dsnvps/vsupload.conf
+if [ ! -f /etc/dsnvps/gettimezonev2.php ]; then
+cat >> "/etc/dsnvps/gettimezonev2.php" <<END
+<?php
+echo date_default_timezone_get();
+?>
+END
+fi
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+    domainlinkmange=$(echo "Domain Quản Lý")
+else
+    serverip_priport="${serverip}:${priport}"
+    domainlinkmange=$(echo "Link Quản Lý")
+fi
+##Mat Khau Quản Lý On hay OFF
+if [ ! -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+if [ "$(grep auth_basic_user_file /etc/nginx/conf.d/$mainsite.conf)" == "" ] ; then 
+mkbvql=OFF
+else
+mkbvql=ON
+fi
+else
+if [ "$(grep auth_basic_user_file /etc/dsnvps/domainquanly/domainquanly.conf)" == "" ] ; then 
+mkbvql=OFF
+else
+mkbvql=ON
+fi
+fi
+if [ ! -f /etc/dsnvps/domainvts/domainvts.conf ]; then
+vtsdomain=`echo "Chưa Cài Đặt => Cài Đặt Trong [Thêm Website & Code]"`
+else
+vtsdomain=`echo "http://$domainvts"`
+fi
+########################
+abcza=`date +%Z`
+if [ "$abcza" == "GMT" ]; then
+giotimezone=GMT
+else
+giotimezone=`echo "GMT${abcza}"`
+fi
+ssi1=`echo "$(date | awk 'NR==1 {print $1,$2,$3}')"`
+ssi2=`date +%H:%M`
+if command -v php >/dev/null 2>&1; then
+timezone=`php -f /etc/dsnvps/gettimezonev2.php | sed 's/:00//'`
+else
+timezone="Unknown"
+fi
+RED='\e[31m'
+BOLD='\e[1m'
+RESET='\e[0m'
+BLUE='\e[34m'
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "\033[1;31m                        Thông Tin Quản Lý Server\033[0m\n"
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mMúi Giờ\033[0m || \033[1;31mServer:\033[0m $giotimezone - $ssi1 $ssi2 | \033[1;31mPHP:\033[0m $timezone"
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31m$domainlinkmange:\033[0m http://$serverip_priport | Bảo Vệ: $mkbvql"
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mDomain VTS:\033[0m $vtsdomain"
+echo -e "\e[34m=========================================================================\e[0m"
+echo -e "\033[1;31mTài khoản root MySQL:\033[0m"
+echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}User:${RESET} root | ${BOLD}Password:${RESET} $mariadbpass"
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mĐường dẫn truy cập: phpMyAdmin, File Manager, Status, backup files ...\033[0m"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport"
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+#echo "-------------------------------------------------------------------------"
+echo "http://$serverip:$priport"
+fi
+if [ "$(grep auth_basic_user_file /etc/nginx/conf.d/$mainsite.conf)" == "" ] ; then 
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu Bảo Vệ phpMyAdmin đang tắt. Bạn nên BẬT để tăng bảo mật Server"
+#echo "-------------------------------------------------------------------------"
+echo "BẬT bảo vệ phpMyAdmin: DSNVPS menu => Quản Lý phpMyAdmin, Filemanager =>"
+#echo "-------------------------------------------------------------------------"
+echo "=> BẬT/TẮT Bảo Vệ Port Quản Lý."
+#echo "-------------------------------------------------------------------------"
+else
+. /etc/dsnvps/pwprotect.default
+echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Thông tin truy cập (Mật khẩu mặc định): ${RESET}"
+#echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}User:${RESET} $userdefault | ${BOLD}Password:${RESET} $passdefault"
+#echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Thay User & mật khẩu:${RESET}"
+#echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu ==> Bảo Mật Server & Website ==> Thay Đổi Mật Khẩu Mặc Định"
+fi
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mFile Manager:\033[0m"
+echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Thông tin truy cập:${RESET}"
+#echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}User:${RESET} $uservsupload | ${BOLD}Password:${RESET} $passvsupload"
+#echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Thay User & mật khẩu:${RESET}"
+#echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu > Quản Lý phpMyAdmin, Filemanager > Thay Mật Khẩu File Manager"
+
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mQuản Lý Resilio Sync:\033[0m"
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+echo "-------------------------------------------------------------------------"
+echo "Resilio Sync chưa được cài đặt."
+#echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Cài đặt Resilio Sync:${RESET}"
+#echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu > Quản Lý Resilio Sync > Cài Đặt Resilio Sync"
+else
+echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Resilio Sync WebUI:${RESET} http://$serverip:$(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/rslsync.info | awk '{print $3}')"
+#echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}User:${RESET} $(grep username /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}') | ${BOLD}Password:${RESET} $(grep password /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}')"
+fi
+if [ -f /etc/ssh/sshd_config ]; then
+if grep -q "#Port 22" /etc/ssh/sshd_config; then
+portcu=$(cat /etc/ssh/sshd_config | grep Port | awk 'END {print $2}')
+if [[ ! ${portcu} =~ ^[0-9]+$ ]] ;then
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mCổng truy cập SSH:\033[0m Hiện tại: 22"
+echo "-------------------------------------------------------------------------"
+echo -e "${BOLD}Thay đổi Port SSH để tăng bảo mật:${RESET}"
+#echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu > Bảo Mật Server & Website > Thay Đổi Port SSH"
+else
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "\033[1;31mCổng truy cập SSH:\033[0m $portcu"
+echo "-------------------------------------------------------------------------"
+echo "Lệnh SSH Login: ssh root@$serverip -p$portcu"
+#echo "-------------------------------------------------------------------------"
+echo "Thông tin Login để Upload file qua SFTP:"
+#echo "-------------------------------------------------------------------------"
+echo "Host: sftp://$serverip, User & Pass: Root's info, Port: $portcu" 
+fi
+fi
+fi
+FILE="/etc/nginx/conf/ddos1.conf"
+if [ -f "$FILE" ]; then
+if grep -q "#limit_conn_zone" "$FILE" || ! grep -q "limit_conn_zone" "$FILE"; then
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+    echo -e "\033[1;31mVPS chưa cấu hình [ Tăng Khả Năng Chịu Tải Cho Website ] \033[0m"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn có thể tăng khả năng chịu tải Website lên nhiều lần bằng cách:"
+    echo "Tăng Chịu Tải & Bảo Mật Website => Tăng Khả Năng Chịu Tải Cho Website"
+    echo "Xem hướng dẫn: http://go.dsnvps/2891"
+else
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+    echo -e "\033[1;31mdsnvps đã BẬT cấu hình [ Tăng Khả Năng Chịu Tải Cho Website ].\033[0m"
+fi
+fi
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+dsnvps
+exit
+fi

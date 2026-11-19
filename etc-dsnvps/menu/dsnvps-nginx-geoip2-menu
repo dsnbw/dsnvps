@@ -1,0 +1,56 @@
+#!/bin/bash
+/etc/dsnvps/menu/dsnvps-menu-all-function
+echo "========================================================================="
+echo "                   Quản Lý Truy Cập Theo Quốc Gia"
+echo "========================================================================="
+echo "TÁC DỤNG CÁC CHỨC NĂNG:"
+echo "========================================================================="
+echo "Chuyển Hướng Website Theo Quốc Gia: Cấu hình người dùng ở một nước cụ thể"
+echo "khi truy cập website sẽ bị chuyển hướng sang website khác trên cùng VPS."
+echo "-------------------------------------------------------------------------"
+echo "Chặn Quốc Gia Truy Cập Website: Chặn 1 nước không truy cập website cụ thể"
+echo "-------------------------------------------------------------------------"
+echo "Chỉ Cho Phép Quốc Gia Truy Cập Website: Cấu hình lựa chọn đất nước nào"
+echo "được phép truy cập website bạn chọn. Những nước còn lại sẽ bị Block."
+echo "-------------------------------------------------------------------------"
+echo "Thêm IP Vào Whitelist Không Bị Redirect Và Block: Thêm IP vào whitelist"
+echo "không bị ảnh hưởng bởi các chức năng 1 - 2 - 3"
+echo "========================================================================="
+echo ""
+while true; do
+
+#printf "%-35s %s\n" "3) Thêm Domain Nginx Vhost Traffic Status" ""
+printf "%-35s %s\n" "1) Chuyển Hướng (Redirect) Website Theo Quốc Gia" ""
+printf "%-35s %s\n" "2) Chặn 1 (Nhiều) Quốc Gia Truy Cập Website" ""
+printf "%-35s %s\n" "3) Chỉ Cho Phép 1 (Nhiều) Quốc Gia Truy Cập Website" ""
+echo "-------------------------------------------------------------------------"
+printf "%-35s %s\n" "4) Thêm IP Vào Whitelist Không Bị Redirect Và Block (1 & 2 & 3)" ""
+printf "%-35s %s\n" "5) List Các Cài Đặt Cấu Hình Hiện Tại" ""
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1) /etc/dsnvps/menu/dsnvps-thiet-lap-chan-bloc-dat-nuoc-geoip2-redirect-website-to-website-khac;;
+    2) /etc/dsnvps/menu/dsnvps-thiet-lap-chan-block-dat-nuoc-geoip2-khong-truy-cap-website-cu-the;;
+    3) /etc/dsnvps/menu/dsnvps-chi-cho-phep-quoc-gia-cu-the-geoip2-truy-cap-website;;
+    4) /etc/dsnvps/menu/dsnvps-geoip2-tao-whitelist-khong-bi-block-country-redirect-country;;
+    5) /etc/dsnvps/menu/dsnvps-list-rule-geoip2-hien-tai;;
+0) clear; exit 0;;
+     *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+     ########## XOA 4 DONG PHIA TREN ################
+ sleep 3
+ tput cuu 9   # Di chuyển con trỏ lên 9 dòng
+for ((i=0; i<9; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 9   # Quay lại vị trí ban đầu (đầu tiên của 9 dòng)
+##############################################################
+continue;;
+
+    esac
+
+done
+
+

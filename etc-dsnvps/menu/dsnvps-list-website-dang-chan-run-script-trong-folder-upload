@@ -1,0 +1,44 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+mkdir -p /etc/dsnvps/.tmp/sitedangdenyrunscripthostingaz
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist 
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+sowebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+for website in $sowebsite 
+do
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+if [ "$(grep deny-script-writeable-folder.conf /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/deny-script-writeable-folder.conf;" ]; then
+touch /etc/dsnvps/.tmp/sitedangdenyrunscripthostingaz/$website
+fi
+fi
+done
+clear
+echo "========================================================================="
+echo "Website tren server: $sowebsitetrenserver"
+echo "-------------------------------------------------------------------------"
+if [ "$(ls -1 /etc/dsnvps/.tmp/sitedangdenyrunscripthostingaz | wc -l)" == "0" ]; then
+echo "Website KHONG CHO PHEP chay script trong writeable folder: 0"
+else
+echo "Website KHONG CHO PHEP chay script trong writeable folder: $(ls -1 /etc/dsnvps/.tmp/sitedangdenyrunscripthostingaz | wc -l)"
+echo "-------------------------------------------------------------------------"
+ls /etc/dsnvps/.tmp/sitedangdenyrunscripthostingaz | pr -3 -t
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+fi
+/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu

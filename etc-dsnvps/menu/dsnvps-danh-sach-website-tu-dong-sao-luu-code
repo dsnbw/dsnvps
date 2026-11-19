@@ -1,0 +1,87 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto2
+rm -rf /home/$mainsite/private_html/LUCT*
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 3
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+rm -rf /etc/dsnvps/.tmp/checkautobackupdsnvps
+mkdir -p /etc/dsnvps/.tmp/checkautobackupdsnvps
+checkautobackup=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto
+randomcode=`date |md5sum |cut -c '1-25'`
+for websitecheck in $checkautobackup 
+do
+if [ -f /bin/auto-backupcode-$websitecheck ]; then
+ if [ -f /etc/cron.d/dsnvps.code.cron ]; then
+     if [ ! "$(grep auto-backupcode-$websitecheck /etc/cron.d/dsnvps.code.cron)" == "" ]; then
+     touch /etc/dsnvps/.tmp/checkautobackupdsnvps/$websitecheck
+     if [ ! -f /etc/dsnvps/.tmp/chitietbackupauto ]; then
+     touch /etc/dsnvps/.tmp/chitietbackupauto
+     fi
+	if [ "$(grep DSNVPS /etc/dsnvps/.tmp/chitietbackupauto)" == "" ]; then
+	echo "=========================================================================" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Link Download Backup Cho Website - Created by DSNVPS" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "=========================================================================" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Luu Y:" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Cac Link Download Backup Cua Website Chi Kha Dung Khi Website Tren Server" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Duoc Backup Thanh Cong. " >> /etc/dsnvps/.tmp/chitietbackupauto
+	fi
+pathname=$(grep "\/home\/$mainsite\/private_html\/backup\/$websitecheck" /bin/auto-backupcode-$websitecheck | awk 'NR==6 {print $3}')
+filename=$(basename $pathname)
+echo "=========================================================================" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "Website $websitecheck:" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "http://$serverip_priport/backup/$websitecheck/$filename" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "" >> /etc/dsnvps/.tmp/chitietbackupauto
+#########################
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto2
+echo "Website $websitecheck:" >> /etc/dsnvps/.tmp/chitietbackupauto2
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto2
+echo "http://$serverip_priport/backup/$websitecheck/$filename" >> /etc/dsnvps/.tmp/chitietbackupauto2
+#echo "" >> /etc/dsnvps/.tmp/chitietbackupauto      
+     fi
+ fi
+fi  
+done
+if [  "$(ls -1 /etc/dsnvps/.tmp/checkautobackupdsnvps | wc -l)" == "0" ]; then
+clear
+echo "========================================================================="
+echo "Hien tai khong co website nao duoc BAT tu dong backup"
+else
+rm -rf /home/$mainsite/private_html/LUCT*
+mv /etc/dsnvps/.tmp/chitietbackupauto /home/$mainsite/private_html/LUCT-$randomcode.txt
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                     Link Download Auto Backup Code \n"
+echo "========================================================================="
+echo "Hien tai co $(ls -1 /etc/dsnvps/.tmp/checkautobackupdsnvps | wc -l) website đang BẬT Auto Backup code"
+echo "-------------------------------------------------------------------------"
+ls /etc/dsnvps/.tmp/checkautobackupdsnvps  | pr -2 -t
+echo "========================================================================="
+cat /etc/dsnvps/.tmp/chitietbackupauto2
+echo "========================================================================="
+echo "Link Download File Backup Trong Trinh Duyet:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/LUCT-$randomcode.txt"
+fi
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit

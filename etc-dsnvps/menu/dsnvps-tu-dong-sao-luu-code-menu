@@ -1,0 +1,55 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+mkdir -p /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+if [ -f /home/$checksite/public_html/index.php ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không tìm thấy website có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/autobackupcode"
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
+options=("BAT/TAT Tu Dong Backup Website" "List Website BAT Tu Dong Backup")
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1 ) /etc/dsnvps/menu/dsnvps-befor-chon-tat-bat-tu-dong-sao-luu-code;;
+    2 ) /etc/dsnvps/menu/dsnvps-danh-sach-website-tu-dong-sao-luu-code;;
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+
+    esac
+done

@@ -1,0 +1,42 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(/sbin/service csf status | awk 'NR==1 {print $3}')
+if [ "$test_csf" == "csf:csf" ]; then
+clear
+echo "========================================================================= "
+echo "CSF đang tắt trên server !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+else
+echo "========================================================================= "
+echo "CSF Firewall nên được bật để bảo vệ VPS/Server!!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn tắt CSF FireWall? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+csf -x
+clear
+echo "========================================================================= "
+echo "Tắt CSF firewall thành công !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Hủy bỏ!"
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+else
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-tat-csf
+exit
+fi

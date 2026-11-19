@@ -1,0 +1,54 @@
+#!/bin/bash
+
+# Nạp các file cấu hình chính
+. /root/dsnvps.conf
+. /etc/dsnvps/backup.onedrive.conf
+
+# Kiểm tra file cấu hình backup
+[ ! -f /etc/dsnvps/backup.onedrive.conf ] && exit 1
+
+# Kiểm tra rclone có được cài đặt không
+command -v rclone >/dev/null 2>&1 || exit 1
+
+# Đường dẫn backup trên VPS và OneDrive
+backup_dir="/home/$mainsite/private_html/backup"
+remote_path="$nameaction:$serverip"
+
+# Kiểm tra thư mục backup có tồn tại không
+[ ! -d "$backup_dir" ] && exit 1
+
+# Thực hiện sao chép các file mới lên OneDrive
+rclone $action "$backup_dir" "$remote_path" --update --quiet --no-traverse --modify-window 1s
+
+# Kiểm tra lại có còn file cần upload không
+if rclone sync "$backup_dir" "$remote_path" --dry-run --quiet | grep -q "Transferred:"; then
+    upload_status="failed"
+else
+    upload_status="success"
+fi
+
+# Xóa các file cũ hơn $songayxoa ngày trên OneDrive
+find "$backup_dir" -type f -mtime +$songayxoa | while read -r file; do
+    filename=$(basename "$file")
+    rclone lsf "$remote_path" | grep -Fxq "$filename" && rclone delete "$remote_path/$filename" --quiet
+done
+
+# Xóa thư mục rỗng và dọn dẹp thùng rác
+rclone rmdirs "$remote_path" --quiet
+rclone cleanup "$nameaction:" --quiet
+
+# Gửi thông báo Telegram nếu có cấu hình
+if [[ -f /etc/dsnvps/telegram.conf && -f /etc/dsnvps/backup.onedrive.telegram.conf ]]; then
+    source /etc/dsnvps/telegram.conf
+    source /etc/dsnvps/backup.onedrive.telegram.conf
+
+    if [[ "$upload_status" == "success" ]]; then
+        MESSAGE="$serverip: Đã sao lưu thành công toàn bộ file backup mới lên OneDrive."
+    else
+        MESSAGE="$serverip: Sao lưu thất bại. Một số file backup chưa được tải lên OneDrive. Bạn hãy kiểm tra lại cấu hình hoặc cấu hình OneDrive."
+    fi
+
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$MESSAGE" > /dev/null 2>&1
+fi

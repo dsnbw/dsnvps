@@ -1,0 +1,186 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+# Tạo file checkallwebsites
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+# Xóa file dsnvps-replace sau khi sử dụng
+rm -f /etc/dsnvps/.tmp/dsnvps-replace
+listwebsite=$(cat /etc/dsnvps/.tmp/checkallwebsites)
+for checkweb in $listwebsite
+do
+    if [ -f /home/$mainsite/private_html/backup/$checkweb/*.zip ]; then
+        find /home/$mainsite/private_html/backup/$checkweb/ -name '*.zip' -type f -exec basename {} \; > /etc/dsnvps/.tmp/website_co_backup
+        sodong=`cat /etc/dsnvps/.tmp/website_co_backup | wc -l`
+        if [ "$sodong" -gt 0 ]; then
+            echo "$checkweb" >> /etc/dsnvps/.tmp/checkwebsite-list
+        fi
+        # Xóa file website_co_backup sau khi sử dụng
+        rm -f /etc/dsnvps/.tmp/website_co_backup
+    fi
+done
+if [ ! -f /etc/dsnvps/.tmp/checkwebsite-list ]; then
+    # Xóa file checkallwebsites nếu không có website nào có backup
+    rm -f /etc/dsnvps/.tmp/checkallwebsites
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không tìm thấy backup file của các website trên server !"; sleep 2
+    /etc/dsnvps/menu/dsnvps-sao-luu
+    exit
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để lấy link tải các bản backup của website trên VPS"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkwebsite-list
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 )) # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1)) # Số thứ tự bên trái
+    right_index=$((half + i + 1)) # Số thứ tự bên phải
+    left_db="${danh_sach_website[i]:- }" # Tên database bên trái
+    if (( right_index <= total )); then # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}" # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: "
+    read -r lua_chon
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        # Xóa các file tạm trước khi thoát
+        rm -f /etc/dsnvps/.tmp/checkallwebsites
+        rm -f /etc/dsnvps/.tmp/checkwebsite-list
+        /etc/dsnvps/menu/dsnvps-sao-luu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+if [ -f /home/$mainsite/private_html/backup/$website/*.zip ]; then
+    # Tìm tất cả file backup (có .zip trong tên)
+    backup_files=()
+    backup_dir="/home/$mainsite/private_html/backup/$website"
+    if [ -d "$backup_dir" ]; then
+        temp_file="/tmp/backup_files_$$"
+        find "$backup_dir" -name "*zip*" -type f > "$temp_file"
+        while IFS= read -r file; do
+            if [ -n "$file" ]; then
+                backup_files+=("$file")
+            fi
+        done < "$temp_file"
+        rm -f "$temp_file"
+    fi
+    # Kiểm tra nếu không có file backup
+    if [ ${#backup_files[@]} -eq 0 ]; then
+        clear
+        echo "========================================================================="
+        echo "Bạn chưa tạo file sao lưu cho $website !"; sleep 2
+        # Xóa các file tạm trước khi thoát
+        rm -f /etc/dsnvps/.tmp/checkallwebsites
+        rm -f /etc/dsnvps/.tmp/checkwebsite-list
+        /etc/dsnvps/menu/dsnvps-sao-luu
+        exit
+    fi
+    # Sắp xếp file theo thời gian tạo (mới nhất trước)
+    sorted_files=()
+    for file in "${backup_files[@]}"; do
+        timestamp=$(stat -c %Y "$file")
+        sorted_files+=("$timestamp:$file")
+    done
+    # Sắp xếp theo timestamp giảm dần
+    IFS=$'\n' sorted_files=($(sort -rn -t: -k1 <<< "${sorted_files[*]}"))
+    # Tạo danh sách file đã sắp xếp
+    final_files=()
+    for item in "${sorted_files[@]}"; do
+        file_path="${item#*:}"
+        final_files+=("$file_path")
+    done
+    # Nếu chỉ có 1 file, sử dụng trực tiếp
+    if [ ${#final_files[@]} -eq 1 ]; then
+        selected_file="${final_files[0]}"
+        filename=$(basename "$selected_file")
+    else
+        # Hiển thị danh sách để user chọn
+        echo "========================================================================="
+        echo "DANH SÁCH FILE BACKUP CỦA: $website"
+        echo "========================================================================="
+        for i in "${!final_files[@]}"; do
+            file_path="${final_files[i]}"
+            file_time=$(date -r "$file_path" "+%H:%M %d/%m/%Y")
+            if [ $i -eq 0 ]; then
+                printf " %d. Backup tạo lúc: %s (File mới nhất)\n" $((i+1)) "$file_time"
+            else
+                printf " %d. Backup tạo lúc: %s\n" $((i+1)) "$file_time"
+            fi
+        done
+        echo ""
+        # Cho user chọn file backup
+        while true; do
+            echo -n "Nhập số tương ứng với file backup muốn lấy link [0 -Thoát]: "
+            read -r backup_choice
+            if [[ -z "$backup_choice" ]]; then
+                echo "Vui lòng nhập một số hợp lệ."
+                continue
+            elif [[ "$backup_choice" == "0" ]]; then
+                clear
+                # Xóa các file tạm trước khi thoát
+                rm -f /etc/dsnvps/.tmp/checkallwebsites
+                rm -f /etc/dsnvps/.tmp/checkwebsite-list
+                /etc/dsnvps/menu/dsnvps-sao-luu
+                exit
+            elif [[ "$backup_choice" =~ ^[0-9]+$ ]] && (( backup_choice >= 1 && backup_choice <= ${#final_files[@]} )); then
+                selected_file="${final_files[$((backup_choice-1))]}"
+                filename=$(basename "$selected_file")
+                break
+            else
+                echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+            fi
+        done
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."
+    sleep 2
+    showinfo="File Backup (Backup vào $(date -r /home/$mainsite/private_html/backup/$website/$filename +%H:%M/%F)):"
+    clear
+    echo "========================================================================="
+    echo "Tìm thấy $website trên server !"
+    echo "-------------------------------------------------------------------------"
+    echo "$showinfo"
+    echo "-------------------------------------------------------------------------"
+    echo "http://$serverip_priport/backup/$website/$filename"
+    # Xóa các file tạm sau khi hoàn tất
+    rm -f /etc/dsnvps/.tmp/checkallwebsites
+    rm -f /etc/dsnvps/.tmp/checkwebsite-list
+    /etc/dsnvps/menu/dsnvps-sao-luu
+else
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa tạo file sao lưu cho $website !"; sleep 2
+    # Xóa các file tạm trước khi thoát
+    rm -f /etc/dsnvps/.tmp/checkallwebsites
+    rm -f /etc/dsnvps/.tmp/checkwebsite-list
+    /etc/dsnvps/menu/dsnvps-sao-luu
+    exit
+fi

@@ -1,0 +1,45 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /etc/cron.d/dsnvps.autorenew.acmessl.cron ]; then
+clear
+echo "========================================================================="
+echo "Chuc nang tu dong gia han chung chi Free SSL da duoc BAT."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS se auto renew SSL 7 ngay truoc khi SSL het han."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+echo "========================================================================="
+echo "Su dung chuc nang nay BAT chuc nang tu dong gia han chung chi SSL cho"
+echo "-------------------------------------------------------------------------"
+echo "tat ca website dang su dung Free SSL."
+echo "========================================================================="
+  read -r -p "Ban muon BAT chuc nang tu dong gia han SSL ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.autorenew.acmessl.cron
+echo "43 17 * * * root "/root/.acme.sh"/acme.sh --cron --home "/root/.acme.sh" > /dev/null" >> /etc/cron.d/dsnvps.autorenew.acmessl.cron
+systemctl restart crond
+clear
+echo "========================================================================="
+echo "Hoan thanh cai dat tu dong gia han chung chi Free SSL."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS se auto renew SSL 7 ngay truoc khi SSL het han."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+;;
+    *)
+clear 
+echo "========================================================================= "
+echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+        ;;
+esac

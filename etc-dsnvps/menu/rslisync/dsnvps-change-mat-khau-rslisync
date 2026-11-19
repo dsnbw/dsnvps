@@ -1,0 +1,81 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+clear
+echo "========================================================================= "
+echo "Bạn chưa cài đặt Resilio Sync"
+exit 0
+    exit 0
+fi
+echo "========================================================================= "
+echo "Sử dụng chức năng này để thay User và Mật khẩu Quản Lý Resilio Sync"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn thay user và mật khẩu Resilio Sync? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Chuẩn bị thay mật khẩu Resilio Sync ..."
+sleep 2
+killall -q rslsync
+pkill rslsync
+systemctl stop resilio-sync.service
+random=$(printf "%02d" $((RANDOM % 100)))
+username="dsnvps$random"
+password=`date |md5sum |cut -c '1-32'`
+rm -rf /etc/rslsync-dsnvps/sync.conf
+yes | cp -rf /etc/dsnvps/rslsync.info /etc/dsnvps/.tmp/rslsync.info
+rm -rf /etc/dsnvps/rslsync.info
+
+    cat > "/etc/dsnvps/rslsync.info" <<END
+username = $username
+password = $password
+rslport = $(grep -E '^rslport[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}')
+rslportwebui = $(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}')
+END
+
+cat > "/etc/rslsync-dsnvps/sync.conf" <<END
+{ 
+  "device_name": "dsnvps",
+  "listening_port" : $(grep -E '^rslport[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}'),
+  "storage_path" : "/etc/rslsync-dsnvps/.sync",
+  "check_for_updates" : false, 
+  "use_upnp" : true,
+  "download_limit" : 0,                       
+  "upload_limit" : 0, 
+  "webui" :
+  {
+    "listen" : "0.0.0.0:$(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}')",
+    "login" : "$username",
+    "password" : "$password"
+  }
+}
+END
+
+systemctl stop resilio-sync.service
+systemctl start resilio-sync.service
+rm -rf /etc/dsnvps/.tmp/rslsync.info
+clear 
+echo "========================================================================= "
+echo "Thay user và mật khẩu cho Resilio Sync thành công"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin Quản Lý Resilio Sync mới:"
+
+echo "-------------------------------------------------------------------------"
+echo "Resilio Sync WebUI: http://$serverip:$(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/rslsync.info | awk '{print $3}')"
+echo "-------------------------------------------------------------------------"
+echo "User: $(grep username /etc/dsnvps/rslsync.info| awk 'NR==1 {print $3}') | Password: $(grep password /etc/dsnvps/rslsync.info| awk 'NR==1 {print $3}')"
+exit 0
+        exit 0
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Hủy bỏ thay mật khẩu Resilio Sync"
+exit 0
+

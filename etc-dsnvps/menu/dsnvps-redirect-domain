@@ -1,0 +1,238 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Sử dụng chức năng này để thêm redirect domain vào server"
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập domain mới [ENTER]: " 
+read domain
+domain=`echo $domain | tr '[A-Z]' '[a-z]'`
+if [ "$domain" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+kiemtradomain3="^(([a-zA-Z0-9]|xn--[a-zA-Z0-9-]+)([-a-zA-Z0-9]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9-]+)$";
+if [[ ! "$domain" =~ $kiemtradomain3 ]]; then
+	domain=`echo $domain | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$domain có lẽ không phải là domain hợp lệ!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại  !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi 
+
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$domain/public_html ] && [ -f /etc/nginx/conf.d/www.$domain.conf ]; then
+domain=www.$domain
+fi
+if [ $(echo "$domain" | cut -c 1-4) == "www." ]; then
+domain_redirect=$(echo "$domain" | sed 's/....//')
+else
+domain_redirect=www.$domain
+fi
+#################################################################
+if [ -f /etc/nginx/conf.d/$domain.conf ]; then
+clear
+echo "========================================================================="
+echo "Phát hiện $domain đã tồn tại trong hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+if [ -f /etc/nginx/conf.d/$domain_redirect.conf ]; then
+clear
+echo "========================================================================="
+echo "Phát hiện $domain_redirect đã tồn tại trong hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+
+if [ -f /etc/nginx/conf.d/$domain.conf ]; then
+clear
+echo "========================================================================="
+echo "Phát hiện $domain_redirect đã tồn tại trong hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$domain" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-truoc-khi-them-vao-server
+#################################################################
+vhost_dir="/etc/nginx/conf.d"
+home_dir="/home"
+output_file="/etc/dsnvps/.tmp/checkallwebsites"
+
+> "$output_file"
+
+for vhost_file in "$vhost_dir"/*.conf; do
+    domainc=$(basename "$vhost_file" .conf)
+
+    # Bỏ qua domain dsnvps.demo
+    if [[ "$domainc" == "dsnvps.demo" ]]; then
+        continue
+    fi
+
+    # Kiểm tra nếu thư mục /home/domain tồn tại
+    if [[ -d "$home_dir/$domainc" ]]; then
+        echo "$domainc" >> "$output_file"
+    fi
+done
+
+# Kiểm tra nếu file output không có domain nào
+if [[ ! -s "$output_file" ]]; then
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa thêm Website Vào Server !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+mapfile -t file_list < /etc/dsnvps/.tmp/checkallwebsites
+echo "========================================================================="
+echo "Nhập số tương ứng với website mà bạn muốn redirect tới."
+echo "-------------------------------------------------------------------------"
+
+###############################################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+
+    left_db="${file_list[i]:- }"                    
+
+    if (( right_index <= total )); then           
+        right_db="${file_list[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+echo "========================================================================="
+    echo -n "Nhập số tương ứng website [0 -Thoát]:  "
+    read -r choice
+    if [[ $choice == "0" ]]; then
+       clear
+/etc/dsnvps/menu/dsnvps-them-website-menu
+        break
+    fi
+if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+website=${file_list[choice-1]}
+
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ thêm $domain vào hệ thống "
+echo "-------------------------------------------------------------------------"
+echo "và cho redirect tới $website"
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" == "OK" ]]; then
+echo "-------------------------------------------------------------------------"
+    echo "Xác nhận chính xác."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Đang thêm $domain vào hệ thống....."
+    sleep 2
+    echo "Đang cấu hình redirect domain .."; sleep 2
+
+    
+if [ ! -d /home/$website/conf.d ]; then
+mkdir -p /home/$website/conf.d
+fi
+
+if ! grep -F "include /home/$website/conf.d/*.conf;" /etc/nginx/conf.d/$website.conf > /dev/null; then
+  echo "include /home/$website/conf.d/*.conf;" >> /etc/nginx/conf.d/$website.conf
+fi
+
+
+       cat >> "/home/$website/conf.d/$domain.conf" <<END
+server {
+	    server_name $domain_redirect $domain;
+	    return       301 http://$website\$request_uri;
+    	}
+END
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+echo "-------------------------------------------------------------------------" 
+echo "Phát hiện lỗi .... " ; sleep 3
+rm -rf /home/$website/conf.d/$domain.conf
+clear
+echo "========================================================================="
+echo "Nginx gặp lỗi khi thêm $domain vào server."
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Nginx khi thêm $domain:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/dsnvps.nginx.check
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+fi
+
+
+rm -rf /etc/dsnvps/.tmp/bopukzyatsffrg
+rm -rf /etc/dsnvps/.tmp/bopaslxixoaseufncg
+rm -rf /etc/dsnvps/.tmp/aslxixoaseufnc
+rm -rf /etc/dsnvps/.tmp/bxnahslsadoplza
+rm -rf /etc/dsnvps/.tmp/bxnahslsado
+#######################################################
+##
+
+
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+echo "========================================================================="
+echo "$domain đã được thêm vào hệ thống"
+echo "----------------------------------------------------------------------"
+echo "và redirect tới $website"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+else
+ clear
+ echo "========================================================================="
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận."
+/etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+fi
+
+
+  else
+ echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Bạn vui lòng chọn lại."
+
+
+fi
+done
+

@@ -1,0 +1,61 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if command -v php >/dev/null 2>&1; then
+echo ""
+else
+clear
+	echo "========================================================================="
+	#echo "Sorry, You need intall PHP-FPM before using this funtion!"
+echo "Ban can cai dat PHP cho server truoc khi dung chuc nang nay!"
+	dsnvps
+    fi
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+
+if [ ! "$UPPHP" -ne 1 ]; then
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+	else
+clear
+echo "========================================================================"
+echo "Hiện tại, dịch vụ php-fpm không chạy"; sleep 2
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"; sleep 2
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+sleep 5 ; clear
+	echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/inc/start-php-fpm-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ php-fpm !"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+if [ ! "$UPPHP" -ne 1 ]; then
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+		else
+		clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ PHP"
+sleep 4 ;
+phpsetup=`command -v php >/dev/null 2>&1 && echo php-common`
+    if [ -z "$phpsetup" ]; then
+    /etc/dsnvps/menu/dsnvps-fix-loi-chua-cai-php
+    else
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, PHP-FPM đã dừng. Hãy BẬT lại trước khi sử dụng chức năng này!"
+    #echo "Xin lỗi, PHP-FPM đang dừng. Hãy Bật lên trước khi dùng chức năng này!"
+	dsnvps
+     fi
+fi
+fi

@@ -1,0 +1,31 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ ! -d /home/$mainsite/private_html/backup/AllDB ]; then
+mkdir -p /home/$mainsite/private_html/backup/AllDB
+fi
+echo "========================================================================="
+echo "Chức năng này dùng để backup tất cả database trên server thành 1 file duy" 
+echo "-------------------------------------------------------------------------"
+echo "nhất. Sau đó dùng file backup này để phục hồi toàn bộ database sang 1"
+echo "-------------------------------------------------------------------------"
+echo "server khác hoặc tại ngay server hiện tại. File backup không thể phục hồi"
+echo "-------------------------------------------------------------------------"
+echo "bằng lệnh mà bắt buộc phải dùng chức năng [ Phục Hồi FULL Database ]."
+echo "========================================================================="
+echo "Lưu ý: Để không xảy ra rủi ro nào, chắc chắn server mới hoạt động chính"
+echo "-------------------------------------------------------------------------"
+echo "xác 100% và không có lỗi lầm thì khi đó mới được drop server cũ."
+echo "-------------------------------------------------------------------------"
+echo "Không ai có thể khẳng định các file backup hoạt động chính xác 100% cả."
+echo "========================================================================="
+read -p "Nhấn [Enter] để tiếp tục ..."
+clear
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu

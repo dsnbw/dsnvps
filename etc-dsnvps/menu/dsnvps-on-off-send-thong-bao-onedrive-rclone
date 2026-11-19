@@ -1,0 +1,219 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Kiểm tra Telegram
+if [ ! -f /etc/dsnvps/telegram.conf ]; then
+    clear
+    echo "========================================================================="
+    echo "Dùng chức năng này TẮT/BẬT gửi thông báo Telegram sau hoàn thành upload"
+    echo "-------------------------------------------------------------------------"
+    echo "các file backup lên OneDrive xong."
+    echo "========================================================================="
+    echo "Bạn hãy cấu hình Telegram trước khi chạy chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Cách cấu hình:"
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS menu => Auto Check Login/Nginx/MySQL/PHP => Cấu Hình Telegram "
+    echo "-------------------------------------------------------------------------"
+    echo "Sau khi cấu hình xong, hãy quay lại chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra Rclone
+if [ ! -f /bin/rclone ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt Rclone trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra cấu hình auto backup và cron
+if [ -f /etc/dsnvps/backup.onedrive.conf ]; then
+    if [ ! -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ]; then
+        rm -rf /etc/dsnvps/backup.onedrive.conf
+    fi
+fi
+if [ -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ]; then
+    if [ ! -f /etc/dsnvps/backup.onedrive.conf ]; then
+        rm -rf /etc/cron.d/dsnvps.rclone.backup.onedrive.cron
+    fi
+fi
+
+if [ ! -f /etc/dsnvps/backup.onedrive.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn phải hoàn thành [Cấu Hình Tự Động Sao Lưu] "
+    echo "-------------------------------------------------------------------------"
+    echo "trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra cấu hình Rclone
+if [ ! -f /root/.config/rclone/rclone.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Cloud (OneDrive) chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra cấu hình OneDrive
+rm -rf /etc/dsnvps/.tmp/checkrcclonedrvier
+awk '/^\[onedrive\]/ {print}' /root/.config/rclone/rclone.conf > /etc/dsnvps/.tmp/checkrcclonedrvier
+checkb=$(wc -l < /etc/dsnvps/.tmp/checkrcclonedrvier)
+
+if [ "$checkb" -lt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối VPS với OneDrive trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+if [ "$checkb" -gt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Hiện tại DSNVPS chỉ hỗ trợ backup VPS với 1 config OneDrive"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chạy chức năng [ Xóa Tất Cả Cấu Hình ], và thực hiện config lại."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Lấy tên remote từ cấu hình Rclone
+rm -rf /etc/dsnvps/.tmp/chckshxn0
+grep -B 1 "type = onedrive" /root/.config/rclone/rclone.conf | awk 'NR==1' | sed 's/\[//' | sed 's/\]//' > /etc/dsnvps/.tmp/chckshxn0
+uservue=$(cat /etc/dsnvps/.tmp/chckshxn0)
+if [ -z "$uservue" ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng kiểm tra lại."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra file thực thi upload
+upload_script="/etc/dsnvps/menu/backup-onedrive-rclone-run-now"
+if [ ! -f "$upload_script" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file thực thi: $upload_script"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại cấu hình DSNVPS."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra kết nối OneDrive
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới OneDrive"; sleep 2
+REMOTE_NAME="onedrive"
+success=0
+> /tmp/rclone_connect.log
+for attempt in {1..3}; do
+    if [ $attempt -eq 1 ] || [ $attempt -eq 3 ]; then
+        rclone about "$REMOTE_NAME": > /tmp/rclone_connect.log 2>&1
+        if [ $? -eq 0 ]; then
+            success=1
+            break
+        fi
+    elif [ $attempt -eq 2 ]; then
+        rclone config show "$REMOTE_NAME": > /tmp/rclone_connect.log 2>&1
+        if [ $? -eq 0 ]; then
+            success=1
+            break
+        fi
+    fi
+    if [ $attempt -lt 3 ]; then
+        echo "Check kết nối thất bại. DSNVPS sẽ check lại một lần nữa."
+        sleep 5
+    fi
+done
+if [ $success -eq 0 ]; then
+    clear
+    echo "========================================================================="
+    echo "Kết nối tới OneDrive thất bại !"
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi:"
+    echo "-------------------------------------------------------------------------"
+    cat /tmp/rclone_connect.log
+    echo "-------------------------------------------------------------------------"
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+sleep 3 && tput cuu 2 && tput ed
+
+# Bật/Tắt thông báo Telegram
+echo "========================================================================="
+echo "Dùng chức năng này TẮT/BẬT gửi thông báo Telegram sau hoàn thành upload"
+echo "-------------------------------------------------------------------------"
+echo "các file backup lên OneDrive xong."
+telegram_toggle_file="/etc/dsnvps/backup.onedrive.telegram.conf"
+
+if [ -f "$telegram_toggle_file" ]; then
+    echo "========================================================================="
+    echo "Hiện tại Gửi thông báo Telegram đang BẬT."
+    echo "-------------------------------------------------------------------------"
+    echo -n "Bạn có muốn TẮT chức năng này không? [Y/n]: "
+    read tgbat
+    tgbat=${tgbat,,} # chuyển thành chữ thường
+
+    if [[ "$tgbat" == "y" || "$tgbat" == "Y" ]]; then
+        rm -f "$telegram_toggle_file"
+        sleep 2
+        clear
+        echo "========================================================================="
+        echo "Đã TẮT chức năng gửi thông báo Telegram sau khi upload backup."
+        /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    else
+        clear
+       echo "========================================================================="
+        echo "Không thay đổi. Gửi thông báo Telegram vẫn đang BẬT."
+        /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    fi
+else
+    echo "========================================================================="
+    echo "Hiện tại Gửi thông báo Telegram đang TẮT."
+    echo "-------------------------------------------------------------------------"
+    echo -n "Bạn có muốn BẬT chức năng này không? [Y/n]: "
+    read tgbat
+    tgbat=${tgbat,,}
+
+    if [[ "$tgbat" == "y" || "$tgbat" == "Y" ]]; then
+        touch "$telegram_toggle_file"
+        sleep 2
+        clear
+        echo "========================================================================="
+        echo "Đã BẬT chức năng gửi thông báo Telegram sau khi upload backup."
+        /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    else
+        clear
+        echo "========================================================================="
+        echo "Không thay đổi. Gửi thông báo Telegram vẫn đang TẮT."
+        /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    fi
+fi

@@ -1,0 +1,64 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+website=`cat /etc/dsnvps/.tmp/chduasydacdcdcdae`
+###################################################################
+###################################################################
+rm -rf /etc/dsnvps/.tmp/zbnashakaerf*
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/zbnashakaerf
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/zbnashakaerf 
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/zbnashakaerf
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+acction1="/etc/dsnvps/.tmp/zbnashakaerf"
+while read -r checksite
+    do
+if [ -d /home/$checksite/public_html ] && [ -f /home/$checksite/conf.d/$website.conf ]; then
+echo "$checksite" > /etc/dsnvps/.tmp/zbnashakaerfA
+fi
+ done < "$acction1"
+
+if [ -f /etc/dsnvps/.tmp/zbnashakaerfA ]; then
+checksite=`cat /etc/dsnvps/.tmp/zbnashakaerfA`
+sodong=$(cat /home/$checksite/conf.d/$website.conf | wc -l)
+echo "========================================================================="
+if [ "$sodong" -gt "20" ]; then
+echo "$website parked với domain $checksite"
+else
+echo "$website đang làm domain redirect tới $checksite"
+fi
+echo "========================================================================="
+read -r -p "Bạn muốn xóa $website ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "OK ! Vui lòng chờ ..."; sleep 2
+rm -rf /home/$checksite/conf.d/$website.conf
+echo "-------------------------------------------------------------------------"
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+clear
+echo "========================================================================="
+echo "Xóa $website khỏi Server thành công."
+rm -rf /etc/dsnvps/.tmp/zbnashakaerf*
+dsnvps
+else
+clear
+echo "========================================================================="
+echo "Hủy bỏ ! "
+rm -rf /etc/dsnvps/.tmp/zbnashakaerf*
+dsnvps
+fi
+fi
+rm -rf /etc/dsnvps/.tmp/zbnashakaerf*

@@ -1,0 +1,239 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+clear
+echo "========================================================================= "
+echo "LMD with ClamAV chưa được cài đặt trên VPS "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng cài đặt LMD trước khi chạy chức năng này !"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+exit
+fi
+#created/modified in the last X days
+echo "========================================================================= "
+echo "Sử dụng chức năng này để scan các file được tạo/sửa trong thời gian"
+echo "-------------------------------------------------------------------------"
+echo "gần đây. Ví dụ chọn 5 ngày thì DSNVPS sẽ scan các file mới được tạo/edit"
+echo "-------------------------------------------------------------------------"
+echo "trong thời gian 5 ngày trở lại."
+#echo "Using this function to scan files created/modified in the last X days"
+#echo "-------------------------------------------------------------------------"
+#echo "You must type in this X days (3,5 ...)"
+echo "========================================================================= "
+#echo -n "Type in the X days [ENTER]: " 
+echo -n "Nhập thời gian X ngày [Enter]: "
+read xday
+
+if [ $xday = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại !"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+exit
+fi
+
+if ! [[ $xday -ge 1 && $xday -le 60  ]] ; then 
+clear
+echo "========================================================================="
+echo "Giá trị bạn nhập không hợp lệ. ( 1 < X < 60 )"
+echo "-------------------------------------------------------------------------"
+echo "Bạn Vui lòng nhập lại"
+
+/etc/dsnvps/menu/dsnvps-maldet-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ scan các files mới được tạo/edit trong $xday ngày gần đây"
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Scan Normal" "Scan In Background")
+printf "=========================================================================\n"
+echo "LỰA CHỌN SCAN: NORMAL HOẶC BACKGROUND"
+echo "-------------------------------------------------------------------------"
+printf "Nên lựa chọn [ Scan In Background ] khi scan số lượng file lớn \n"
+
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) cachscan="normal"; break;;
+    2) cachscan="background"; break;;
+    0) cachscan="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#scan 1 website
+###################################
+if [ "$cachscan" = "normal" ]; then
+scanway=normal
+elif [ "$cachscan" = "background" ]; then
+scanway=background
+else
+clear
+exit 0
+fi
+
+
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Scan 1 website" "Scan tất cả website")
+printf "=========================================================================\n"
+printf "LỰA CHỌN SCAN 1 WEBSITE HAY TẤT CẢ WEBSITE TRÊN SERVER\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachonscan="1site"; break;;
+    2) luachonscan="home"; break;;
+    0) luachonscan="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#scan 1 website
+###################################
+if [ "$luachonscan" = "1site" ]; then
+printf "=========================================================================\n"
+rm -rf /etc/dsnvps/.tmp/check*
+read -r -p "Ban muon xem Danh Sách Website Trên Server ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+###
+echo "========================================================================="
+cat /etc/dsnvps/.tmp/checkallwebsites | pr -2 -t 
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+fi
+echo "========================================================================="
+echo -n "Nhập tên website [ENTER]: " 
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+if [ "$website" = "" ]; then
+clear
+printf "=========================================================================\n"
+echo "Bạn nhập không chính xác, vui lòng nhập lại!"
+echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+fi
+
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy $website trên server. "
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+fi
+
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+clear
+echo "========================================================================="
+echo "$website không đúng định dạng domain!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại."
+fi
+echo "========================================================================="
+echo "DSNVPS sẽ scan files mới được tạo/edit trong thời gian: $xday ngày"
+echo "-------------------------------------------------------------------------"
+echo "Trong website: $website"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+echo "-------------------------------------------------------------------------"
+
+if [ "$cachscan" = "background" ]; then
+maldet -b -r /home/$website/public_html $xday
+clear
+echo "========================================================================="
+echo "Scan đang được diễn ra."
+echo "-------------------------------------------------------------------------"
+echo "Xem qua trình scan bằng lệnh bên dưới:"
+echo "-------------------------------------------------------------------------"
+echo "cat /usr/local/maldetect/logs/event_log"
+echo "-------------------------------------------------------------------------"
+echo "Khi scan hoàn thành. Xem kết quả bằng chức năng: View Last Scan Report "
+/etc/dsnvps/menu/dsnvps-maldet-menu
+else
+maldet -r /home/$website/public_html $xday
+name123=$(cat /usr/local/maldetect/sess/session.last)
+rm -rf /etc/dsnvps/.tmp/maldet.txt
+cp /usr/local/maldetect/sess/session.$name123 /etc/dsnvps/.tmp/maldet-last.txt
+sed -i '$d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '$d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-last.txt
+clear
+echo "========================================================================="
+echo "Scan hoàn thành. Báo cáo cho scan vào: $(maldet --report list | grep SCAN | awk 'NR==1 {print $1,$2,$3}')"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/maldet-last.txt | grep '\S'
+/etc/dsnvps/menu/dsnvps-maldet-menu
+fi
+
+###################################
+#Scan Home
+###################################
+elif [ "$luachonscan" = "home" ]; then
+echo "========================================================================= "
+echo "Scan tất cả website có thể mất rất nhiều thời gian"
+echo "-------------------------------------------------------------------------"
+echo "Để scan nhanh hơn, bạn nên scan 1 website bạn thấy cần scan."
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn chắc chắn muốn scan tất cả các website? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 2
+if [ "$cachscan" = "background" ]; then
+maldet -b -r /home $xday
+clear
+echo "========================================================================="
+echo "Scan đang được diễn ra."
+echo "-------------------------------------------------------------------------"
+echo "Xem qua trình scan bằng lệnh bên dưới:"
+echo "-------------------------------------------------------------------------"
+echo "cat /usr/local/maldetect/logs/event_log"
+echo "-------------------------------------------------------------------------"
+echo "Khi scan hoàn thành. Xem kết quả bằng chức năng: Xem Báo Cáo Quét Mới Nhất "
+/etc/dsnvps/menu/dsnvps-maldet-menu
+else
+maldet -r /home $xday
+name123=$(cat /usr/local/maldetect/sess/session.last)
+rm -rf /etc/dsnvps/.tmp/maldet.txt
+cp /usr/local/maldetect/sess/session.$name123 /etc/dsnvps/.tmp/maldet-last.txt
+sed -i '$d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '$d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-last.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-last.txt
+clear
+echo "========================================================================="
+echo "Scan hoàn thành. Báo cáo cho scan vào: $(maldet --report list | grep SCAN | awk 'NR==1 {print $1,$2,$3}')"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/maldet-last.txt | grep '\S'
+/etc/dsnvps/menu/dsnvps-maldet-menu
+fi
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Huỷ bỏ "
+/etc/dsnvps/menu/dsnvps-maldet-menu
+###################################
+#Huỷ bỏ scan
+###################################
+else
+clear
+exit 0
+fi
+

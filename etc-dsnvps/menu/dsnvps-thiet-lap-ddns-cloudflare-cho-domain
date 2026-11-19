@@ -1,0 +1,283 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+rm -rf /etc/dsnvps/.tmp/juaks
+# Anti-debug removed
+                
+                if [ -z "$apitoken" ]; then
+                    echo "========================================================================="
+                    echo "Bạn nhập sai, vui lòng nhập lại!"
+                    sleep 4
+                    tput cuu 3 && tput ed
+                else
+                    echo "========================================================================="
+                    echo "DSNVPS đang kiểm tra API Token ..."
+                    sleep 4
+                    
+                    curl -s -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+                         -H "Authorization: Bearer $apitoken" \
+                         -H "Content-Type:application/json" > /etc/dsnvps/.tmp/apitkchek 
+                    
+                    if grep -q "Invalid" /etc/dsnvps/.tmp/apitkchek; then
+                        echo "========================================================================="
+                        echo "Bạn nhập sai API Token của $domaincheck"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Bạn hãy nhập lại."
+                        sleep 4
+                        tput cuu 7 && tput ed
+                    else
+                        # Kiểm tra API Token có hoạt động với domain này không
+                        response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=${domaincheck}" \
+                             -H "Authorization: Bearer ${apitoken}" \
+                             -H "Content-Type: application/json")
+                        zone_id=$(echo "$response" | grep -oP '"id":"\K[^"]+' | head -n 1)
+                        
+                        if [ -n "$zone_id" ]; then
+                            echo "========================================================================="
+                            echo "API Token chính xác cho $domaincheck."
+                            break 2  # Thoát cả 2 vòng lặp
+                        else
+                            echo "========================================================================="
+                            echo "API Token hợp lệ nhưng không có quyền truy cập $domaincheck"
+                            echo "-------------------------------------------------------------------------"
+                            echo "Vui lòng nhập API Token của tài khoản chứa domain này."
+                            sleep 4
+                            tput cuu 7 && tput ed
+                        fi
+                    fi
+                fi
+            done
+            break
+            ;;
+        2)
+            clear
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            exit 0
+            ;;
+        *)
+            echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng chọn 1 hoặc 2."
+            sleep 3
+            tput cuu 8 && tput ed
+            ;;
+    esac
+done
+fi
+
+# Function để tạo subdomain trong Cloudflare
+create_subdomain_in_cloudflare() {
+    local subdomain="$1"
+    local zone_id="$2"
+    local api_token="$3"
+    local server_ip="$4"
+    
+    echo "========================================================================="
+    echo "Đang tạo subdomain $subdomain trong Cloudflare..."
+    echo "-------------------------------------------------------------------------"
+    echo "IP sẽ được trỏ tới: $server_ip"
+    sleep 2
+    
+    # Tạo DNS record A cho subdomain
+    local create_response
+    create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+        -H "Authorization: Bearer $api_token" \
+        -H "Content-Type: application/json" \
+        --data "{\"type\":\"A\",\"name\":\"$subdomain\",\"content\":\"$server_ip\",\"ttl\":120,\"proxied\":false}")
+    
+    if echo "$create_response" | grep -q '"success":true'; then
+        echo "========================================================================="
+        echo "Tạo subdomain $subdomain thành công!"
+        echo "-------------------------------------------------------------------------"
+        echo "Subdomain đã được trỏ tới IP: $server_ip"
+        sleep 3
+        return 0
+    else
+        echo "========================================================================="
+        echo "Lỗi khi tạo subdomain $subdomain"
+        echo "-------------------------------------------------------------------------"
+        echo "Chi tiết lỗi:"
+        echo "$create_response" | grep -oP '"message":"\K[^"]+' | head -3
+        sleep 5
+        return 1
+    fi
+}
+
+if [ -f /etc/dsnvps/.tmp/sub ]; then
+echo "========================================================================="
+echo "DSNVPS đang kiểm tra Sub-Domain ..."; sleep 4
+
+response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?type=A&name=$website" \
+  -H "Authorization: Bearer $apitoken" \
+  -H "Content-Type: application/json")
+if [[ $response == *"\"success\":true"* && $response == *"\"total_count\":1"* ]]; then
+echo "========================================================================="
+  echo "$website đã được tạo trong Cloudflare."
+else
+clear
+echo "========================================================================="
+echo "$website chưa được tạo trong Cloudflare.com"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS có thể tự động tạo subdomain này cho bạn."
+echo "========================================================================="
+
+# Lấy IP server hiện tại
+current_ip=$(curl -s https://ipv4.icanhazip.com/ || curl -s https://api.ipify.org)
+if [ -z "$current_ip" ]; then
+    current_ip="$serverip"
+fi
+
+while true; do
+    echo "Bạn có muốn DSNVPS tự động tạo subdomain $website không?"
+    echo "-------------------------------------------------------------------------"
+    echo "Subdomain sẽ được trỏ tới IP: $current_ip"
+    echo "-------------------------------------------------------------------------"
+    echo "1. Có - Tạo subdomain tự động"
+    echo "2. Không - Tôi sẽ tạo thủ công"
+    echo "0. Thoát"
+    echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " create_choice
+    
+    case $create_choice in
+        1)
+            echo "========================================================================="
+            echo "Bạn chọn tạo subdomain tự động."
+            sleep 2
+            
+            if create_subdomain_in_cloudflare "$website" "$zone_id" "$apitoken" "$current_ip"; then
+                echo "========================================================================="
+                echo "Subdomain đã được tạo thành công. Tiếp tục cấu hình DDNS..."
+                sleep 3
+                break
+            else
+                echo "========================================================================="
+                echo "Không thể tạo subdomain tự động. Vui lòng thử lại hoặc tạo thủ công."
+                sleep 3
+                /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                exit 1
+            fi
+            ;;
+        2)
+            clear
+            echo "========================================================================="
+            echo "$website chưa được tạo trong Cloudflare.com"
+            echo "-------------------------------------------------------------------------"
+            echo "Hãy đăng nhập tài khoản trong Cloudflare.com, sau đó tạo sub-domain."
+            echo "-------------------------------------------------------------------------"
+            echo "Rồi chạy lại chức năng này."
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            exit 1
+            ;;
+0) clear; exit 0;;
+        *)
+            echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+            sleep 3
+            tput cuu 12 && tput ed
+            ;;
+    esac
+done
+fi
+fi
+echo "========================================================================="
+while true; do
+    echo "Cài đặt CloudFlare Proxy cho $website:"
+    echo "-------------------------------------------------------------------------"
+    echo "1. BẬT CloudFlare Proxy"
+    echo "2. TẮT CloudFlare Proxy"
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    echo "========================================================================="
+
+    if [ "$choice" != "1" ] && [ "$choice" != "2" ] && [ "$choice" != "0" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."; sleep 3
+    elif [ "$choice" == "1" ]; then
+        proxied="true"
+        clodflaresttu="BAT"
+        break
+    elif [ "$choice" == "2" ]; then
+        proxied="false"
+        clodflaresttu="TAT"
+        break
+    elif [ "$choice" == "0" ]; then
+        clear
+        echo "========================================================================="
+        echo "Hủy thiết lập."
+        /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+        exit
+    fi
+
+    # Xóa lại 7 dòng trước đó để làm mới giao diện
+    tput cuu 7 && tput ed
+done
+echo "========================================================================="
+echo "DSNVPS sẽ thiết lập DDNS Cloudflare cho $website"
+echo "-------------------------------------------------------------------------"
+echo "Cloudflare Proxy: $clodflaresttu"
+echo "========================================================================="
+read -r -p "Bạn đồng ý với thiết lập này? [y/N] " response
+
+	if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+	echo "-------------------------------------------------------------------------"
+	##################################################
+################################################
+file_count=$(ls /etc/dsnvps/ddns-cloudflare | wc -l)
+if [ ! -f /usr/bin/gxred ]; then
+if [ "$file_count" -ge 2 ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+fi
+fi
+#################################################
+################################################
+	file_path="/etc/dsnvps/ddns-cloudflare/$website.conf"
+	zoneid="${zone_id}"
+	cloudflare_zone_api_token="$apitoken"
+	ttl=120
+	
+	# Kiểm tra xem có đang sử dụng SSL API không
+	using_ssl_api=false
+	if [ -f "/etc/dsnvps/ssl-cloudflare-api-global.conf" ]; then
+	    source "/etc/dsnvps/ssl-cloudflare-api-global.conf"
+	    if [ "$apitoken" = "$global_ssl_api_token" ]; then
+	        using_ssl_api=true
+	    fi
+	fi
+	
+	# Lưu cấu hình
+	{
+	    if [ "$using_ssl_api" = "true" ]; then
+	        echo "# Sử dụng SSL API Global"
+	        echo "use_ssl_api=\"true\""
+	    else
+	        echo "cloudflare_zone_api_token=\"$apitoken\""
+	    fi
+	    echo "zoneid=\"$zoneid\""
+	    echo "proxied=\"$proxied\""
+	} > "$file_path"
+	if [ -f "$file_path" ]; then
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng chờ ..."; sleep 3
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-script-chay-goc /etc/dsnvps/ddns-cloudflare/$website.conf
+	clear
+		echo "========================================================================="
+echo "Cài đặt DDNS Cloudflare cho $website thành công."
+
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+	fi
+
+	else
+		echo "-------------------------------------------------------------------------"
+        echo "Hủy thiết lập."; sleep 2
+	clear
+	echo "========================================================================="
+	echo "Hủy bỏ."
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+	exit
+	fi
+fi

@@ -1,0 +1,85 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+# Lấy thông tin RAM hệ thống (không bao gồm swap)
+ram_total=$(free -m | grep Mem: | awk '{print $2}')
+
+# Kiểm tra nếu RAM dưới 600MB
+if [ "$ram_total" -lt 600 ]; then
+clear
+echo "========================================================================="
+echo "Với Server RAM 512 MB, Zend Opcache không nên BẬT vì nó sẽ làm giảm hiệu"
+echo "-------------------------------------------------------------------------"
+echo "suất Server do Zend Opcache cần ít nhất 128 MB RAM để hoạt động."
+echo "-------------------------------------------------------------------------"
+echo "Server sẽ còn quá ít RAM cho các dịch vụ Nginx - PHP - MySQL."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit 1
+fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT Zend Opcache cho server"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn bật Zend Opcache không? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ...."; sleep 2
+
+        # Backup nội dung gốc vào /tmp
+        yes | cp -f /etc/php.d/opcache.ini /tmp/opcache.ini.backup
+
+        # Thay đổi opcache.enable thành 1 (chỉ thay dòng đó nếu tồn tại, không ảnh hưởng dòng khác)
+        sed -i 's/^opcache\.enable=.*$/opcache.enable=1/' /etc/php.d/opcache.ini
+
+        # Nếu không có dòng opcache.enable nào (hiếm), thêm vào cuối file
+        if ! grep -q '^opcache\.enable=' /etc/php.d/opcache.ini; then
+            echo "opcache.enable=1" >> /etc/php.d/opcache.ini
+        fi
+
+        # Restart PHP-FPM
+        /etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+        # Kiểm tra PHP-FPM có chạy không
+        if [ ! "$(systemctl is-active php-fpm.service)" = "active" ]; then
+            # Khôi phục từ backup
+            yes | cp -f /tmp/opcache.ini.backup /etc/php.d/opcache.ini
+
+            # Restart lại để áp dụng cấu hình cũ
+            /etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+            # Dọn backup (tùy chọn, có thể giữ lại nếu muốn)
+            rm -f /tmp/opcache.ini.backup
+
+            clear
+            echo "========================================================================="
+            echo "PHP không thể khởi động!"
+            echo "-------------------------------------------------------------------------"
+            echo "Đã khôi phục cấu hình cũ để tránh lỗi."
+            /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+            exit
+        fi
+
+        # Dọn backup khi thành công
+        rm -f /tmp/opcache.ini.backup
+
+        clear
+        echo "========================================================================="
+        echo "BẬT Zend OPcache thành công!"
+        /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+        ;;
+    *)
+        clear
+        echo "========================================================================="
+        echo "Hủy thao tác"
+        /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+        ;;
+esac

@@ -1,0 +1,77 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if command -v memcached >/dev/null 2>&1; then
+if [ ! -f /etc/sysconfig/memcached ]; then
+cat > "/etc/sysconfig/memcached" <<END
+PORT="11211"
+USER="memcached"
+MAXCONN="1024"
+CACHESIZE="50"
+OPTIONS="-l 127.0.0.1 -U 0" 
+END
+fi
+fi
+
+if command -v memcached >/dev/null 2>&1; then
+. /etc/sysconfig/memcached
+else
+clear
+echo "=========================================================================="
+echo "Memcache chưa được cài!"
+dsnvps
+fi
+
+
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+echo "                            Quản Lý Memcached "
+printf "=========================================================================\n"
+
+if systemctl is-active --quiet memcached; then
+echo "       Trạng thái Memcached: Đang chạy - Cấu hình RAM sử dụng: $CACHESIZE MB"
+else
+echo "                      Trạng thái Memcached: Đã STOP"
+fi
+
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/6712"
+echo "========================================================================="
+echo ""
+while true; do
+if systemctl is-active --quiet memcached; then
+printf "%-35s %s\n" "1) Vô hiệu hóa Memcached (Đang BẬT)" " 4) Xóa bộ nhớ cache Memcached"
+printf "%-40s %s\n" "2) Khởi động lại Memcached" "   5) Gỡ cài đặt Memcached"
+printf "%-35s %s\n" "3) Cấu hình Memcached" ""
+echo "========================================================================="
+else
+printf "%-35s %s\n" "1) Bật Memcached (Đang TẮT)" " 4) Xóa bộ nhớ cache Memcached"
+printf "%-35s %s\n" "2) Khởi động lại Memcached" "   5) Gỡ cài đặt Memcached"
+printf "%-35s %s\n" "3) Cấu hình Memcached" ""
+
+echo "========================================================================="
+fi
+# Lua chon cua nguoi dung
+read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+#read -p "Nhập lựa chọn của bạn [0 -Thoát]: "  choice
+case $choice in
+
+
+    1 ) /etc/dsnvps/menu/memcache/dsnvps-before-bat-tat-memcache;;
+    2 ) /etc/dsnvps/menu/memcache/dsnvps-memcache-restart;;
+    3 ) /etc/dsnvps/menu/memcache/dsnvps-memcache-change-size;;
+    4 ) /etc/dsnvps/menu/memcache/dsnvps-clear-memcache;; 
+    5 ) /etc/dsnvps/menu/memcache/dsnvps-remove-memcache-server;; 
+0) clear; exit 0;;
+    *)
+ 
+            echo "========================================================================="
+            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+            #echo "You typed wrong, Please type in the ordinal number on the list.";; sleep 3
+           tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done

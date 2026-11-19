@@ -1,0 +1,43 @@
+#!/bin/bash 
+printf "=========================================================================\n"
+printf "Chức năng này sẽ xóa sạch LMD và ClamAV trên Server của bạn.\n"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn chắc chắn muốn gỡ bỏ LMD? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    sleep 2
+echo "Gỡ bỏ Linux Malware Detect... "
+sleep 2
+systemctl stop maldet clamav-freshclam clamav-daemon 2>/dev/null
+systemctl disable maldet clamav-freshclam clamav-daemon 2>/dev/null
+
+rm -rf /usr/local/maldetect* /etc/cron.d/maldet_pub /etc/cron.daily/maldet \
+       /usr/local/sbin/maldet /usr/local/sbin/lmd /var/lib/maldetect \
+       /var/tmp/maldetect-* /usr/share/maldetect
+
+yum remove -y clamav-server clamav-data clamav-update clamav-filesystem \
+              clamav clamav-scanner-systemd clamav-devel clamav-lib \
+              clamav-server-systemd
+
+rm -rf /etc/clamav /var/lib/clamav /var/log/clamav
+
+apt-get autoremove -y -qq
+
+cd
+clear
+clear
+echo "========================================================================= "
+echo "Gõ bỏ Linux Malware Detect hoàn thành! "
+
+/etc/dsnvps/menu/dsnvps-maldet-menu
+;;
+    *)
+
+        ;;
+esac
+       clear 
+echo "========================================================================= "
+echo "Huỷ bỏ."
+/etc/dsnvps/menu/dsnvps-maldet-menu

@@ -1,0 +1,32 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+while true; do
+    clear
+    echo -e "${C_CYAN}=========================================================================${C_RESET}"
+    echo -e "${C_YELLOW}        DSNVPS SECURITY PRO (YARA SCANNER, 7G WAF, AI BOT BLOCKER)${C_RESET}"
+    echo -e "${C_CYAN}=========================================================================${C_RESET}"
+    echo " 1) Quét Mã Độc WordPress Siêu Nhẹ (YARA Engine + Core Checksum)"
+    echo " 2) Bật/Tắt 7G WAF Firewall (Nginx)"
+    echo " 3) Bật/Tắt Chặn Bot AI & Scraper (GPTBot, ClaudeBot, Bytespider...)"
+    echo " 4) Kiểm Tra Hạn Chứng Chỉ SSL Tất Cả Domain"
+    echo " 5) Kiểm Tra File PHP Lạ Trong uploads & Quyền wp-config.php"
+    echo " 0) Quay lại Menu chính"
+    echo "========================================================================="
+    read -r -p "Lựa chọn của bạn [0-5]: " ch
+    case "$ch" in
+        1) /etc/dsnvps/menu/security/dsnvps-yara-scan; read -r -p "Nhấn [Enter] để tiếp tục..." ;;
+        2) /etc/dsnvps/menu/security/dsnvps-waf-manager waf; read -r -p "Nhấn [Enter] để tiếp tục..." ;;
+        3) /etc/dsnvps/menu/security/dsnvps-waf-manager aibots; read -r -p "Nhấn [Enter] để tiếp tục..." ;;
+        4) /etc/dsnvps/menu/security/dsnvps-ssl-expiry-check; read -r -p "Nhấn [Enter] để tiếp tục..." ;;
+        5)
+            dom="$(dsnvps_pick_domain wp)" || continue
+            echo -e "${C_CYAN}Kiểm tra file PHP trong /home/${dom}/public_html/wp-content/uploads:${C_RESET}"
+            find "/home/${dom}/public_html/wp-content/uploads" -type f -iname "*.php*" 2>/dev/null || true
+            ls -la "/home/${dom}/public_html/wp-config.php" 2>/dev/null || true
+            read -r -p "Nhấn [Enter] để tiếp tục..."
+            ;;
+        0) clear; exit 0 ;;
+        *) echo "Lựa chọn không hợp lệ!"; sleep 1 ;;
+    esac
+done

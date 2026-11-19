@@ -1,0 +1,296 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|sys|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+if [ "$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa tạo database trên server !"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+echo "========================================================================="
+echo "Sử dụng chức năng này để phục hồi database từ file backup"
+echo "-------------------------------------------------------------------------"
+echo "Database cần phục hồi phải tồn tại trên hệ thống. "
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1107"
+rm -rf /etc/dsnvps/.tmp/check*
+#read -r -p "Ban muon xem danh sach Database tren server ? [y/N] " response
+#if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|sys|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+echo "========================================================================="
+#cat /etc/dsnvps/.tmp/checkalldatabase | pr -2 -t 
+#fi
+
+mapfile -t file_list < /etc/dsnvps/.tmp/checkalldatabase
+#echo "========================================================================="
+echo "Danh sách Database trên Server:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-4s %-30s %-4s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-4s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với Database bạn muốn phục hồi [0 -Thoát]: "
+    read -r choice
+    
+    if [[ $choice == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+        exit
+    fi
+    
+    # Kiểm tra input rỗng
+    if [[ -z "$choice" ]]; then
+    	echo "-------------------------------------------------------------------------"
+        echo "Lỗi: Bạn chưa nhập lựa chọn. Vui lòng nhập số từ 1-${#file_list[@]}"
+        sleep 2 && tput cuu 4 && tput ed
+        continue
+    fi
+    
+    # Kiểm tra có phải số không và trong khoảng hợp lệ
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+        dataname=${file_list[choice-1]}
+        break  # Thoát vòng lặp khi có lựa chọn hợp lệ
+    else
+    	echo "-------------------------------------------------------------------------"
+        echo "Lỗi: Lựa chọn không hợp lệ. Vui lòng nhập số từ 1-${#file_list[@]}"
+        sleep 2 && tput cuu 4 && tput ed
+    fi
+done
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+fi
+###################################################################
+###################################################################
+
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+mkdir -p /home/$mainsite/private_html/backup
+fi
+if [ ! -d /home/$mainsite/private_html/backup/$dataname ]; then
+mkdir -p /home/$mainsite/private_html/backup/$dataname
+fi
+
+echo "$website" > /etc/dsnvps/.tmp/dsnvps-tensitephuchoi
+echo "$dataname" > /etc/dsnvps/.tmp/dsnvps-tendatabasephuchoi
+date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps1
+randomcode=`date |md5sum |cut -c '1-13'`
+if [ ! -f /home/$mainsite/private_html/backup/$dataname/*.sql.gz ]; then
+     
+   if [ -f /home/DSNVPS-DATABASE.tar.gz ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-tar-gz
+   elif [ -f /home/DSNVPS-DATABASE.sql.gz ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-sql-gz
+   elif [ -f /home/DSNVPS-DATABASE.zip ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-zip
+   elif [ -f /home/DSNVPS-DATABASE.sql ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-sql
+   else
+	clear
+	echo "========================================================================="
+	echo "CÁCH PHỤC HỒI DATABASE"
+	echo "========================================================================="
+	echo "Định dạng backup DSNVPS hỗ trợ phục hồi: .SQL, .ZIP, .SQL.GZ và .TAR.GZ"
+	echo "-------------------------------------------------------------------------"
+	echo "Tùy theo định dạng file backup mà bạn thực hiện:"
+	echo "-------------------------------------------------------------------------"
+	echo "Định dạng .SQL    => Đổi tên file backup thành DSNVPS-DATABASE.sql"
+	echo "-------------------------------------------------------------------------"
+	echo "Định dạng .ZIP    => Đổi tên file backup thành DSNVPS-DATABASE.zip"
+	echo "-------------------------------------------------------------------------"
+	echo "Định dạng .SQL.GZ => Đổi tên backup thành DSNVPS-DATABASE.sql.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Định dạng .TAR.GZ => Đổi tên backup thành DSNVPS-DATABASE.tar.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Sau đó upload lên:"
+	echo "-------------------------------------------------------------------------"
+	echo "/home/"
+	echo "========================================================================="
+	read -p "Khi upload hoàn thành. Nhấn [Enter] để phục hồi..."
+	echo "-------------------------------------------------------------------------"
+	echo "DSNVPS đang tìm kiếm file backup .... "
+	sleep 4
+	if [ -f /home/DSNVPS-DATABASE.tar.gz ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-tar-gz
+    elif [ -f /home/DSNVPS-DATABASE.sql.gz ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-sql-gz
+    elif [ -f /home/DSNVPS-DATABASE.zip ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-zip
+    elif [ -f /home/DSNVPS-DATABASE.sql ]; then
+   /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-sql
+    else
+	clear
+		echo "========================================================================="
+		echo "Không tìm thấy file backup của database $dataname !"
+		echo "-------------------------------------------------------------------------"
+		echo "Hãy upload file backup lên server rồi thử lại."
+		/etc/dsnvps/menu/dsnvps-them-xoa-database
+		exit
+		fi
+		fi
+else
+# Tìm tất cả file backup (cả .sql.gz và file có timestamp)
+find /home/$mainsite/private_html/backup/$dataname -type f \( -name "*.sql.gz" -o -name "*.sql.gz.*" \) -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2- | xargs -I {} basename {} > /etc/dsnvps/.tmp/all_backups
+
+if [ ! -s /etc/dsnvps/.tmp/all_backups ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file backup nào trong thư mục:"
+    echo "/home/$mainsite/private_html/backup/$dataname"
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+    exit
+fi
+# Đọc danh sách file backup vào array
+mapfile -t backup_files < /etc/dsnvps/.tmp/all_backups
+echo "========================================================================="
+echo "DANH SÁCH FILE BACKUP CỦA DATABASE: $dataname"
+echo "========================================================================="
+
+# Hiển thị danh sách file backup với thời gian (mới nhất trên cùng)
+for i in "${!backup_files[@]}"; do
+    file="${backup_files[$i]}"
+    filepath="/home/$mainsite/private_html/backup/$dataname/$file"
+    
+    # Lấy thời gian tạo file
+    file_time=$(date -r "$filepath" "+%H:%M %d/%m/%Y")
+    
+    # File đầu tiên (mới nhất) sẽ có ghi chú "File mới nhất"
+    if [ $i -eq 0 ]; then
+        printf "%2d. Backup tạo lúc: %s (File mới nhất)\n" $((i+1)) "$file_time"
+    else
+        printf "%2d. Backup tạo lúc: %s\n" $((i+1)) "$file_time"
+    fi
+done
+
+echo "========================================================================="
+while true; do
+    echo -n "Chọn file backup để phục hồi [0 -Thoát]: "
+    read -r backup_choice
+    
+    if [[ $backup_choice == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+        exit
+    fi
+    
+    if [[ $backup_choice =~ ^[0-9]+$ ]] && (( backup_choice >= 1 && backup_choice <= ${#backup_files[@]} )); then
+        selected_file="${backup_files[$((backup_choice-1))]}"
+        break
+    else
+    echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+        sleep 2 && tput cuu 3 && tput ed
+    fi
+done
+
+# Xử lý file được chọn
+source_file="/home/$mainsite/private_html/backup/$dataname/$selected_file"
+file_time=$(date -r "$source_file" "+%H:%M %d/%m/%Y")
+
+echo "========================================================================="
+echo "File backup được chọn: "
+echo "-------------------------------------------------------------------------"
+echo "=> $selected_file"
+echo "-------------------------------------------------------------------------"
+echo "Thời gian tạo: $file_time"
+
+# Xác định file để phục hồi
+source_file="/home/$mainsite/private_html/backup/$dataname/$selected_file"
+restore_file="$source_file"
+
+echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Bạn có chắc chắn muốn phục hồi database này? [y/Y]: "
+    read -r confirm_choice
+    
+    if [[ "$confirm_choice" == "y" || "$confirm_choice" == "Y" ]]; then
+        # Đồng ý phục hồi
+        break
+    else
+        # Không đồng ý hoặc nhập bất kỳ gì khác
+        clear
+        echo "========================================================================="
+        echo "Hủy phục hồi."
+        rm -rf /etc/dsnvps/.tmp/all_backups 2>/dev/null
+        sleep 1
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+        exit
+    fi
+done
+
+echo "--------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "--------------------------------------------------------------------------"
+echo "DSNVPS đang phục hồi $dataname ..."
+sleep 3
+
+# Phục hồi database
+gunzip < "$restore_file" | mysql -u root -p$mariadbpass -f $dataname
+
+# Kiểm tra kết quả phục hồi
+date -r /var/lib/mysql/$dataname +%H%M%S > /etc/dsnvps/.tmp/dsnvps2
+check1=$(cat /etc/dsnvps/.tmp/dsnvps1)
+check2=$(cat /etc/dsnvps/.tmp/dsnvps2)
+
+# Dọn dẹp file tạm nếu có
+if [[ "$selected_file" == *.sql.gz.* ]]; then
+    rm -rf "/tmp/dsnvps_restore_$randomcode" 2>/dev/null
+fi
+
+if [ "$check1" == "$check2" ]; then
+    rm -rf /etc/dsnvps/.tmp/*dsnvps*
+    rm -rf /etc/dsnvps/.tmp/all_backups
+    sleep 8
+    clear
+    echo "========================================================================="
+    echo "Phục hồi database $dataname thất bại "
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra file backup và thử lại !"
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+else    
+    rm -rf /etc/dsnvps/.tmp/*dsnvps*
+    rm -rf /etc/dsnvps/.tmp/all_backups
+    clear
+    echo "========================================================================="
+    echo "Phục hồi database $dataname thành công !"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup sử dụng:"
+    echo "-------------------------------------------------------------------------"
+    echo "$selected_file"
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian backup: $file_time"
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+fi
+
+fi
+done

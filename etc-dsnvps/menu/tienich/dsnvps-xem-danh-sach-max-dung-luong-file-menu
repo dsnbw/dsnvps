@@ -1,0 +1,160 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Anti-debug removed
+RED='\e[31m'
+BOLD='\e[1m'
+RESET='\e[0m'
+menu_dsnvps() {
+    while true; do
+        clear
+        /etc/dsnvps/menu/dsnvps-menu-all-function
+        printf "=========================================================================\n"
+        printf "               Tìm File/Folder Dung Lượng Lớn Nhất \n"
+        printf "=========================================================================\n"
+        echo "Hướng dẫn sử dụng: http://go.dsnvps/1115 "
+            printf "=========================================================================\n"    
+        echo -e "${BOLD}1.${RESET} Tìm File Và Folder Trong 1 Website"
+        echo -e "${BOLD}2.${RESET} Tìm File Và Folder Trong Folder /home"
+        echo -e "${BOLD}3.${RESET} Tìm File Và Folder Lớn Nhất Toàn Server"
+        echo "========================================================================="
+        read -rp "Nhập lựa chọn [0 -Thoát]: " choice
+
+        case "$choice" in
+            1) check_web_folder ;;
+            2) check_home_folder ;;
+            3) check_full_system ;;
+0) clear; exit 0;;
+            *) echo "Lựa chọn không hợp lệ. Vui lòng nhập lại!" && sleep 2 ;;
+        esac
+    done
+}
+
+pause_return() {
+    echo "========================================================================="
+    read -rp "Nhấn [Enter] để quay trở lại menu..."
+    menu_dsnvps
+}
+check_home_folder() {
+    /etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+    echo "Please wait ..."
+    rm -f /etc/dsnvps/.tmp/*list*
+    cd /home || pause_return
+    find . -type f -print0 | xargs -0 du 2>/dev/null | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfile
+    find . -type d -print0 | xargs -0 du 2>/dev/null | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfolder
+    cd ~
+
+    clear
+    echo "========================================================================="
+    echo -e "${BOLD}10 File lớn nhất trong thư mục /home:${RESET}"  
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/listfile
+    echo "========================================================================="
+    echo -e "${BOLD}10 Folder lớn nhất trong thư mục /home:${RESET}"  
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/listfolder
+    rm -f /etc/dsnvps/.tmp/*list*
+    pause_return
+}
+check_web_folder() {
+    /etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+    rm -rf /etc/dsnvps/.tmp/*hostingaz*
+    ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+    sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+    sed -i "/$mainsite/d" /etc/dsnvps/.tmp/dsnvps-websitelist
+
+    rm -f /etc/dsnvps/.tmp/checksite-list
+    while IFS= read -r site; do
+        if [ -d /home/"$site"/public_html ]; then
+            files=$(find /home/"$site"/public_html -type f 2>/dev/null | wc -l)
+            if [ "$files" -gt 5 ]; then
+                echo "$site" >> /etc/dsnvps/.tmp/checksite-list
+            fi
+        fi
+    done < /etc/dsnvps/.tmp/dsnvps-websitelist
+
+    if [ ! -s /etc/dsnvps/.tmp/checksite-list ]; then
+        echo "========================================================================="
+        echo "Không tìm thấy website có dữ liệu trên server"
+        pause_return
+    fi
+
+    mapfile -t websites < /etc/dsnvps/.tmp/checksite-list
+        echo "========================================================================="
+    echo "Chọn website để kiểm tra file/folder lớn nhất:"
+    echo "-------------------------------------------------------------------------"
+
+    # Chỉnh sửa phần hiển thị website thành 2 cột
+    for ((i = 0; i < ${#websites[@]}; i+=2)); do
+        if ((i + 1 < ${#websites[@]})); then
+            printf "%2d) %-20s %2d) %-20s\n" $((i+1)) "${websites[$i]}" $((i+2)) "${websites[$i+1]}"
+        else
+            printf "%2d) %-20s\n" $((i+1)) "${websites[$i]}"
+        fi
+    done
+
+    echo "========================================================================="
+    
+    while true; do
+        read -rp "Nhập số website cần kiểm tra [Thoát để trở lại]: " select
+        [[ "$select" =~ ^[0-9]+$ ]] || continue
+        if (( select >= 1 && select <= ${#websites[@]} )); then
+            website="${websites[$((select-1))]}"
+            break
+        fi
+        if [ "$select" == "Thoát" ]; then
+            pause_return
+            break
+        fi
+    done
+
+    rm -f /etc/dsnvps/.tmp/*list*
+    echo "Please wait ..."
+    cd /home/"$website"/public_html || pause_return
+    find . -type f -print0 | xargs -0 du 2>/dev/null | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfile
+    find . -type d -print0 | xargs -0 du 2>/dev/null | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfolder
+    cd ~
+
+    clear
+    echo "========================================================================="
+    echo -e "${BOLD}10 File lớn nhất trong: /home/$website/public_html${RESET}"  
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/listfile
+    echo "========================================================================="
+    echo -e "${BOLD}10 Folder lớn nhất trong: /home/$website/public_html${RESET}"  
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/listfolder
+    rm -f /etc/dsnvps/.tmp/*list*
+    pause_return
+}
+
+check_full_system() {
+    /etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+    echo "Please wait ..."
+    rm -f /etc/dsnvps/.tmp/*list*
+    cd / || pause_return
+    find . -xdev -type f -print0 | xargs -0 du 2>/dev/null | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfile
+    find . -xdev -type d -print0 | xargs -0 du 2>/dev/null | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfolder
+    cd ~
+
+    clear
+    echo "========================================================================="
+    echo -e "${BOLD}10 File lớn nhất trên toàn hệ thống:${RESET}"  
+    echo "========================================================================="
+    cat /etc/dsnvps/.tmp/listfile
+    echo "========================================================================="
+     echo -e "${BOLD}10 Folder lớn nhất trên toàn hệ thống:${RESET}"  
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/listfolder
+    rm -f /etc/dsnvps/.tmp/*list*
+    pause_return
+}
+
+menu_dsnvps

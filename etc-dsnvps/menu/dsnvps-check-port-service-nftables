@@ -1,0 +1,147 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra xem strace có đang chạy không
+if pgrep -x "strace" > /dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Tiến trình strace đang chạy. Vui lòng dừng strace trước khi tiếp tục."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra xem nftables có được cài đặt không
+if ! command -v nft &> /dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: nftables không được cài đặt trên hệ thống này!"
+    echo "Vui lòng cài đặt nftables trước khi sử dụng chức năng này."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Lấy cổng SSH thực tế từ /etc/ssh/sshd_config
+ssh_port=$(grep -E "^Port\s+[0-9]+" /etc/ssh/sshd_config | awk '{print $2}' | head -1)
+if [ -z "$ssh_port" ]; then
+    ssh_port=22  # Mặc định là 22 nếu không tìm thấy
+fi
+
+echo "========================================================================="
+echo -n "Nhập port bạn muốn kiểm tra [0 -Thoát]: "
+read portservice
+if [ "$portservice" = "0" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit
+fi
+if [ "$portservice" = "" ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn nhập sai, hãy nhập chính xác."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+if [[ ! ${portservice} =~ ^[0-9]+$ ]]; then
+    clear
+    echo "========================================================================="
+    echo "Port bạn nhập: ${portservice} không phải là số tự nhiên."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy làm lại!"
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+if ! [[ $portservice -ge 1 && $portservice -le 65535 ]]; then
+    clear
+    echo "========================================================================="
+    echo "$portservice không đúng!"
+    echo "-------------------------------------------------------------------------"
+    echo "Port phải là số tự nhiên nằm trong khoảng (1 - 65535)."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy làm lại!"
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra nếu port là cổng SSH
+if [ "$portservice" = "$ssh_port" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Port $portservice là cổng SSH hiện tại."
+fi
+
+echo "Vui lòng chờ...."
+sleep 2
+clear
+echo "========================================================================="
+echo "Thông tin về port $portservice:"
+echo "-------------------------------------------------------------------------"
+
+# Kiểm tra dịch vụ đang sử dụng port
+test_port=$(lsof -i:$portservice | awk 'NR==1 {print $1}')
+if [ "$test_port" == "" ]; then
+    echo "Không có dịch vụ nào sử dụng port $portservice"
+else
+    echo "Dịch vụ đang sử dụng port $portservice:"
+    echo "-------------------------------------------------------------------------"
+    lsof -i:$portservice
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Thông tin Nftables Firewall cho port $portservice:"
+echo "-------------------------------------------------------------------------"
+
+# Kiểm tra trạng thái port trong nftables (TCP và UDP)
+tcp_accept=$(nft list chain inet filter input 2>/dev/null | grep -q "tcp dport $portservice accept" && echo "yes")
+udp_accept=$(nft list chain inet filter input 2>/dev/null | grep -q "udp dport $portservice accept" && echo "yes")
+tcp_drop=$(nft list chain inet filter input 2>/dev/null | grep -q "tcp dport $portservice drop" && echo "yes")
+udp_drop=$(nft list chain inet filter input 2>/dev/null | grep -q "udp dport $portservice drop" && echo "yes")
+tcp_reject=$(nft list chain inet filter input 2>/dev/null | grep -q "tcp dport $portservice reject" && echo "yes")
+udp_reject=$(nft list chain inet filter input 2>/dev/null | grep -q "udp dport $portservice reject" && echo "yes")
+
+if [ "$tcp_accept" = "yes" ]; then
+    echo "Port $portservice (TCP): OPEN (ACCEPT) trong nftables"
+elif [ "$tcp_drop" = "yes" ]; then
+    echo "Port $portservice (TCP): CLOSED (DROP) trong nftables"
+elif [ "$tcp_reject" = "yes" ]; then
+    echo "Port $portservice (TCP): REJECTED trong nftables"
+else
+    echo "Port $portservice (TCP): Không có rule cụ thể trong nftables (sử dụng default policy)"
+fi
+
+if [ "$udp_accept" = "yes" ]; then
+    echo "Port $portservice (UDP): OPEN (ACCEPT) trong nftables"
+elif [ "$udp_drop" = "yes" ]; then
+    echo "Port $portservice (UDP): CLOSED (DROP) trong nftables"
+elif [ "$udp_reject" = "yes" ]; then
+    echo "Port $portservice (UDP): REJECTED trong nftables"
+else
+    echo "Port $portservice (UDP): Không có rule cụ thể trong nftables (sử dụng default policy)"
+fi
+
+# Kiểm tra default policy của chain input
+if nft list chain inet filter input >/dev/null 2>&1; then
+    default_policy=$(nft list chain inet filter input | grep "policy" | awk '{print $NF}' | tr -d ';')
+    if [ "$default_policy" != "" ]; then
+        echo "Default policy của INPUT chain: $default_policy"
+    fi
+else
+    echo "Chưa có chain input hoặc table filter trong nftables"
+fi
+
+# Hiển thị tất cả rules liên quan đến port này
+port_rules=$(nft -a list chain inet filter input 2>/dev/null | grep "dport $portservice")
+if [ "$port_rules" != "" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Rules liên quan đến port $portservice:"
+    echo "$port_rules"
+else
+    echo "-------------------------------------------------------------------------"
+    echo "Không tìm thấy rules cụ thể cho port $portservice"
+fi
+
+/etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu

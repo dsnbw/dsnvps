@@ -1,0 +1,504 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/check*
+#vhost_dir="/etc/nginx/conf.d"
+#home_dir="/home"
+#output_file="/etc/dsnvps/.tmp/checkallwebsites"
+
+#> "$output_file"
+
+#for vhost_file in "$vhost_dir"/*.conf; do
+ #   domain=$(basename "$vhost_file" .conf)
+
+#    # Bỏ qua domain dsnvps.demo
+#    if [[ "$domain" == "dsnvps.demo" ]]; then
+#        continue
+#    fi
+#
+ #   # Kiểm tra nếu thư mục /home/domain/conf.d tồn tại
+#    if [[ -d "$home_dir/$domain/conf.d" ]]; then
+ #       # Kiểm tra xem có tệp .conf nào trong thư mục conf.d hay không
+ #       if compgen -G "$home_dir/$domain/conf.d/*.conf" > /dev/null; then
+ #           for park_file in "$home_dir/$domain/conf.d"/*.conf; do
+ #               # Lấy tên park domain từ file .conf
+ #               park_domain=$(basename "$park_file" .conf)
+ #               echo "$park_domain" >> "$output_file"
+ #           done
+  #      fi
+ #   fi
+
+ #   # Nếu thư mục /home/domain tồn tại, thêm domain vào danh sách
+ #   if [[ -d "$home_dir/$domain" ]]; then
+ #       echo "$domain" >> "$output_file"
+ #   fi
+#done
+#!/bin/bash
+
+# Tạo thư mục tạm nếu chưa tồn tại
+mkdir -p /etc/dsnvps/.tmp
+
+# File đầu ra
+domain_list_file="/etc/dsnvps/.tmp/90asx.txt"
+subdomain_list_file="/etc/dsnvps/.tmp/sub90sx.txt"
+special_conf_list_file="/etc/dsnvps/.tmp/80zzah.txt"
+combined_file="/etc/dsnvps/.tmp/290asx.txt"
+
+# Xóa nội dung cũ trong các file
+> "$domain_list_file"
+> "$subdomain_list_file"
+> "$special_conf_list_file"
+> "$combined_file"
+
+# Lấy danh sách các domain
+for conf in /etc/nginx/conf.d/*.conf; do
+    if [[ -f "$conf" ]]; then
+        domain=$(basename "$conf" .conf)
+        if [[ -d "/home/$domain/public_html" && "$domain" != "$mainsite" ]]; then
+            echo "$domain" >> "$domain_list_file"
+        fi
+    fi
+done
+
+# Kiểm tra domain sử dụng WordPress và xử lý subdomain
+while read -r domain; do
+    wp_config="/home/$domain/public_html/wp-config.php"
+    multisite_dir="/home/$domain/multisite.conf.d"
+
+    if [[ -f "$wp_config" ]]; then
+        # Kiểm tra multisite.conf.d
+        if [[ -d "$multisite_dir" ]]; then
+            for subconf in "$multisite_dir"/*.conf; do
+                if [[ -f "$subconf" ]]; then
+                    subdomain=$(basename "$subconf" .conf)
+                    echo "$subdomain" >> "$subdomain_list_file"
+                fi
+            done
+        fi
+    fi
+done < "$domain_list_file"
+
+# Kiểm tra và xử lý các file đặc biệt trong conf.d
+while read -r domain; do
+    special_conf_dir="/home/$domain/conf.d"
+
+    if [[ -d "$special_conf_dir" ]]; then
+        for special_conf in "$special_conf_dir"/*.conf; do
+            if [[ -f "$special_conf" ]]; then
+                special_name=$(basename "$special_conf" .conf)
+                echo "$special_name" >> "$special_conf_list_file"
+            fi
+        done
+    fi
+done < "$domain_list_file"
+
+# Gộp 3 file thành file cuối cùng
+cat "$domain_list_file" "$subdomain_list_file" "$special_conf_list_file" > "$combined_file"
+
+
+# Kiểm tra nếu file output không có domain nào
+if [[ ! -s "$combined_file" ]]; then
+rm -rf /etc/dsnvps/.tmp/90asx.txt
+rm -rf /etc/dsnvps/.tmp/sub90sx.txt
+rm -rf /etc/dsnvps/.tmp/290asx.txt
+rm -rf /etc/dsnvps/.tmp/80zzah.txt
+    clear
+    echo "========================================================================="
+    echo "Hiện tại bạn chưa thêm Website Vào Server!"; sleep 2
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+
+###
+
+check_folder_protect_config()
+{
+if [ -d /etc/nginx/pwprotect/$website ]; then
+cd /etc/nginx/pwprotect/$website
+rm -rf * .??*
+cd
+rm -rf /etc/nginx/pwprotect/$website
+fi
+}
+
+check_ftp_account()
+{
+if [ ! -f /etc/dsnvps/FTP-Account.info ]; then
+echo "=========================================================================" > /etc/dsnvps/FTP-Account.info
+echo "Please Do Not Delete This File " >> /etc/dsnvps/FTP-Account.info
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/FTP-Account.info
+echo "If you delete this file, DSNVPS will not run !" >> /etc/dsnvps/FTP-Account.info
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/FTP-Account.info
+echo "All FTP User for all domain on VPS list below:" >> /etc/dsnvps/FTP-Account.info
+echo "=========================================================================" >> /etc/dsnvps/FTP-Account.info
+echo "" >> /etc/dsnvps/FTP-Account.info
+fi
+if [ -f /etc/pure-ftpd/pureftpd.passwd ]; then
+if [ ! "$(grep /home/$website/ /etc/pure-ftpd/pureftpd.passwd)" == "" ];then  
+rm -rf /etc/dsnvps/.tmp/abcd
+cat > "/etc/dsnvps/.tmp/abcd" <<END	
+sed -i '/\/home\/$website/d' /etc/pure-ftpd/pureftpd.passwd
+END
+chmod +x /etc/dsnvps/.tmp/abcd
+/etc/dsnvps/.tmp/abcd
+rm -rf /etc/dsnvps/.tmp/abcd
+pure-pw mkdb
+fi
+fi
+if [ ! "$(grep /home/$website/ /etc/dsnvps/FTP-Account.info)" == "" ];then 
+echo "========================================================================="
+echo "Phát hiện tài khoản FTP: $(grep /home/$website/ /etc/dsnvps/FTP-Account.info | awk 'NR==1 {print $7}') của $website"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa tài khoản FTP: $(grep /home/$website/ /etc/dsnvps/FTP-Account.info | awk 'NR==1 {print $7}')"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 6
+rm -rf /etc/dsnvps/.tmp/abcde
+cat > "/etc/dsnvps/.tmp/abcde" <<END	
+sed -i '/\/home\/$website/d' /etc/dsnvps/FTP-Account.info
+END
+chmod +x /etc/dsnvps/.tmp/abcde
+/etc/dsnvps/.tmp/abcde
+rm -rf /etc/dsnvps/.tmp/abcde
+fi
+}
+check_and_delete_auto_backup_website()
+{
+	if [  -f /bin/auto-backupcode-$website ]; then
+	if [ ! "$(grep auto-backupcode-$website /etc/cron.d/dsnvps.code.cron)" == "" ]; then
+echo "========================================================================="
+echo "$website đang được bật sao lưu tự động code"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ tắt sao lưu tự động code khi xóa nó khỏi server"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+sleep 5
+	rm -rf /bin/auto-backupcode-$website
+	cat > "/etc/dsnvps/.tmp/removebackupcode" <<END
+sed -i '/auto-backupcode-$website/d' /etc/cron.d/dsnvps.code.cron
+END
+chmod +x /etc/dsnvps/.tmp/removebackupcode
+/etc/dsnvps/.tmp/removebackupcode 
+rm -rf /etc/dsnvps/.tmp/removebackupcode
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true
+	
+	fi
+	fi
+}
+echo "========================================================================="
+echo "Dùng chức năng này để xóa Website, Parked & Redirect domain và Subsite"
+echo "-------------------------------------------------------------------------"
+echo "của Wordpress Multisite cài đặt dạng Sub-domain khỏi server."
+echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/xoaweb"
+echo "=========================================================================" 
+echo "Danh sách Website, Redirect & Park Domain, Subsite trên Server:"
+echo "-------------------------------------------------------------------------"
+mapfile -t file_list < /etc/dsnvps/.tmp/290asx.txt
+################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập Lựa chọn của bạn [0 -Thoát]:  "
+    read -r choice
+    if [[ $choice == "0" ]]; then
+        clear
+        dsnvps
+        break
+    fi
+
+    # Kiểm tra lựa chọn hợp lệ
+if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+website=${file_list[choice-1]}  # Truy xuất domain từ mảng
+echo "========================================================================="
+echo "Bạn đã chọn: $website"  # Hiển thị domain đã chọn
+rm -rf /etc/dsnvps/.tmp/chduasydacdcdcdae
+echo "$website" > /etc/dsnvps/.tmp/chduasydacdcdcdae  # Lưu vào file tạm
+/etc/dsnvps/menu/dsnvps-xoa-website-parked-redirect-domain
+
+if [[ -s "/etc/dsnvps/.tmp/sub90sx.txt" ]] && grep -qxF "$website" /etc/dsnvps/.tmp/sub90sx.txt; then
+domain_website=$(echo "$website" | awk -F'.' '{print $(NF-1)"."$NF}')
+tensubdomain=$(echo "$website" | cut -d'.' -f1)
+echo "========================================================================="
+echo "Day la Subsite cua $domain_website"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $website khỏi server. "
+echo "-------------------------------------------------------------------------"
+echo "Quá trình này không thể đảo ngược."
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" == "OK" ]]; then
+echo "-------------------------------------------------------------------------"
+    echo "Xác nhận chính xác."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 3
+cd /home/$domain_website/public_html
+wp site delete $tensubdomain --allow-root --yes >/dev/null 2>&1
+cd
+rm -rf /home/$domain_website/multisite.conf.d/$website.conf
+sed -i "/${tensubdomain}\b/d" /home/$domain_website/multisite-info.txt
+if [ -f /etc/dsnvps/ddns-cloudflare/$website.conf ]; then
+rm -rf /etc/dsnvps/ddns-cloudflare/$website.conf 
+fi
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#clear
+echo "========================================================================="
+echo "$website đã được xóa thành công."
+echo "-------------------------------------------------------------------------"
+echo "Bạn cũng có thể xóa Subsite trong [ Quản Lý WordPress Multisite ]"
+echo "-------------------------------------------------------------------------"
+echo "Nếu Subsite bị lỗi khi xóa, bạn hãy xóa Subsite này trong chức năng"
+echo "-------------------------------------------------------------------------"
+echo "[ Xóa Subsite ] trong [ Quản Lý WordPress Multisite ]."; sleep 3
+
+    dsnvps
+    exit
+    else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ!"
+    dsnvps
+    exit
+fi
+fi
+
+if [ -f /etc/dsnvps/uploadsite ]; then
+rm -rf /etc/dsnvps/.tmp/uploadsite
+cp -r /etc/dsnvps/uploadsite /etc/dsnvps/.tmp/uploadsite
+uploadsite=$(cat /etc/dsnvps/uploadsite)
+if [ "$website" = "$uploadsite" ]; then
+/etc/dsnvps/menu/dsnvps-xoa-domain-file-manager-upload
+fi
+fi
+
+if [ -f /etc/dsnvps/netdatasite.info ]; then
+netdatasite=$(cat /etc/dsnvps/netdatasite.info)
+if [ "$website" = "$netdatasite" ]; then
+clear
+echo "========================================================================="
+echo "Bạn không thể xóa Domain Netdata"
+dsnvps
+fi
+fi
+
+
+if [ -f /etc/dsnvps/monstaftp.info ]; then
+rm -rf /etc/dsnvps/.tmp/monstaftp.info
+cp -r /etc/dsnvps/monstaftp.info /etc/dsnvps/.tmp/monstaftp.info
+monstaftp=$(cat /etc/dsnvps/monstaftp.info)
+if [ "$website" = "$monstaftp" ]; then
+/etc/dsnvps/menu/dsnvps-xoa-website-monstaftp-dsnvps-main
+fi
+fi
+
+if [ -f /etc/dsnvps/net2ftpsite.info ]; then
+rm -rf /etc/dsnvps/.tmp/net2ftpsite.info
+cp -r /etc/dsnvps/net2ftpsite.info /etc/dsnvps/.tmp/net2ftpsite.info
+net2ftpsite=$(cat /etc/dsnvps/net2ftpsite.info)
+if [ "$website" = "$net2ftpsite" ]; then
+/etc/dsnvps/menu/dsnvps-xoa-website-net2ftp-dsnvps-main
+fi
+fi
+
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website có lẽ không phải là domain hợp lệ!!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại  !"
+dsnvps
+exit
+fi
+
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$website" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-truoc-khi-xoa-khoi-server
+#################################################################
+exit
+fi
+
+if [ -f /home/$website/public_html/wp-config.php ]; then
+rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+dataname=$(grep -oP "define\('DB_NAME',\s*'\K[^']+" /home/$website/public_html/wp-config.php)
+if [ -f /var/lib/mysql/$dataname/db.opt ]; then
+echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+/etc/dsnvps/menu/dsnvps-xoa-website-wordpress
+fi
+fi
+
+#if [ -f /home/$website/public_html/yourls-go.php ]; then
+#rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+#echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+#/etc/dsnvps/menu/dsnvps-xoa-website-yourls
+#fi
+
+
+#if [ -f /home/$website/public_html/config.php ]; then
+##if [ -d /home/$website/public_html/phpbb ]; then
+#rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+#echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+#/etc/dsnvps/menu/dsnvps-xoa-website-phpbb-forum
+#fi
+#fi
+
+#if [ -d /home/$website/public_html/administrator ]; then
+#if [ -f /home/$website/public_html/configuration.php ]; then
+#rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+#echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+#/etc/dsnvps/menu/dsnvps-xoa-website-joomla
+#fi
+#fi
+
+#if [ -f /home/$website/public_html/Settings.php ]; then
+#if [ -f /home/$website/public_html/Sources/Themes.php ]; then
+#rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+#echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+#/etc/dsnvps/menu/dsnvps-xoa-website-smf-forum
+#fi
+#fi
+
+#if [ -f /home/$website/public_html/inc/config.php ]; then
+#if [ -f /home/$website/public_html/inc/mybb_group.php ]; then
+#rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+#echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+#/etc/dsnvps/menu/dsnvps-xoa-website-mybb-forum
+#fi
+#fi
+
+#if [ -f /home/$website/public_html/config.php ]; then
+#if [ ! "$(grep DIR_CACHE /home/$website/public_html/config.php)" == "" ]; then
+#if [ ! "$(grep DIR_LOGS /home/$website/public_html/config.php)" == "" ]; then
+#rm -rf /etc/dsnvps/.tmp/removewebsite.txt
+#echo "$website" > /etc/dsnvps/.tmp/removewebsite.txt
+#/etc/dsnvps/menu/dsnvps-xoa-website-opencart
+#fi
+#fi
+#fi
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $website khỏi server. "
+echo "-------------------------------------------------------------------------"
+echo "Quá trình này không thể đảo ngược."
+
+echo "-------------------------------------------------------------------------"
+read -p "Nhập OK để xác nhận: " input
+
+if [[ "$input" == "OK" ]]; then
+echo "-------------------------------------------------------------------------"
+    echo "Xác nhận chính xác."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 3
+rm -rf /home/$website
+rm -f /etc/nginx/conf.d/$website.conf
+### Remove website from Zend Opcache BlackList
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+END
+fi
+if [ ! "$(grep /home/$website /etc/dsnvps/opcache.blacklist)" == "" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện $website trong Zend Opcache Blacklist"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $website trong blacklist này"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 6
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+cat > "/etc/dsnvps/.tmp/zendcacheblacklist" <<END
+sed --in-place '\/home\/$website/d' /etc/dsnvps/opcache.blacklist
+END
+chmod +x /etc/dsnvps/.tmp/zendcacheblacklist
+/etc/dsnvps/.tmp/zendcacheblacklist
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+fi
+## Delete Free SSL Config
+if [ -d /etc/dsnvps/Backup.Vhost.SSL/$website ]; then
+rm -rf /etc/dsnvps/Backup.Vhost.SSL/$website
+fi
+## Het delete Free SSL config
+## Delete Paid SSL Config
+if [ -f /etc/nginx/paidssl/$website/$website.csr ]; then
+rm -rf /etc/nginx/paidssl/$website
+fi
+## Het delete Paid SSL config
+############ 
+check_ftp_account  ### Check FTP account
+check_and_delete_auto_backup_website ## Check Auto backup code
+check_folder_protect_config ### Check Config Protect Folder & Files
+## Xoa Config DDNS
+if [ -f /etc/dsnvps/ddns-cloudflare/$website.conf ]; then
+rm -rf /etc/dsnvps/ddns-cloudflare/$website.conf 
+fi
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+clear
+echo "========================================================================="
+echo "Xóa $website khỏi Server thành công."
+dsnvps
+else
+    echo "----------------------------------------------------------------------"
+    echo "Xác nhận không chính xác."
+    echo "----------------------------------------------------------------------"
+    echo "Bạn cần nhập chữ 'OK' để xác nhận xóa $website"
+sleep 4
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 14   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<14; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 14   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+continue
+fi
+
+ 
+ else
+ echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Bạn vui lòng chọn lại."
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+continue
+    fi
+done
+
+

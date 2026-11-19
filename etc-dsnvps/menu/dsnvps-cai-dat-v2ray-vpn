@@ -1,0 +1,967 @@
+#!/bin/bash
+. /root/dsnvps.conf
+#printf "=========================================================================\n"
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+echo "                    Cài Đặt & Cấu Hình VLess VPN"
+echo "========================================================================="
+if [ -f /usr/local/v2ray/v2ray ]; then
+v2raycai="Đã cài đặt"
+if systemctl is-active --quiet v2ray; then
+v2raystatus="và đang BẬT"
+else
+v2raystatus="và đang TẮT"
+fi
+else
+v2raycai="Chưa cài đặt"
+fi
+
+if [ -f /usr/local/etc/v2ray/config.json ]; then
+if grep -q "94.140.14.14" /usr/local/etc/v2ray/config.json 2>/dev/null; then
+    adblock_status="| Cấu hình chặn quảng cáo: BẬT"
+else
+    adblock_status="| Cấu hình chặn quảng cáo: TẮT"
+fi
+fi
+
+echo -e  "\e[31mVLess VPN Status: $v2raycai $v2raystatus $adblock_status\e[0m"
+echo "-------------------------------------------------------------------------"
+echo "Hướng dẫn sử dụng: https://go.dsnvps/5433"
+echo "========================================================================="
+while true; do
+printf "%-38s %s\n" "1) Cài Đặt & Cấu Hình VLess VPN      |" " 3) Tắt / Bật VLess VPN"
+printf "%-33s %s\n" "-------------------------------------|" " 4) Tắt / Bật Chặn Quảng Cáo"
+printf "%-37s %s\n" "2) Thiết Lập Domain VLess VPN        |" " 5) Lấy QR Code & Link VLess VPN"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+ #   read -p "Type in your choice (0 -Exit): " choice
+    read -p "Nhập lựa chọn của bạn (0 -Thoát): " choice
+    case $choice in 
+    
+
+0) clear; exit 0;;    
+######################################### 
+#########################################
+        
+        
+#########################################
+1)
+#!/bin/bash
+# Kiểm tra VLess VPN đã cài đặt
+if [ -f /usr/local/v2ray/v2ray ]; then
+echo "========================================================================="
+echo -e "\e[31mVLess VPN sử dụng port: 50619. Bạn cần phải mở Port này nếu nhà cung\e[0m"
+echo -e "\e[31m-------------------------------------------------------------------------\e[0m"
+echo -e "\e[31mcấp VPS không mở tất cả các port theo mặc định.\e[0m"
+echo "========================================================================="
+echo "VLess VPN đã được cài đặt. Nếu bạn chọn cài đặt lại VLess VPN, tất cả cấu   "
+echo "-------------------------------------------------------------------------"
+echo "hình đang sử dụng hiện tại sẽ bị xóa. Tất cả thiết bị đang sử dụng VLess  "
+echo "-------------------------------------------------------------------------"
+echo "VPN hiện tại sẽ không truy cập internet được nữa. Bạn cần cập nhật lại  "
+echo "-------------------------------------------------------------------------"
+echo "thông tin cho các thiết bị để truy cập internet bình thường."
+echo -e "\e[31m-------------------------------------------------------------------------\e[0m"
+echo -e "\e[31mKhi VLess VPN có bản update, hãy cài lại VLess VPN để update bản mới nhất.\e[0m"
+echo "========================================================================="
+read -p "Bạn có muốn cài đặt VLess VPN lại không? (y/N): " confirm
+echo "-------------------------------------------------------------------------"
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+echo "-------------------------------------------------------------------------"
+echo "Cảnh báo: Các cấu hình cũ sẽ bị mất, DSNVPS sẽ cấu hình lại VLess VPN."
+echo "========================================================================="
+sleep 3
+systemctl stop v2ray
+else
+clear
+echo "========================================================================="
+echo "Thoát."
+/etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+        exit 0
+    fi
+else
+    # V2Ray chưa được cài đặt
+    echo "========================================================================="
+    echo "VLess VPN chưa được cài đặt trên hệ thống."
+    echo "-------------------------------------------------------------------------"
+   echo -e "\e[31mVLess VPN sẽ sử dụng port: 50619. Bạn cần phải mở Port này nếu nhà \e[0m"
+    echo "-------------------------------------------------------------------------"
+echo -e "\e[31mcung cấp VPS không mở tất cả các port theo mặc định.\e[0m"
+echo -e "\e[31m-------------------------------------------------------------------------\e[0m"
+echo -e "\e[31mKhi VLess VPN có bản update, hãy cài lại VLess VPN để update bản mới nhất.\e[0m"
+    echo "========================================================================="
+    read -p "Bạn có muốn cài đặt VLess VPN không? (y/N): " confirm
+    echo "-------------------------------------------------------------------------"
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        clear
+        echo "========================================================================="
+        echo "Thoát."
+        /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+        exit 0
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Bắt đầu cài đặt VLess VPN..."
+    echo "========================================================================="
+    sleep 2
+fi
+
+# Generate random UUID for client ID
+UUID=$(uuidgen)
+mkdir -p /etc/dsnvps/v2ray
+echo "$UUID" > /etc/dsnvps/v2ray/v2ray.uuid.txt
+
+if [ ! -f /usr/local/v2ray/v2ray ]; then
+# Update system
+apt-get update -qq
+# Install required packages
+apt-get install -y -qq curl unzip libcap2-bin qrencode
+fi
+# Remove previous VLess VPN installation
+rm -rf /usr/local/v2ray /usr/local/bin/v2ray
+
+V2RAY_ZIP="/tmp/v2ray.zip"
+if [ "$(arch)" = "aarch64" ]; then
+    curl -L -o "$V2RAY_ZIP" https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-linux-arm64-v8a.zip
+else
+    curl -L -o "$V2RAY_ZIP" https://github.com/v2fly/v2ray-core/releases/latest/download/v2ray-linux-64.zip
+fi
+
+unzip "$V2RAY_ZIP" -d /usr/local/v2ray
+rm -f "$V2RAY_ZIP"
+
+# Create V2Ray config and log directories
+mkdir -p /usr/local/etc/v2ray /var/log/v2ray
+
+# Create V2Ray config file
+cat > /usr/local/etc/v2ray/config.json << EOL
+{
+  "log": {
+    "access": "",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "dns": {
+    "servers": [
+      "94.140.14.14",
+      "94.140.15.15",
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 50619,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$UUID"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "path": "/ws/"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct",
+      "settings": {}
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "block"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "type": "field",
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "block"
+      }
+    ]
+  }
+}
+EOL
+
+# Set permissions for log directory and files
+mkdir -p /var/log/v2ray
+touch /var/log/v2ray/error.log
+chown -R nginx:nginx /var/log/v2ray
+chmod -R 755 /var/log/v2ray
+chmod 644 /var/log/v2ray/error.log
+
+# Set executable permission for V2Ray
+chmod +x /usr/local/v2ray/v2ray
+
+# Create V2Ray systemd service file
+cat > /etc/systemd/system/v2ray.service << EOL
+[Unit]
+Description=V2Ray Service
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/v2ray/v2ray run -config /usr/local/etc/v2ray/config.json
+Restart=on-failure
+User=nginx
+Group=nginx
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_BIND_SERVICE
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Create Nginx proxy config for V2Ray
+mkdir -p /etc/dsnvps/v2ray
+cat > /etc/dsnvps/v2ray/v2ray.conf << EOL
+location /ws/ {
+    proxy_pass http://127.0.0.1:50619;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade \$http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_set_header Host \$host;
+}
+EOL
+
+# Test and reload Nginx
+nginx -t && systemctl reload nginx
+
+# Configure firewall
+ssh_port=$(grep -i '^Port ' /etc/ssh/sshd_config | awk '{print $2}' | head -n1)
+[ -z "$ssh_port" ] && ssh_port=22
+tcp_in_ports="20,21,22"
+tcp_out_ports="20,21,22"
+[ "$ssh_port" != "22" ] && tcp_in_ports="$tcp_in_ports,$ssh_port" && tcp_out_ports="$tcp_out_ports,$ssh_port"
+tcp_in_ports="$tcp_in_ports,25,53,80,110,143,443,465,587,853,993,995,6379,11211,7844,30000:50169,50618,50619"
+tcp_out_ports="$tcp_out_ports,25,53,80,110,113,443,853,587,11211,993,995,6379,465,587,3306,3307,8080,7844,30000:50169,50618,50619"
+cat > "/etc/dsnvps/.tmp/csf-port" <<END
+sed -i "s/^TCP_IN = \".*/TCP_IN = \"$tcp_in_ports\"/" /etc/csf/csf.conf
+sed -i "s/^TCP_OUT = \".*/TCP_OUT = \"$tcp_out_ports\"/" /etc/csf/csf.conf
+END
+chmod +x /etc/dsnvps/.tmp/csf-port
+/etc/dsnvps/.tmp/csf-port
+rm -rf /etc/dsnvps/.tmp/csf-port
+
+if [ -f /etc/csf/csf.pignore ]; then
+    IGNORE_FILE="/etc/csf/csf.pignore"
+    grep -qxF "exe:/usr/local/v2ray/v2ray" "$IGNORE_FILE" || echo "exe:/usr/local/v2ray/v2ray" >> "$IGNORE_FILE"
+fi
+csf -q > /dev/null 2>&1
+csf -r > /dev/null 2>&1
+iptables -I INPUT -p tcp --dport 50619 -j ACCEPT
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+
+# Reload systemd and start V2Ray
+systemctl daemon-reload
+systemctl enable v2ray
+systemctl start v2ray
+
+# Verify V2Ray service status
+#systemctl status v2ray
+
+# Kiểm tra trạng thái V2Ray
+if systemctl is-active --quiet v2ray; then
+    clear
+    echo "========================================================================="
+    echo "Hoàn thành cài đặt và cấu hình VLess VPN."
+else
+    clear
+    echo "========================================================================="
+    echo "Cài đặt VLess VPN thất bại. Dịch vụ VLess VPN không chạy."
+fi
+sleep 2
+
+/etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+;;
+
+
+###############
+2)
+if [ ! -f /usr/local/v2ray/v2ray ]; then
+clear
+echo "========================================================================="
+    echo "VLess VPN chưa được cài đặt."
+    sleep 2
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+VHOST_DIR="/etc/nginx/conf.d"
+BACKUP_DIR="/etc/dsnvps/.tmp/backup"
+NGINX_TEST_LOG="/etc/dsnvps/.tmp/nginx_test.log"
+V2RAY_CONF="include /etc/dsnvps/v2ray/*.conf;"
+BLOCK_CONF="/etc/nginx/conf/block.conf"
+
+# Tạo thư mục backup
+mkdir -p "$BACKUP_DIR"
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Hàm lấy danh sách website hợp lệ
+get_valid_sites() {
+    local result=()
+    for conf in "$VHOST_DIR"/*.conf; do
+        site=$(basename "$conf" .conf)
+        [[ "$site" == "nginx" ]] && continue
+        [[ "$site" == "dsnvps.demo" ]] && continue
+        [ -d "/home/$site/public_html" ] && result+=("$site")
+    done
+    echo "${result[@]}"
+}
+
+# Hàm kiểm tra domain có V2Ray
+is_v2ray_domain() {
+    local site="$1"
+    grep -Fx "include /etc/dsnvps/v2ray/*.conf;" "$VHOST_DIR/$site.conf" > /dev/null
+}
+
+# Hàm lấy domain V2Ray hiện tại
+get_v2ray_domain() {
+    for conf in "$VHOST_DIR"/*.conf; do
+        site=$(basename "$conf" .conf)
+        is_v2ray_domain "$site" && echo "$site" && return
+    done
+}
+
+# In danh sách website
+show_sites() {
+    local sites=("$@")
+    local total=${#sites[@]}
+    local half=$(( (total + 1) / 2 ))
+
+    for ((i = 0; i < half; i++)); do
+        lidx=$((i + 1))
+        ridx=$((i + half + 1))
+
+        lsite="${sites[i]}"
+        rsite="${sites[ridx-1]:-}"
+
+        is_v2ray_domain "$lsite" && lsite="${lsite}**"
+        [ -n "$rsite" ] && is_v2ray_domain "$rsite" && rsite="${rsite}**"
+
+        if [ -n "$rsite" ]; then
+            printf "%2d. %-25s %2d. %-25s\n" "$lidx" "$lsite" "$ridx" "$rsite"
+        else
+            printf "%2d. %-25s\n" "$lidx" "$lsite"
+        fi
+    done
+}
+
+# Hàm chèn V2Ray config
+insert_v2ray_conf() {
+    local site="$1"
+    local vhost="$VHOST_DIR/$site.conf"
+    cp "$vhost" "$BACKUP_DIR/$site.conf.bak"
+    if grep "$BLOCK_CONF" "$vhost" > /dev/null; then
+        sed -i "/\/etc\/nginx\/conf\/block.conf/a $V2RAY_CONF" "$vhost"
+        if [ $? -eq 0 ]; then
+            return 0
+        else
+            echo "Lỗi khi chèn dòng VLess VPN vào $vhost."
+            mv "$BACKUP_DIR/$site.conf.bak" "$VHOST_DIR/$site.conf"
+            return 1
+        fi
+    else
+        echo "Không tìm thấy $BLOCK_CONF trong $vhost."
+        mv "$BACKUP_DIR/$site.conf.bak" "$VHOST_DIR/$site.conf"
+        return 1
+    fi
+}
+
+# Hàm xóa V2Ray config
+remove_v2ray_conf() {
+    local site="$1"
+    local vhost="$VHOST_DIR/$site.conf"
+    cp "$vhost" "$BACKUP_DIR/$site.conf.bak"
+    sed -i "/include \/etc\/dsnvps\/v2ray\/\*.conf;/d" "$vhost"
+    if [ $? -eq 0 ] && ! grep -Fx "include /etc/dsnvps/v2ray/*.conf;" "$vhost" > /dev/null; then
+        return 0
+    else
+    
+        echo "Lỗi khi xóa cấu hình VLess VPN khỏi $vhost."
+        mv "$BACKUP_DIR/$site.conf.bak" "$VHOST_DIR/$site.conf"
+        return 1
+    fi
+}
+
+# Hàm kiểm tra nginx
+check_nginx() {
+    nginx -t > "$NGINX_TEST_LOG" 2>&1
+    return $?
+}
+
+# Hiển thị danh sách
+VALID_SITES=($(get_valid_sites))
+TOTAL=${#VALID_SITES[@]}
+if [ "$TOTAL" -eq 0 ]; then
+    clear
+    echo "========================================================================="
+    echo "Chưa có domain trên VPS."
+    echo "-------------------------------------------------------------------------"
+    echo "Cần thêm domain trước khi chạy chức năng này."
+    sleep 2
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+echo "========================================================================="
+echo "Chọn domain để cấu hình VLess VPN | **: Domain đang cấu hình VLess VPN"
+echo "-------------------------------------------------------------------------"
+show_sites "${VALID_SITES[@]}"
+echo "========================================================================="
+
+# Chọn domain
+read -p "Chọn domain [0 - Thoát]: " choice
+
+if [[ "$choice" == "0" ]]; then
+    clear
+         echo "========================================================================="
+    echo "Thoát."
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    
+    exit 0
+elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= TOTAL )); then
+    website="${VALID_SITES[choice-1]}"
+    echo "========================================================================="
+    echo "=> Đã chọn: $website"
+
+    if is_v2ray_domain "$website"; then
+        echo "-------------------------------------------------------------------------"
+        echo "Domain này đã được cấu hình VLess VPN."
+        echo "-------------------------------------------------------------------------"
+        read -p "Bạn có muốn xóa cấu hình VLess VPN cho $website? (y/N): " confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                                sleep 1
+            if remove_v2ray_conf "$website"; then
+                if check_nginx; then
+                systemctl restart nginx
+                clear
+                    echo "-------------------------------------------------------------------------"
+                    echo "Đã xóa cấu hình VLess VPN cho $website."
+                    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                else
+                clear
+                    echo "-------------------------------------------------------------------------"
+                    echo "Lỗi cấu hình nginx:"
+                    cat "$NGINX_TEST_LOG"
+                    mv "$BACKUP_DIR/$website.conf.bak" "$VHOST_DIR/$website.conf"
+                    echo "Đã phục hồi."
+                    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                fi
+            else
+            clear
+                echo "-------------------------------------------------------------------------"
+                echo "Thất bại: Không thể xóa cấu hình VLess VPN."
+                /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+            fi
+        else
+        clear
+            echo "-------------------------------------------------------------------------"
+            echo "Đã hủy."
+            /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+        fi
+    else
+        current_v2ray=$(get_v2ray_domain)
+        if [ -z "$current_v2ray" ]; then
+            # Chưa có domain V2Ray
+            
+echo "========================================================================="
+            read -p "Xác nhận cấu hình VLess VPN cho $website? (y/N): " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                if insert_v2ray_conf "$website"; then
+                    if check_nginx; then
+                    systemctl restart nginx
+                  sleep 2
+                    clear
+                        echo "========================================================================="
+                        echo "Cấu hình VLess VPN cho $website thành công."
+                        /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                    else
+                                            sleep 1
+                    clear
+                        echo "========================================================================="
+                        echo "Lỗi cấu hình nginx:"
+                        cat "$NGINX_TEST_LOG"
+                        mv "$BACKUP_DIR/$website.conf.bak" "$VHOST_DIR/$website.conf"
+                        echo "Đã phục hồi."
+                        /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                    fi
+                else
+                clear
+                    echo "========================================================================="
+                    echo "Thất bại: Không thể cấu hình VLess VPN."
+                    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                fi
+            else
+            clear
+                echo "========================================================================="
+                echo "Đã hủy."
+                /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+            fi
+        else
+            # Đã có domain V2Ray
+            
+echo "========================================================================="
+            read -p "Đổi domain VLess VPN sang $website? (y/N): " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                if insert_v2ray_conf "$website"; then
+                    if check_nginx; then
+                        if remove_v2ray_conf "$current_v2ray"; then
+                        systemctl restart nginx
+                        sleep 2
+                        clear
+                            echo "========================================================================="
+                            echo "Đã chuyển VLess VPN sang $website."
+                            /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                        else
+                                            sleep 1
+                        clear
+                        echo "========================================================================="
+                            mv "$BACKUP_DIR/$website.conf.bak" "$VHOST_DIR/$website.conf"
+                            echo "-------------------------------------------------------------------------"
+                            echo "Thất bại: Không thể xóa cấu hình VLess VPN khỏi $current_v2ray."
+                            /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                        fi
+                    else
+                    sleep 1
+                    clear
+                    echo "========================================================================="
+                        echo "Lỗi cấu hình nginx:"
+                     echo "-------------------------------------------------------------------------"
+                        cat "$NGINX_TEST_LOG"
+                        mv "$BACKUP_DIR/$website.conf.bak" "$VHOST_DIR/$website.conf"
+                         echo "-------------------------------------------------------------------------"
+                        echo "Đã phục hồi cấu hình cũ."
+                        /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                    fi
+                else
+                clear
+                echo "========================================================================="
+                  echo "Thất bại: Không thể cấu hình VLess VPN."
+                    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+                fi
+            else
+            clear
+               echo "========================================================================="
+                echo "Đã hủy."
+                /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+            fi
+        fi
+    fi
+else
+    echo "Lựa chọn không hợp lệ."
+fi
+clear
+echo "========================================================================="
+echo "Thoát."
+/etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+exit 0
+
+;;
+
+############
+3)
+if [ ! -f /usr/local/v2ray/v2ray ]; then
+clear
+echo "========================================================================="
+    echo "VLess VPN chưa được cài đặt."
+    sleep 2
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+if systemctl is-active --quiet v2ray; then
+echo "========================================================================="
+    read -p "VLess VPN đang BẬT. Bạn muốn TẮT không? (y/N): " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        systemctl stop v2ray
+        if [ $? -eq 0 ]; then
+        clear
+echo "========================================================================="
+            echo "VLess VPN đã được TẮT thành công."
+        else
+        clear
+echo "========================================================================="
+            echo "Lỗi khi TẮT VLess VPN."
+        fi
+    else
+    clear
+echo "========================================================================="
+        echo "Đã hủy."
+    fi
+else
+echo "========================================================================="
+    read -p "VLess VPN đang TẮT. Bạn muốn BẬT không? (y/N): " confirm
+    if [[ "$confirm" =~ ^[Yy]$ ]]; then
+        systemctl start v2ray
+        if [ $? -eq 0 ]; then
+        clear
+echo "========================================================================="
+            echo "VLess VPN đã được BẬT thành công."
+        else
+        clear
+echo "========================================================================="
+            echo "Lỗi khi BẬT VLess VPN."
+        fi
+    else
+    clear
+echo "========================================================================="
+        echo "Đã hủy."
+    fi
+fi
+sleep 2
+/etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+;;
+
+#######
+4)
+# Kiểm tra V2Ray đã cài đặt
+if [ ! -f /usr/local/v2ray/v2ray ]; then
+    clear
+    echo "========================================================================="
+    echo "VLess VPN chưa được cài đặt."
+    sleep 2
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Kiểm tra V2Ray đang chạy
+if ! systemctl is-active --quiet v2ray; then
+    clear
+    echo "========================================================================="
+    echo "VLess VPN đang TẮT. Vui lòng BẬT VLess VPN trước khi thay đổi cấu hình."
+    sleep 2
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Kiểm tra file UUID
+if [ ! -f /etc/dsnvps/v2ray/v2ray.uuid.txt ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file cấu hình VLess VPN UUID."
+    sleep 2
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Lấy UUID từ file
+UUID=$(cat /etc/dsnvps/v2ray/v2ray.uuid.txt)
+
+# Kiểm tra trạng thái chặn quảng cáo hiện tại
+if grep -q "94.140.14.14" /usr/local/etc/v2ray/config.json 2>/dev/null; then
+    adblock_status="BẬT"
+    adblock_action="TẮT"
+else
+    adblock_status="TẮT"
+    adblock_action="BẬT"
+fi
+
+echo "========================================================================="
+echo "Trạng thái chặn quảng cáo hiện tại: $adblock_status"
+echo "========================================================================="
+read -p "Bạn có muốn ${adblock_action} chặn quảng cáo không? (y/N): " confirm
+
+if [[ "$confirm" =~ ^[Yy]$ ]]; then
+    echo "========================================================================="
+    echo "Đang cập nhật cấu hình VLess VPN..."
+    
+    # Backup cấu hình hiện tại
+    cp /usr/local/etc/v2ray/config.json /usr/local/etc/v2ray/config.json.backup
+    
+    if [ "$adblock_status" = "BẬT" ]; then
+        # Tắt chặn quảng cáo - sử dụng DNS thông thường
+        cat > /usr/local/etc/v2ray/config.json << EOL
+{
+  "log": {
+    "access": "",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "dns": {
+    "servers": [
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 50619,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$UUID"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "path": "/ws/"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct",
+      "settings": {}
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "block"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "type": "field",
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "block"
+      }
+    ]
+  }
+}
+EOL
+    else
+        # Bật chặn quảng cáo - sử dụng DNS chặn quảng cáo
+        cat > /usr/local/etc/v2ray/config.json << EOL
+{
+  "log": {
+    "access": "",
+    "error": "/var/log/v2ray/error.log",
+    "loglevel": "warning"
+  },
+  "dns": {
+    "servers": [
+      "94.140.14.14",
+      "94.140.15.15",
+      "1.1.1.1",
+      "8.8.8.8"
+    ]
+  },
+  "inbounds": [
+    {
+      "port": 50619,
+      "protocol": "vless",
+      "settings": {
+        "clients": [
+          {
+            "id": "$UUID"
+          }
+        ],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "ws",
+        "security": "none",
+        "wsSettings": {
+          "path": "/ws/"
+        }
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "protocol": "freedom",
+      "tag": "direct",
+      "settings": {}
+    },
+    {
+      "protocol": "blackhole",
+      "tag": "block"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "AsIs",
+    "rules": [
+      {
+        "type": "field",
+        "ip": [
+          "geoip:private"
+        ],
+        "outboundTag": "block"
+      }
+    ]
+  }
+}
+EOL
+    fi
+    
+    # Kiểm tra cấu hình JSON có hợp lệ không
+    if /usr/local/v2ray/v2ray test -config /usr/local/etc/v2ray/config.json >/dev/null 2>&1; then
+        # Khởi động lại V2Ray để áp dụng cấu hình mới
+        systemctl restart v2ray
+        
+        if systemctl is-active --quiet v2ray; then
+            clear
+            echo "========================================================================="
+            echo "Đã ${adblock_action} chặn quảng cáo thành công."
+            echo "-------------------------------------------------------------------------"
+            echo "VLess VPN đã được khởi động lại để áp dụng cấu hình mới."
+        else
+            clear
+            echo "========================================================================="
+            echo "Lỗi: VLess VPN không thể khởi động lại sau khi cập nhật cấu hình."
+            echo "-------------------------------------------------------------------------"
+            echo "Đang khôi phục cấu hình cũ..."
+            mv /usr/local/etc/v2ray/config.json.backup /usr/local/etc/v2ray/config.json
+            systemctl restart v2ray
+            echo "Đã khôi phục cấu hình cũ."
+        fi
+    else
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Cấu hình VLess VPN không hợp lệ."
+        echo "-------------------------------------------------------------------------"
+        echo "Đang khôi phục cấu hình cũ..."
+        mv /usr/local/etc/v2ray/config.json.backup /usr/local/etc/v2ray/config.json
+        echo "Đã khôi phục cấu hình cũ."
+    fi
+    
+    # Xóa file backup
+    rm -f /usr/local/etc/v2ray/config.json.backup
+    
+else
+    clear
+    echo "========================================================================="
+    echo "Đã hủy."
+fi
+
+sleep 2
+echo "========================================================================="
+/etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+;;
+
+#########
+5)
+# Kiểm tra V2Ray đã cài đặt
+if [ ! -f /usr/local/v2ray/v2ray ]; then
+clear
+echo "========================================================================="
+    echo "VLess VPN chưa được cài đặt."
+    sleep 1
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Kiểm tra V2Ray đang chạy
+if ! systemctl is-active --quiet v2ray; then
+clear
+echo "========================================================================="
+    echo "VLess VPN đang TẮT. Vui lòng BẬT VLess VPN trước."
+    sleep 1
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Kiểm tra file UUID
+if [ ! -f /etc/dsnvps/v2ray/v2ray.uuid.txt ]; then
+clear
+echo "========================================================================="
+    echo "Không tìm thấy file cấu hình VLess VPN."
+    sleep 1
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Cài ngầm qrencode nếu chưa có
+if ! command -v qrencode >/dev/null 2>&1; then
+    apt-get install -y -qq qrencode >/dev/null 2>&1
+    if ! command -v qrencode >/dev/null 2>&1; then
+    clear
+echo "========================================================================="
+        echo "Không thể cài đặt qrencode."
+        sleep 1
+        /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+        exit 0
+    fi
+fi
+
+# Kiểm tra domain có cấu hình V2Ray
+v2ray_domain=""
+for conf in /etc/nginx/conf.d/*.conf; do
+    if grep -Fx "include /etc/dsnvps/v2ray/*.conf;" "$conf" >/dev/null; then
+        v2ray_domain=$(basename "$conf" .conf)
+        break
+    fi
+done
+
+if [ -z "$v2ray_domain" ]; then
+clear
+echo "========================================================================="
+    echo "Chưa cấu hình VLess VPN cho domain. Trước khi chạy chức năng này  "
+    echo "---------------------------------------------------------------------"
+    echo "bạn cần chạy chức năng [ Thiết Lập Domain VLess VPN ]. "
+    sleep 1
+    /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+    exit 0
+fi
+
+# Lấy UUID gốc (không mã hóa base64)
+UUID=$(cat /etc/dsnvps/v2ray/v2ray.uuid.txt)
+
+# Tạo link VLess đúng format với WebSocket
+VLESS_LINK="vless://${UUID}@${v2ray_domain}:443?type=ws&security=tls&path=%2Fws%2F&host=${v2ray_domain}&sni=${v2ray_domain}#${v2ray_domain}"
+sleep 2
+clear
+echo "========================================================================="
+echo "QR Code:"
+qrencode -l L -s 1 -t ansiutf8 "$VLESS_LINK"
+echo "========================================================================="
+read -p "Nhấn Enter để tiếp tục..." enter
+
+clear
+echo "========================================================================="
+echo "VLess Link: $VLESS_LINK"
+echo "========================================================================="
+echo "Thông tin kết nối:"
+echo "- Server: $v2ray_domain"
+echo "- Port: 443"
+echo "- UUID: $UUID"
+echo "- Network: WebSocket (ws)"
+echo "- Security: TLS"
+echo "- Path: /ws/"
+echo "- Host: $v2ray_domain"
+echo "- SNI: $v2ray_domain"
+echo "========================================================================="
+
+# Quay lại menu
+sleep 0.3
+/etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn
+;;  
+# #######################################
+        *)
+     echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trong menu ." 
+        sleep 2
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+
+#########################################################################
+;;
+
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trong menu !"; sleep 2
+        #echo "You typed wrong, Please type in the ordinal number on the list."; 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done

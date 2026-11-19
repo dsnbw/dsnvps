@@ -1,0 +1,73 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html ]; then
+clear
+echo "========================================================================= "
+echo "DSNVPS không tìm thấy thư mục private_html"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi
+if [ ! -d /home/$mainsite/private_html/crobak ]; then
+mkdir -p /home/$mainsite/private_html/crobak
+fi
+if [ "$(crontab -l | awk 'NR==1 {print $1}')" == "" ]; then
+clear
+echo "========================================================================= "
+echo "Bạn chưa tạo cronjob trên server !"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+fi
+chmod -R 755 /home/$mainsite/private_html/crobak
+echo "========================================================================="
+echo "Sử dụng chức năng này để sao lưu tất cả các cronjob đang chạy trên server"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn sao lưu tất cả cronjob hiện tại? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "========================================================================="
+echo "Vui lòng chờ ..."; sleep 2
+echo "-------------------------------------------------------------------------"
+if [ -f /home/$mainsite/private_html/crobak/cronjob.baxk ]; then
+time=$(date -r /home/$mainsite/private_html/crobak/cronjob.baxk +%Hh%Mm-%d%m%y)
+echo "Phát hiện file backup cũ của cronjob. File backup sẽ được đổi tên sang:"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "cronjob.$time.baxk";sleep 2
+echo "-------------------------------------------------------------------------"
+sleep 5
+old=1
+mv /home/$mainsite/private_html/crobak/cronjob.baxk /home/$mainsite/private_html/crobak/cronjob.$time.baxk
+fi
+
+rm -rf /etc/dsnvps/.tmp/cronbak
+mkdir -p /etc/dsnvps/.tmp/cronbak
+crontab -l > /etc/dsnvps/.tmp/cronbak/cronjob.baxk
+echo "1" > /etc/dsnvps/.tmp/cronbak/cronjob.check
+cd /etc/dsnvps/.tmp/cronbak
+zip -r /home/$mainsite/private_html/crobak/cronjob.baxk *
+cd
+rm -rf /etc/dsnvps/.tmp/cronbak 
+chmod -R 755 /home/$mainsite/private_html/crobak
+clear
+echo "========================================================================="
+echo "Backup cronjob hoàn thành."
+if [ "$old" == "1" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Backup cũ: cronjob.$time.baxk"
+fi
+echo "-------------------------------------------------------------------------"
+echo "File backup cronjob hiện tại:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/crobak/cronjob.baxk"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+else
+clear
+echo "========================================================================="
+echo "Hủy bỏ!"
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi

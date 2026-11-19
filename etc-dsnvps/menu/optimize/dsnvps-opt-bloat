@@ -1,0 +1,38 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+echo -e "${C_CYAN}Đang kiểm tra và dọn dẹp snapd cùng các dịch vụ thừa...${C_RESET}"
+if command -v snap >/dev/null 2>&1; then
+    for pkg in $(snap list 2>/dev/null | awk 'NR>1 {print $1}' | grep -vE '^(core|bare|snapd)'); do
+        snap remove --purge "$pkg" 2>/dev/null || true
+    done
+    for pkg in $(snap list 2>/dev/null | awk 'NR>1 {print $1}' | grep -v '^snapd$'); do
+        snap remove --purge "$pkg" 2>/dev/null || true
+    done
+    snap remove --purge snapd 2>/dev/null || true
+fi
+
+for unit in snapd.service snapd.socket snapd.seeded.service snapd.apparmor.service snapd.snap-repair.timer \
+    fwupd.service fwupd-refresh.service fwupd-refresh.timer multipathd.service multipathd.socket \
+    ModemManager.service udisks2.service open-vm-tools.service vgauth.service open-iscsi.service iscsid.socket \
+    apport.service apport-autoreport.path apport-autoreport.timer apport-forward.socket \
+    ubuntu-advantage.service ua-timer.timer ua-reboot-cmds.service motd-news.timer motd-news.service \
+    update-notifier-download.timer update-notifier-motd.timer lxd-installer.socket unattended-upgrades.service \
+    inetd.service packagekit.service; do
+    systemctl stop "$unit" 2>/dev/null || true
+    systemctl disable "$unit" 2>/dev/null || true
+done
+systemctl mask multipathd.service multipathd.socket fwupd.service ModemManager.service udisks2.service 2>/dev/null || true
+
+if [[ "$(dsnvps_os_family)" == "debian" ]]; then
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y snapd fwupd modemmanager udisks2 open-vm-tools apport apport-core-dump-handler unattended-upgrades packagekit 2>/dev/null || true
+    DEBIAN_FRONTEND=noninteractive apt-get autoremove --purge -y 2>/dev/null || true
+    apt-get clean 2>/dev/null || true
+    cat > /etc/apt/preferences.d/nosnap.pref <<'NOSNAP'
+Package: snapd
+Pin: release a=*
+Pin-Priority: -10
+NOSNAP
+fi
+rm -rf /root/snap /home/*/snap /snap /var/snap /var/lib/snapd /var/cache/snapd 2>/dev/null || true
+echo -e "${C_GREEN}[OK] Đã dọn sạch snapd và các dịch vụ thừa chiếm RAM.${C_RESET}"

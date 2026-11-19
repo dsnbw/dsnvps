@@ -1,0 +1,92 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/checkredis
+
+if pgrep redis-server > /dev/null
+then
+
+show_phan_tren_menu()
+{
+
+
+show=`echo "            Redis: Working - Ram Max: $(grep maxmemory /etc/redis/redis.conf | awk 'NR==1 {print $2}' | sed 's/mb//') M - Ram Using: $(redis-cli INFO | grep used_memory_human | sed 's/used_memory_human://')"`
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                           Quản Lý Redis Cache                                \n"
+printf "=========================================================================\n"
+echo "$show "
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/howredis"
+printf "=========================================================================\n"	
+
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-35s %s\n" "1) Xóa (Clear) Redis Cache" "3) Kiểm Tra Trạng Thái Redis"
+printf "%-37s %s\n" "2) Cấu Hình Redis Cache" "4) Gỡ bỏ Redis Cache"
+    echo "========================================================================="
+
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in
+    1) /etc/dsnvps/menu/dsnvps-clear-redis;;
+    2) /etc/dsnvps/menu/dsnvps-redis-change-size;;
+    3) /etc/dsnvps/menu/dsnvps-check-redis-status;;
+    4) /etc/dsnvps/menu/dsnvps-remove-redis-redis-cache;;
+0) clear; exit 0;; 
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6;; esac; done
+   
+else
+
+show_phan_tren_menu()
+{
+	
+
+show=`echo "            Redis: Stopped - Ram Max: 0 M  - Ram Using: 0 KB"`
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                           Quản Lý Redis Cache                                \n"
+printf "=========================================================================\n"
+echo "$show "
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/howredis"
+printf "=========================================================================\n"
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-35s %s\n" "1) Xóa (Clear) Redis Cache" "3) Kiểm Tra Trạng Thái Redis"
+printf "%-37s %s\n" "2) Cấu Hình Redis Cache" "4) Gỡ bỏ Redis Cache"
+    echo "========================================================================="
+
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+        case $choice in
+    #1) /etc/dsnvps/menu/dsnvps-enable-disable-redis;;
+    1) /etc/dsnvps/menu/dsnvps-clear-redis;;
+    2) /etc/dsnvps/menu/dsnvps-redis-change-size;;
+    3) /etc/dsnvps/menu/dsnvps-check-redis-status;;
+    4) /etc/dsnvps/menu/dsnvps-remove-redis-redis-cache;;
+0) clear; exit 0;; 
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6;; esac; done
+ fi
+
+
+

@@ -1,0 +1,86 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /home/$mainsite/private_html/index.php ]; then 
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT / TẮT Phpmyadmin."
+echo "-------------------------------------------------------------------------"
+echo "Phpmyadmin hiện đang BẬT, ai biết port $priport đều có thể truy cập"
+echo "========================================================================="
+read -r -p "Bạn có muốn TẮT nó không? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ...";sleep 2
+	mv /home/$mainsite/private_html/index.php /home/$mainsite/private_html/index.bak
+ 
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+	rm -f /home/$mainsite/private_html/index.html
+    cat > "/home/$mainsite/private_html/index.html" <<END
+<!DOCTYPE html>
+<html id="DSNVPS" lang="en-US" dir="LTR" class="Public Cute Pig" xmlns:fb="http://www.facebook.com/2008/fbml">
+<head>
+<meta charset="utf-8"/>
+<title>Cute Pig !!!</title>
+</head>
+<body>
+<center><img src="https://dsnvps/script/dsnvps/pig.jpg"></center><br><br>
+<center>What do you want?</center>
+</body>
+</html>
+END
+clear
+echo "========================================================================="
+echo "Phpmyadmin link đã được TẮT thành công!"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+    *)
+clear
+ echo "========================================================================="
+echo "Hủy bỏ  !"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+exit
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT / TẮT Phpmyadmin."
+echo "========================================================================="
+echo "Phpmyadmin link hiện đang TẮT!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn BẬT nó lên không? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ...";sleep 2
+	mv /home/$mainsite/private_html/index.bak /home/$mainsite/private_html/index.php
+	rm -f /home/$mainsite/private_html/index.html
+
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+        echo "========================================================================="
+echo "Phpmyadmin link đã được BẬT thành công!"
+echo "-------------------------------------------------------------------------"
+echo "Truy cập phpmyadmin qua: $mainsite:$priport hoặc $serverip_priport"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+    *)
+               clear
+ echo "========================================================================="
+echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+
+        ;;
+esac
+exit
+fi

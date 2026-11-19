@@ -1,0 +1,100 @@
+#!/bin/bash
+#Link xuat: /etc/dsnvps/.tmp/nginxversionsetup.txt
+
+rm -rf /etc/dsnvps/.tmp/nginxchoosesetup*
+cpu_arch=$(arch)
+os_name=$(cat /etc/*release | grep -oP '(?<=^NAME=")(.*?)(?=")')
+os_version=$(awk -F '=' '/VERSION_ID/ {print $2}' /etc/os-release | sed -e 's|"||g' | cut -d . -f1)
+
+echo "=========================================================================="
+echo "Phien ban Nginx co the cai dat: "
+echo "--------------------------------------------------------------------------"
+echo "$(cat /etc/dsnvps/.tmp/cuijhht): Mainline version"
+echo "--------------------------------------------------------------------------"
+echo "$(cat /etc/dsnvps/.tmp/9otgfgh): Stable version"
+echo "--------------------------------------------------------------------------"
+echo "Nginx-More: Phien ban Nginx duoc add them san cac Module: Brotli, GeoIP2 "
+echo "--------------------------------------------------------------------------"
+echo "More Headers, Cache Purge,... Dua tren phien ban Nginx Stable."
+echo "--------------------------------------------------------------------------"
+echo "Luu y: Nginx-More khong ho tro RHEL 8 voi Server CPU ARM"
+echo "--------------------------------------------------------------------------"
+echo "DSNVPS.VN khuyen nghi ban chon Nginx-More de su dung duoc 100% chuc nang"
+echo "--------------------------------------------------------------------------"
+echo "toi uu bao mat cho Server cua DSNVPS."
+echo "=========================================================================="
+while true; do
+echo "Lua chon phien Nginx:"
+    echo "1) $(cat /etc/dsnvps/.tmp/cuijhht)"
+    echo "2) $(cat /etc/dsnvps/.tmp/9otgfgh)"
+    echo "3) Nginx-more"
+echo "--------------------------------------------------------------------------"
+
+read -p "Nhap lua chon cua ban: " choice
+
+
+if [ "$choice" == "1" ]; then
+    echo "--------------------------------------------------------------------------"
+    
+    read -p "Ban chac chan muon cai Nginx $(cat /etc/dsnvps/.tmp/cuijhht)? (y/n): " confirm
+        if [ "$confirm" == "y" ]; then
+        rm -rf /etc/dsnvps/.tmp/nginxchoosesetup*
+echo "1" > /etc/dsnvps/.tmp/nginxchoosesetup-ml
+echo "$(cat /etc/dsnvps/.tmp/cuijhht)" > /etc/dsnvps/.tmp/nginxversionsetup.txt
+            break
+        else
+        echo "=========================================================================="
+echo "=========================================================================="
+            echo "Lua chon lai."
+            echo "=========================================================================="
+        fi
+    elif [ "$choice" == "2" ]; then
+read -p "Bạn chắc chắn muốn cài Nginx $(cat /etc/dsnvps/.tmp/9otgfgh)? (y/n): " confirm
+        if [ "$confirm" == "y" ]; then
+        rm -rf /etc/dsnvps/.tmp/nginxchoosesetup*
+echo "1" > /etc/dsnvps/.tmp/nginxchoosesetup-st
+echo "$(cat /etc/dsnvps/.tmp/9otgfgh)" > /etc/dsnvps/.tmp/nginxversionsetup.txt
+            break
+      else
+        echo "=========================================================================="
+echo "=========================================================================="
+echo "Lua chon lai."
+            echo "=========================================================================="
+        fi
+        
+        
+     elif [ "$choice" == "3" ]; then
+if [[ "$cpu_arch" == "aarch64" && ( "$os_name" == "AlmaLinux" && "$os_version" -lt 9 || 
+                                     "$os_name" == "CentOS Stream" && "$os_version" -lt 9 || 
+                                     "$os_name" == "Rocky Linux" && "$os_version" -lt 9 || 
+                                     "$os_name" == "Oracle Linux" && "$os_version" -lt 9 ) ]]; then
+echo "--------------------------------------------------------------------------"
+echo "Nginx-more khong ho tro server dung CPU ARM va cai dat cac he dieu hanh:"
+echo "--------------------------------------------------------------------------"
+echo "RHEL 8 nhu: AlmaLinux 8, CentOS Stream 8, Rocky Linux 8... RHEL8."
+echo "--------------------------------------------------------------------------"
+echo "Ban can chon phien ban he dieu hanh 9 de cai dat Nginx-more."
+echo "--------------------------------------------------------------------------"
+
+echo "Hoac chon 2 phien ban Nginx: $(cat /etc/dsnvps/.tmp/cuijhht) hoac $(cat /etc/dsnvps/.tmp/9otgfgh)" 
+else
+read -p "Ban chac chan muon cai Nginx-more? (y/n): " confirm
+        if [ "$confirm" == "y" ]; then
+        rm -rf /etc/dsnvps/.tmp/nginxchoosesetup*
+echo "1" > /etc/dsnvps/.tmp/nginxversionsetup-mr.txt
+echo "Nginx-More" > /etc/dsnvps/.tmp/nginxversionsetup.txt
+            break   
+        else
+        echo "=========================================================================="
+echo "=========================================================================="
+echo "Lua chon lai."
+echo "=========================================================================="
+fi
+fi
+else
+echo "=========================================================================="
+echo "========================================================================="
+echo "Lua chon khong hop le, ban hay nhap lai."
+            echo "=========================================================================="
+    fi
+done

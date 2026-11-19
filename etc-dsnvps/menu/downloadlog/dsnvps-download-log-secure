@@ -1,0 +1,39 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html/server-log ]; then
+mkdir -p /home/$mainsite/private_html/server-log
+fi
+random=`date |md5sum |cut -c '1-8'`
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/folderlog
+if [ -f /var/log/secure ]; then
+mkdir -p /etc/dsnvps/.tmp/folderlog
+	rm -rf /home/$mainsite/private_html/server-log/secure*
+	\cp -uf /var/log/secure /etc/dsnvps/.tmp/folderlog/
+	cd /etc/dsnvps/.tmp/folderlog
+	zip -r secure.log-$random.zip * 
+	cp /etc/dsnvps/.tmp/folderlog/secure.log-$random.zip /home/$mainsite/private_html/server-log
+	cd
+	rm -rf /etc/dsnvps/.tmp/folderlog
+	chown -R nginx:nginx /home/$mainsite/private_html/server-log/*
+	clear
+	echo "========================================================================= "
+echo "Link download Secure Log:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/server-log/secure.log-$random.zip "
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+else
+clear
+echo "========================================================================= "
+echo "File log không tồn tại hoặc bạn đã tắt chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 

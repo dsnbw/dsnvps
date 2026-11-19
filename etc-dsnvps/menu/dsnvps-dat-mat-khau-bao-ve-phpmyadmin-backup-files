@@ -1,0 +1,102 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+. /etc/dsnvps/pwprotect.default
+if [ ! -d /etc/nginx/pwprotect ]; then
+mkdir -p /etc/nginx/pwprotect
+fi
+if [ ! -f /etc/nginx/.htpasswd ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải tạo User và Mật khẩu mặc định trước khi chạy chức năng này. Tạo "
+echo "-------------------------------------------------------------------------"
+echo "User và Mật khẩu mặc định: "
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS Menu => Bảo Mật Server & Website => Thay Đổi Mật Khẩu Mặc Định."
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit
+fi
+
+if ! grep -q "auth_basic_user_file" "/etc/nginx/conf.d/$mainsite.conf"; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT bảo vệ link Quản Lý. "
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Link Quản Lý: http://$serverip_priport"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn BẬT bảo vệ link Quản Lý ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 2
+rm -rf /etc/dsnvps/.tmp/baovephpmyadmin
+   cat >> "/etc/dsnvps/.tmp/baovephpmyadmin" <<END
+sed -i "/\/home\/$mainsite\/private_html;/aauth_basic \"Authorization Required\";" /etc/nginx/conf.d/$mainsite.conf
+sed -i "/.*Authorization\ Required.*/aauth_basic_user_file  /etc/nginx/.htpasswd;" /etc/nginx/conf.d/$mainsite.conf
+END
+chmod +x /etc/dsnvps/.tmp/baovephpmyadmin
+/etc/dsnvps/.tmp/baovephpmyadmin
+rm -rf /etc/dsnvps/.tmp/baovephpmyadmin
+service nginx reload
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Hủy bỏ đặt mật khẩu bảo vệ phpMyAdmin "
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Hoàn thành BẬT bảo vệ link Quản Lý"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Link Quản Lý: http://$serverip_priport"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+
+else
+
+echo "========================================================================="
+echo "Chức năng này bảo vệ link Quản Lý đang được BẬT."
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập:"
+echo "-------------------------------------------------------------------------"
+echo "Link Quản Lý: http://$serverip_priport"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT chức năng bảo vệ này ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 2
+sed -i '/auth_basic/d' /etc/nginx/conf.d/$mainsite.conf
+
+systemctl reload nginx
+
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Hủy bỏ TẮT mật khẩu bảo vệ link Quản Lý "
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Hoàn thành TẮT mật khẩu bảo vệ link Quản Lý "
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi

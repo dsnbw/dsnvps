@@ -1,0 +1,183 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+abcza=`date +%Z`
+if [ "$abcza" == "GMT" ]; then
+giotimezone=GMT
+else
+giotimezone=`echo "GMT${abcza}"`
+fi
+ssi1=`echo "$(date | awk 'NR==1 {print $1,$2,$3}')"`
+ssi2=`date +%H:%M`
+#prompt="Lựa chọn của bạn [0 -Thoát]: "
+#options=("GMT" "GMT+1" "GMT+2" "GMT+3" "GMT+4" "GMT+5" "GMT+5:30" "GMT+6" "GMT+6:30" "GMT+7" "GMT+8" "GMT+8:45" "GMT+9" "GMT+9:30" "GMT+10" "GMT+10:30" "GMT+11" "GMT+12" "GMT+13" "GMT+13:45" "GMT+14" "GMT-1" "GMT-2" "GMT-3" "GMT-4" "GMT-5" "GMT-6" "GMT-7" "GMT-8" "GMT-9" "GMT-9:30" "GMT-10" "GMT-11" "GMT-12" )
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                       Cài Đặt Múi Giờ Cho Server  \n"
+printf "=========================================================================\n"
+text="Thời Gian Hiện Tại Của Server: $ssi1 $ssi2"
+# Căn giữa với chiều rộng 73 ký tự
+printf "%$(( (73 - ${#text}) / 2 ))s%s\n" "" "$text"
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1118 "
+echo "========================================================================="
+while true; do
+    printf "%-18s %-18s %-18s %-18s\n" "1) GMT" "8) GMT+6" "15) GMT+10" "22) GMT-1"
+    printf "%-18s %-18s %-18s %-18s\n" "2) GMT+1" "9) GMT+6:30" "16) GMT+10:30" "23) GMT-2"
+    printf "%-18s %-18s %-18s %-18s\n" "3) GMT+2" "10) GMT+7" "17) GMT+11" "24) GMT-3"
+    printf "%-18s %-18s %-18s %-18s\n" "4) GMT+3" "11) GMT+8" "18) GMT+12" "25) GMT-4"
+    printf "%-18s %-18s %-18s %-18s\n" "5) GMT+4" "12) GMT+8:45" "19) GMT+13" "26) GMT-5"
+    printf "%-18s %-18s %-18s %-18s\n" "6) GMT+5" "13) GMT+9" "20) GMT+13:45" "27) GMT-6"
+    printf "%-18s %-18s %-18s %-18s\n" "7) GMT+5:30" "14) GMT+9:30" "21) GMT+14" "28) GMT-7"
+    printf "%-18s %-18s %-18s %-18s\n" "29) GMT-8" "30) GMT-9" "31) GMT-9:30" "32) GMT-10"
+    printf "%-18s %-18s %-18s %-18s\n" "33) GMT-11" "34) GMT-12" "" ""
+
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+ #   read -p "Type in your choice [0 - Exit]: " choice
+    case $choice in
+    1) muigio="GMT"; break;;
+    2) muigio="GMT+1"; break;;
+    3) muigio="GMT+2"; break;;
+    4) muigio="GMT+3"; break;;
+    5) muigio="GMT+4"; break;;
+    6) muigio="GMT+5"; break;;
+    7) muigio="GMT+5:30"; break;;
+    8) muigio="GMT+6"; break;;
+    9) muigio="GMT+6:30"; break;;
+    10) muigio="GMT+7"; break;;
+    11) muigio="GMT+8"; break;;
+    12) muigio="GMT+8:45"; break;;
+    13) muigio="GMT+9"; break;;
+    14) muigio="GMT+9:30"; break;;
+    15) muigio="GMT+10"; break;;
+    16) muigio="GMT+10:30"; break;;
+    17) muigio="GMT+11"; break;;
+    18) muigio="GMT+12"; break;;
+    19) muigio="GMT+13"; break;;
+    20) muigio="GMT+13:45"; break;;
+    21) muigio="GMT+14"; break;;
+    22) muigio="GMT-1"; break;;
+    23) muigio="GMT-2"; break;;
+    24) muigio="GMT-3"; break;;
+    25) muigio="GMT-4"; break;;
+    26) muigio="GMT-5"; break;;
+    27) muigio="GMT-6"; break;;
+    28) muigio="GMT-7"; break;;
+    29) muigio="GMT-8"; break;;
+    30) muigio="GMT-9"; break;;
+    31) muigio="GMT-9:30"; break;;
+    32) muigio="GMT-10"; break;;
+    33) muigio="GMT-11"; break;;
+    34) muigio="GMT-12"; break;;
+0) clear; exit 0;;
+
+  
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+    esac
+    
+done
+echo "=========================================================================";
+echo "Dùng chức năng này để thay đổi múi giờ cho Server."
+echo "-------------------------------------------------------------------------"
+echo "Nếu thời gian nơi đặt Server khác với thời gian nơi website hoạt động"
+echo "-------------------------------------------------------------------------"
+echo "Bạn có thể dùng chức năng này để cài đặt cho thời gian giống nhau."
+echo "========================================================================="
+read -r -p "Bạn muốn thiết lập múi giờ cho server: $muigio ? [y/N] " response
+
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "OK, Vui lòng chờ ..."; sleep 3
+
+if [ "$muigio" = "GMT" ]; then
+	timedatectl set-timezone Europe/London
+elif [ "$muigio" = "GMT+1" ]; then
+	timedatectl set-timezone Europe/Paris
+elif [ "$muigio" = "GMT+2" ]; then
+	timedatectl set-timezone Europe/Kaliningrad
+elif [ "$muigio" = "GMT+3" ]; then
+	timedatectl set-timezone Europe/Moscow
+elif [ "$muigio" = "GMT+4" ]; then
+	timedatectl set-timezone Asia/Dubai
+elif [ "$muigio" = "GMT+5" ]; then
+	timedatectl set-timezone Asia/Karachi
+elif [ "$muigio" = "GMT+6" ]; then
+	timedatectl set-timezone Asia/Almaty
+elif [ "$muigio" = "GMT+7" ]; then
+	timedatectl set-timezone Asia/Ho_Chi_Minh
+elif [ "$muigio" = "GMT+8" ]; then
+	timedatectl set-timezone Singapore
+elif [ "$muigio" = "GMT+9" ]; then
+	timedatectl set-timezone Asia/Tokyo
+elif [ "$muigio" = "GMT+10" ]; then
+	timedatectl set-timezone Australia/Sydney
+elif [ "$muigio" = "GMT+11" ]; then
+	timedatectl set-timezone Pacific/Guadalcanal
+elif [ "$muigio" = "GMT+12" ]; then
+	timedatectl set-timezone Pacific/Auckland
+elif [ "$muigio" = "GMT-1" ]; then
+	timedatectl set-timezone Atlantic/Azores
+elif [ "$muigio" = "GMT-2" ]; then
+	timedatectl set-timezone Atlantic/South_Georgia
+elif [ "$muigio" = "GMT-3" ]; then
+	timedatectl set-timezone America/Argentina/Buenos_Aires
+elif [ "$muigio" = "GMT-4" ]; then
+	timedatectl set-timezone America/Caracas
+elif [ "$muigio" = "GMT-5" ]; then
+	timedatectl set-timezone America/Panama
+elif [ "$muigio" = "GMT-6" ]; then
+	timedatectl set-timezone America/Belize
+elif [ "$muigio" = "GMT-7" ]; then
+	timedatectl set-timezone America/Phoenix
+elif [ "$muigio" = "GMT-8" ]; then
+	timedatectl set-timezone America/Los_Angeles
+elif [ "$muigio" = "GMT-9" ]; then
+	timedatectl set-timezone America/Anchorage
+elif [ "$muigio" = "GMT-10" ]; then
+	timedatectl set-timezone Pacific/Honolulu
+elif [ "$muigio" = "GMT-11" ]; then
+	timedatectl set-timezone Pacific/Midway
+	
+elif [ "$muigio" = "GMT+5:30" ]; then
+	timedatectl set-timezone Asia/Kolkata
+elif [ "$muigio" = "GMT+6:30" ]; then
+	timedatectl set-timezone Asia/Yangon
+elif [ "$muigio" = "GMT+8:45" ]; then
+	timedatectl set-timezone Australia/Eucla
+elif [ "$muigio" = "GMT+9:30" ]; then
+	timedatectl set-timezone Australia/Darwin
+elif [ "$muigio" = "GMT+10:30" ]; then
+	timedatectl set-timezone Australia/Lord_Howe
+elif [ "$muigio" = "GMT+13:45" ]; then
+	timedatectl set-timezone Pacific/Chatham
+elif [ "$muigio" = "GMT-9:30" ]; then
+	timedatectl set-timezone Pacific/Marquesas
+	
+elif [ "$muigio" = "GMT+13" ]; then
+	timedatectl set-timezone Pacific/Fakaofo
+elif [ "$muigio" = "GMT+14" ]; then
+	timedatectl set-timezone Pacific/Kiritimati
+else 
+	timedatectl set-timezone Pacific/Wallis
+fi
+clear
+echo "========================================================================="
+echo "Cài Đặt Timezone cho Server thành công."
+echo "-------------------------------------------------------------------------"
+echo "Thời gian của server là: $(date | awk 'NR==1 {print $1,$2,$3,$4,$6}')"
+
+/etc/dsnvps/menu/dsnvps-thay-doi-thong-tin-thoi-gian
+else
+ clear
+ echo "========================================================================="
+ echo "Hủy bỏ."
+/etc/dsnvps/menu/dsnvps-thay-doi-thong-tin-thoi-gian
+ exit
+fi
+

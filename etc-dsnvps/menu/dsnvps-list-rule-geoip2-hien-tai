@@ -1,0 +1,251 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+
+. /etc/dsnvps/pwprotect.default
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -r /etc/dsnvps/menu/inc/htpasswd.py /usr/local/bin/htpasswd.py
+chmod +x /usr/local/bin/htpasswd.py
+fi
+if [ ! -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] && ! { [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] || nginx -V 2>&1 | grep -q "nginx-more"; }; then
+        echo "========================================================================="
+        echo "Chức năng này chỉ hoạt động trên Nginx-More."; sleep 3
+        echo "-------------------------------------------------------------------------"
+        echo "Kiểm Tra Phiên Bản Nginx ..."; sleep 3
+        clear
+        echo "========================================================================="
+        echo "Chức năng chỉ hỗ trợ Nginx-More !"
+        echo "-------------------------------------------------------------------------"
+        echo "Khuyến nghị: Hãy chuyển sang Nginx-More để sử dụng FULL chức năng DSNVPS."
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS menu => Thay Đổi/Cập Nhật Nginx => Nginx-More." 
+        /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi
+
+###Check Nginx service I
+if ! systemctl is-active --quiet nginx; then
+    clear
+    echo "========================================================================"
+    echo "Dịch vụ Nginx không chạy"
+    echo "------------------------------------------------------------------------"
+    echo "DSNVPS đang cố gắng khởi động nó"
+    echo "------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 5 ; clear
+    /etc/dsnvps/menu/inc/start-nginx-service
+    clear
+    echo "========================================================================"
+    echo "Kiểm tra lại dịch vụ Nginx!"
+    echo "------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 5 ; clear
+    if ! systemctl is-active --quiet nginx; then
+        clear
+        echo "========================================================================"
+        echo "DSNVPS không thể khởi động dịch vụ Nginx"
+        echo "------------------------------------------------------------------------"
+        echo "Vui lòng kiểm tra cấu hình Nginx và thử lại"
+        echo "------------------------------------------------------------------------"
+        echo "Nhấn Enter để thoát ..."
+        read
+        clear
+        /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+        exit
+    fi
+fi
+
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function
+echo "========================================================================="
+echo "                    LIST CÁC CÀI ĐẶT CẤU HÌNH HIỆN TẠI"
+echo "========================================================================="
+echo "Kiểm Tra Cấu Hình Truy Cập Theo Quốc Gia"
+echo "-------------------------------------------------------------------------"
+
+# Màu sắc cho các chức năng
+RED='\033[0;31m'      # Chức năng 1 (Redirect)
+GREEN='\033[0;32m'    # Chức năng 2 (Block)  
+BLUE='\033[0;34m'     # Chức năng 3 (Allow)
+YELLOW='\033[1;33m'   # Domain name
+NC='\033[0m'          # No Color
+
+# Biến đếm
+total_domains=0
+domains_with_config=0
+
+# Hàm hiển thị domain với màu
+show_domain() {
+    echo -e "${YELLOW}DOMAIN: $1${NC}"
+}
+
+# Hàm hiển thị chức năng 1 (Redirect)
+show_redirect() {
+    local domain=$1
+    local redirect_files=()
+    
+    # Tìm tất cả file redirect cho domain này
+    if [[ -d "/home/$domain/geoip2.conf.d/redirect.conf.d" ]]; then
+        while IFS= read -r -d '' file; do
+            redirect_files+=("$file")
+        done < <(find "/home/$domain/geoip2.conf.d/redirect.conf.d" -name "geoip2_redirect_*.conf" -print0 2>/dev/null)
+    fi
+    
+    # Tìm file redirect trong PARK DOMAIN
+    if [[ -d "/home/$mainwebsite/geoip2.conf.d/$domain/redirect.conf.d" ]]; then
+        while IFS= read -r -d '' file; do
+            redirect_files+=("$file")
+        done < <(find "/home/$mainwebsite/geoip2.conf.d/$domain/redirect.conf.d" -name "geoip2_redirect_*.conf" -print0 2>/dev/null)
+    fi
+    
+    if (( ${#redirect_files[@]} > 0 )); then
+        echo -e "├── ${RED}Chức năng 1 (Redirect):${NC}"
+        for file in "${redirect_files[@]}"; do
+            # Lấy mã quốc gia từ tên file
+            country_code=$(basename "$file" | sed 's/geoip2_redirect_\(.*\)\.conf/\1/')
+            # Lấy target domain từ nội dung file
+            target_domain=$(grep -o 'return 301 http://[^$]*' "$file" | sed 's/return 301 http:\/\///' | sed 's/\\$request_uri.*//')
+            echo -e "│   └── $country_code → $target_domain"
+        done
+    fi
+}
+
+# Hàm hiển thị chức năng 2 (Block)
+show_block() {
+    local domain=$1
+    local block_files=()
+    
+    # Tìm tất cả file block cho domain này
+    if [[ -d "/home/$domain/geoip2.conf.d/countryblock.conf.d" ]]; then
+        while IFS= read -r -d '' file; do
+            block_files+=("$file")
+        done < <(find "/home/$domain/geoip2.conf.d/countryblock.conf.d" -name "geoip2_block_*.conf" -print0 2>/dev/null)
+    fi
+    
+    # Tìm file block trong PARK DOMAIN
+    if [[ -d "/home/$mainwebsite/geoip2.conf.d/$domain/countryblock.conf.d" ]]; then
+        while IFS= read -r -d '' file; do
+            block_files+=("$file")
+        done < <(find "/home/$mainwebsite/geoip2.conf.d/$domain/countryblock.conf.d" -name "geoip2_block_*.conf" -print0 2>/dev/null)
+    fi
+    
+    if (( ${#block_files[@]} > 0 )); then
+        echo -e "├── ${GREEN}Chức năng 2 (Block):${NC}"
+        local countries=()
+        for file in "${block_files[@]}"; do
+            # Lấy mã quốc gia từ tên file
+            country_code=$(basename "$file" | sed 's/geoip2_block_\(.*\)\.conf/\1/')
+            countries+=("$country_code")
+        done
+        echo -e "│   └── ${countries[*]}"
+    fi
+}
+
+# Hàm hiển thị chức năng 3 (Allow)
+show_allow() {
+    local domain=$1
+    local allowlist_file=""
+    
+    # Tìm file allowlist hợp nhất cho domain này
+    if [[ -f "/home/$domain/geoip2.conf.d/allowlist.conf.d/geoip2_allowlist.conf" ]]; then
+        allowlist_file="/home/$domain/geoip2.conf.d/allowlist.conf.d/geoip2_allowlist.conf"
+    elif [[ -f "/home/$mainwebsite/geoip2.conf.d/$domain/allowlist.conf.d/geoip2_allowlist.conf" ]]; then
+        allowlist_file="/home/$mainwebsite/geoip2.conf.d/$domain/allowlist.conf.d/geoip2_allowlist.conf"
+    fi
+    
+    if [[ -n "$allowlist_file" && -f "$allowlist_file" ]]; then
+        # Parse regex từ file hợp nhất: lấy phần trong ngoặc (US|SG|VN)
+        merged_regex=$(grep -E 'if \(\$geoip2_data_country_code !~ ' "$allowlist_file" | sed -E 's/.*\^\(([^)]*)\)\$\"\) \{.*/\1/')
+        if [[ -n "$merged_regex" ]]; then
+            echo -e "└── ${BLUE}Chức năng 3 (Only Country Allow):${NC}"
+            # Thay thế | bằng dấu phẩy và khoảng trắng
+            countries_display=$(echo "$merged_regex" | sed 's/|/, /g')
+            echo -e "    └── $countries_display"
+        fi
+    fi
+}
+
+# Hàm kiểm tra domain có cấu hình không
+has_config() {
+    local domain=$1
+    
+    # Kiểm tra redirect
+    if [[ -d "/home/$domain/geoip2.conf.d/redirect.conf.d" ]] && [[ -n "$(find "/home/$domain/geoip2.conf.d/redirect.conf.d" -name "geoip2_redirect_*.conf" 2>/dev/null)" ]]; then
+        return 0
+    fi
+    if [[ -d "/home/$mainwebsite/geoip2.conf.d/$domain/redirect.conf.d" ]] && [[ -n "$(find "/home/$mainwebsite/geoip2.conf.d/$domain/redirect.conf.d" -name "geoip2_redirect_*.conf" 2>/dev/null)" ]]; then
+        return 0
+    fi
+    
+    # Kiểm tra block
+    if [[ -d "/home/$domain/geoip2.conf.d/countryblock.conf.d" ]] && [[ -n "$(find "/home/$domain/geoip2.conf.d/countryblock.conf.d" -name "geoip2_block_*.conf" 2>/dev/null)" ]]; then
+        return 0
+    fi
+    if [[ -d "/home/$mainwebsite/geoip2.conf.d/$domain/countryblock.conf.d" ]] && [[ -n "$(find "/home/$mainwebsite/geoip2.conf.d/$domain/countryblock.conf.d" -name "geoip2_block_*.conf" 2>/dev/null)" ]]; then
+        return 0
+    fi
+    
+    # Kiểm tra allow
+    if [[ -f "/home/$domain/geoip2.conf.d/allowlist.conf.d/geoip2_allowlist.conf" ]] || [[ -f "/home/$mainwebsite/geoip2.conf.d/$domain/allowlist.conf.d/geoip2_allowlist.conf" ]]; then
+        return 0
+    fi
+    
+    return 1
+}
+
+# Quét tất cả domains
+echo "Đang kiểm tra từng domain ..."; sleep 4
+
+# Lấy danh sách domains từ /home
+domains=()
+while IFS= read -r -d '' dir; do
+    domain_name=$(basename "$dir")
+    if [[ "$domain_name" != "lost+found" && "$domain_name" != "$mainwebsite" ]]; then
+        domains+=("$domain_name")
+    fi
+done < <(find /home -maxdepth 1 -type d -print0 2>/dev/null)
+
+# Thêm mainwebsite nếu có
+if [[ -n "$mainwebsite" ]]; then
+    domains+=("$mainwebsite")
+fi
+
+# Sắp xếp domains
+IFS=$'\n' domains=($(sort <<<"${domains[*]}"))
+unset IFS
+
+echo ""
+
+# Kiểm tra từng domain
+for domain in "${domains[@]}"; do
+    total_domains=$((total_domains + 1))
+    
+    if has_config "$domain"; then
+        domains_with_config=$((domains_with_config + 1))
+        show_domain "$domain"
+        show_redirect "$domain"
+        show_block "$domain"
+        show_allow "$domain"
+        echo ""
+    fi
+done
+
+# Hiển thị tổng kết
+echo "========================================================================="
+if (( domains_with_config == 0 )); then
+    echo "Không có domain nào được cấu hình truy cập theo quốc gia"
+else
+    echo "Tổng cộng: $domains_with_config domains được cấu hình"
+fi
+echo "========================================================================="
+
+echo ""
+echo "Nhấn Enter để quay lại menu ..."
+read
+clear
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu

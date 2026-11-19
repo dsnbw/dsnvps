@@ -1,0 +1,105 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode*
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+clear
+echo "========================================================================="
+echo "CSF Firewall đang tắt"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật CSF Firewall lên để chạy chức năng này."
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+fi
+
+echo "========================================================================="
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+echo "Chức năng này sẽ bật CSF Firewall nếu bạn đang tắt nó."
+echo "-------------------------------------------------------------------------" 
+fi
+countryblicklist=`grep "CC_DENY =\ " /etc/csf/csf.conf | awk 'NR==1 {print $3}' | cut -d \" -f 2`
+countryblicklistchieudoc=`grep "CC_DENY =\ " /etc/csf/csf.conf | awk 'NR==1 {print $3}' | cut -d \" -f 2 | awk -F, '{for (i=1;i<=NF;i++)print $i}'`
+if [ "$countryblicklist" = "" ]; then
+clear
+echo "========================================================================="
+echo "Hiện tại CSF Firewall không block đất nước nào."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần sử dụng chức năng này."
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+else
+
+for manuoc in $countryblicklistchieudoc; do
+echo "$(grep "|${manuoc}|" /etc/dsnvps/menu/CSF-Fiwall/dsnvps-country-code | sed "s/|${manuoc}|//")" >> /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show
+done
+
+sonuoc=`cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show | wc -l`
+if [ ! "$sonuoc" = 1 ]; then
+nuoc=countries
+hoithoai1=`echo "Hiện tại CSF Firewall đang block $sonuoc nước:"`
+hoithoai2=`echo "Bạn muốn unblock $sonuoc nước này?"`
+hoithoai3=`echo "Unblock tất cả các nước thành công!"`
+else
+nuoc=country
+hoithoai1=`echo "Hiện tại CSF Firewall đang block:"`
+hoithoai2=`echo "Bạn muốn unblock đất nước này?"`
+hoithoai3=`echo "Unblock $(cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show) thành công!"`
+fi
+echo "$hoithoai1"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show | pr -2 -t
+echo "========================================================================="
+  read -r -p "$hoithoai2 [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ...";sleep 2
+sed -i "s/.*CC_DENY\ =.*/CC_DENY = \"\"/g" /etc/csf/csf.conf
+if [ "$test_csf" == "enable" ]; then
+csf -e
+fi
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd
+clear
+echo "========================================================================="
+echo "$hoithoai3"
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode*
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+    *)
+clear 
+echo "========================================================================= "
+echo "Hủy bỏ!"
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode*
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+esac
+fi
+else
+echo "========================================================================= "
+echo "Chức năng này cần CSF Firewall để hoạt động."
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall chưa được cài đặt trên server!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn cài đặt CSF Firewall vào server [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Bạn hủy bỏ cài đặt CSF Firewall ! "
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+

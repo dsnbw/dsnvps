@@ -1,0 +1,6 @@
+#!/bin/bash
+echo "Vui lòng chờ....";sleep 2
+clear
+echo "========================================================================="
+df -h
+/etc/dsnvps/menu/dsnvps-check-thong-tin-server

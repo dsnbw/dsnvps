@@ -1,0 +1,57 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+saoluunftables ()
+{
+# Kiểm tra xem nftables có đang chạy không
+if ! command -v nft &> /dev/null; then
+    echo "Lỗi: nftables không được cài đặt trên hệ thống này!"
+    echo "--------------------------------------------------------------------------"
+    echo "Vui lòng cài đặt nftables trước khi sử dụng chức năng này."
+    sleep 3
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Tạo thư mục backup nếu chưa tồn tại
+mkdir -p /etc/dsnvps/nftablesbak
+
+# Tạo số ngẫu nhiên 5 chữ số
+random=$(shuf -i 10000-99999 -n 1)
+
+# Sao lưu nftables rules
+nft list ruleset > /etc/dsnvps/nftablesbak/nftables_$random.bak
+echo "--------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+clear
+echo "========================================================================="
+echo "Sao lưu Nftables Firewall Rules hoàn thành!"
+echo "--------------------------------------------------------------------------"
+echo "File backup được lưu tại: /etc/dsnvps/nftablesbak/nftables_$random.bak"
+/etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+}
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để sao lưu Nftables Rules cho server"
+echo "--------------------------------------------------------------------------"
+read -r -p "Bạn có muốn sao lưu Nftables Rules không? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "--------------------------------------------------------------------------"
+        echo "Chuẩn bị sao lưu Nftables Rules"
+        sleep 3
+        saoluunftables
+        ;;
+    *)
+        clear
+        echo "========================================================================="
+        echo "Hủy bỏ !"
+        /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+        ;;
+esac

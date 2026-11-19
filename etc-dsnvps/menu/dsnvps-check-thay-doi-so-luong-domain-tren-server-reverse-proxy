@@ -1,0 +1,103 @@
+#!/bin/bash
+#####################################
+## Cấu hình lại số lượng website cho phép trên VPS khi cần thiết.
+###
+CONFIG_FILE="/etc/nginx/nginx.conf"
+BACKUP_DIR="/etc/dsnvps/.tmp"
+BACKUP_FILE="$BACKUP_DIR/nginx.conf.bak"
+
+if grep -q "server_names_hash_max_size" "$CONFIG_FILE"; then
+# Đảm bảo thư mục backup tồn tại
+mkdir -p "$BACKUP_DIR"
+
+# Đếm domain chính
+DOMAIN_COUNT=$(grep -oP "server_name\s+\K.+" /etc/nginx/nginx.conf /etc/nginx/conf.d/*.conf | wc -l)
+
+# Duyệt qua tất cả các domain trong /etc/nginx/conf.d/ để tìm vhost phụ
+for DOMAIN_PATH in /etc/nginx/conf.d/*.conf; do
+    DOMAIN_NAME=$(basename "$DOMAIN_PATH" .conf)
+    # Đếm redirect domain & park domain
+    if [ -d "/home/$DOMAIN_NAME/conf.d/" ]; then
+        DOMAIN_COUNT=$((DOMAIN_COUNT + $(grep -oP "server_name\s+\K.+" /home/$DOMAIN_NAME/conf.d/*.conf 2>/dev/null | wc -l)))
+    fi
+    # Đếm subsite domain
+    if [ -d "/home/$DOMAIN_NAME/multisite.conf.d/" ]; then
+        DOMAIN_COUNT=$((DOMAIN_COUNT + $(grep -oP "server_name\s+\K.+" /home/$DOMAIN_NAME/multisite.conf.d/*.conf 2>/dev/null | wc -l)))
+    fi
+done
+
+# Xác định giá trị server_names_hash_max_size cần thiết
+if [ "$DOMAIN_COUNT" -ge 5000 ]; then
+    REQUIRED_HASH_MAX=16384
+elif [ "$DOMAIN_COUNT" -ge 2000 ]; then
+    REQUIRED_HASH_MAX=8192
+elif [ "$DOMAIN_COUNT" -ge 1000 ]; then
+    REQUIRED_HASH_MAX=4096
+elif [ "$DOMAIN_COUNT" -ge 500 ]; then
+    REQUIRED_HASH_MAX=2048
+elif [ "$DOMAIN_COUNT" -ge 200 ]; then
+    REQUIRED_HASH_MAX=1024
+else
+    REQUIRED_HASH_MAX=512
+fi
+
+# Lấy giá trị hiện tại của server_names_hash_max_size
+CURRENT_HASH_MAX=$(grep -oP "server_names_hash_max_size\s+\K[0-9]+" "$CONFIG_FILE" 2>/dev/null)
+
+# Nếu giá trị hiện tại >= giá trị yêu cầu thì không cần thay đổi, tiếp tục script mà không in thông báo
+[ -n "$CURRENT_HASH_MAX" ] && [ "$CURRENT_HASH_MAX" -ge "$REQUIRED_HASH_MAX" ] && exit 0
+
+# Tiến hành cập nhật cấu hình
+clear
+echo "========================================================================="
+echo "Số lượng server_name trên server: $DOMAIN_COUNT. "
+echo "-------------------------------------------------------------------------"
+echo "SNHMS gần đạt tới giới hạn hiện tại ($CURRENT_HASH_MAX), cần nâng cấp lên $REQUIRED_HASH_MAX."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ tăng giới hạn này lên mức cao hơn."
+echo "-------------------------------------------------------------------------"
+echo "SNHMS: server_names_hash_max_size"
+echo "========================================================================="
+read -p "Nhấn Enter để tiếp tục..." enter
+
+# Sao lưu file cấu hình trước khi thay đổi
+cp "$CONFIG_FILE" "$BACKUP_FILE" || exit 1
+
+# Chỉ cập nhật nếu có dòng server_names_hash_max_size, không thêm mới
+if grep -q "server_names_hash_max_size" "$CONFIG_FILE"; then
+    sed -i "s/^\s*server_names_hash_max_size\s\+[0-9]\+;/server_names_hash_max_size $REQUIRED_HASH_MAX;/" "$CONFIG_FILE"
+    echo "========================================================================="
+    echo "DSNVPS đã hoàn thành tăng giới hạn."; sleep 3
+else
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy server_names_hash_max_size trong file nginx.conf "
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn cần tự cập nhật thủ công."
+    rm -f "$BACKUP_FILE"
+    dsnvps
+fi
+
+# Kiểm tra cấu hình trước khi reload
+if nginx -t &>/dev/null; then
+    systemctl reload nginx &>/dev/null || nginx -s reload &>/dev/null
+    # Xóa backup sau khi reload thành công
+    rm -f "$BACKUP_FILE"
+    clear
+    echo "========================================================================="
+    echo "Đã reload Nginx với cấu hình mới."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn có thể tiếp tục thêm website như bình thường."
+    /etc/dsnvps/menu/dsnvps-reverse-proxy-menu
+else
+    # Khôi phục nếu lỗi
+    cp -f "$BACKUP_FILE" "$CONFIG_FILE"
+    rm -f "$BACKUP_FILE"
+    clear
+    echo "========================================================================="
+    echo "Lỗi cấu hình! DSNVPS không thay đổi cấu hình được. Vui lòng kiểm tra lại."
+    echo "-------------------------------------------------------------------------"
+    nginx -t
+    dsnvps  
+fi
+fi

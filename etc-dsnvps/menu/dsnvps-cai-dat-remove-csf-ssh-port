@@ -1,0 +1,28 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/csf/csf.conf ]; then
+clear
+echo "========================================================================="
+echo "Phát hiện CSF Firewall đang được cài đặt trên VPS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ remove CSF sau đó cài đặt lại CSF để cập nhật port SSH mới"
+sleep 8
+yes | cp -rf /etc/csf/csf.conf /etc/dsnvps/csf.conf_bak
+cd /etc/csf
+sh uninstall.sh
+cd
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+check=notok
+fi
+/etc/dsnvps/menu/dsnvps-cai-csf-firewall-cai-dat-CSF-FIREWALL
+if [ "$check" == "notok" ]; then
+csf -x >/dev/null 2>&1
+fi
+fi

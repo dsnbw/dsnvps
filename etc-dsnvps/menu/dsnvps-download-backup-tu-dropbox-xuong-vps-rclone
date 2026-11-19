@@ -1,0 +1,421 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed  
+re='^[0-9]+$'
+if [ ! -f /bin/rclone ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt Rclone trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+    mkdir -p /home/$mainsite/private_html/backup
+fi
+if [ -f /etc/dsnvps/backup.dropbox.conf ]; then
+    if [ ! -f /etc/cron.d/dsnvps.rclone.backup.dropbox.cron ]; then
+        rm -rf /etc/dsnvps/backup.dropbox.conf
+    fi 
+fi
+if [ -f /etc/cron.d/dsnvps.rclone.backup.dropbox.cron ]; then
+    if [ ! -f /etc/dsnvps/backup.dropbox.conf ]; then
+        rm -rf /etc/cron.d/dsnvps.rclone.backup.dropbox.cron
+    fi 
+fi
+if [ ! -f /etc/dsnvps/backup.dropbox.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn phải hoàn thành [Cấu Hình Tự Động Sao Lưu] "
+    echo "-------------------------------------------------------------------------"
+    echo "trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi 
+if [ ! -f /root/.config/rclone/rclone.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Cloud (Dropbox) chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/checkrclonedropbox
+awk '/^\[dropbox\]/ {print}' /root/.config/rclone/rclone.conf > /etc/dsnvps/.tmp/checkrclonedropbox
+
+checka=`cat /etc/dsnvps/.tmp/checkrclonedropbox`
+
+wc -l < /etc/dsnvps/.tmp/checkrclonedropbox > /etc/dsnvps/.tmp/checkrclonedropboxline
+checkb=`cat /etc/dsnvps/.tmp/checkrclonedropboxline`
+
+if [ "$checkb" -lt "1" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối VPS với Dropbox trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+if [ "$checkb" -gt "1" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Hiện tại DSNVPS chỉ hỗ trợ backup VPS với 1 config Dropbox"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chạy chức năng [ Xóa Tất Cả Cấu Hình ], và thực hiện config lại."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/chckshxn0
+grep -B 1 "type = dropbox" /root/.config/rclone/rclone.conf | awk 'NR==1' | sed 's/\[//' | sed 's/\]//' > /etc/dsnvps/.tmp/chckshxn0
+uservue=`cat /etc/dsnvps/.tmp/chckshxn0`
+if [ -z "$uservue" ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng kiểm tra lại."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+##################################################################
+# Kiểm tra kết nối Dropbox
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới Dropbox"; sleep 2
+REMOTE_NAME="dropbox"
+success=0
+> /tmp/rclone_connect.log
+for attempt in {1..3}; do
+    if [ $attempt -eq 1 ] || [ $attempt -eq 3 ]; then
+        rclone about "$REMOTE_NAME": > /tmp/rclone_connect.log 2>&1
+        if [ $? -eq 0 ]; then
+            success=1
+            break
+        fi
+    elif [ $attempt -eq 2 ]; then
+        rclone config show "$REMOTE_NAME": > /tmp/rclone_connect.log 2>&1
+        if [ $? -eq 0 ]; then
+            success=1
+            break
+        fi
+    fi
+    if [ $attempt -lt 3 ]; then
+        echo "Check kết nối thất bại. DSNVPS sẽ check lại một lần nữa."
+        sleep 5
+    fi
+done
+if [ $success -eq 0 ]; then
+    clear
+    echo "========================================================================="
+    echo "Kết nối tới Dropbox thất bại !"
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi:"
+    echo "-------------------------------------------------------------------------"
+    cat /tmp/rclone_connect.log
+    echo "-------------------------------------------------------------------------"
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+sleep 3 && tput cuu 2 && tput ed
+######################################################
+echo "========================================================================="
+echo "Sử dụng chức năng này để tải các file backup từ Dropbox về Server."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/3856"
+
+> /etc/dsnvps/.tmp/olaus.txt
+
+# Lấy danh sách folder trong thư mục gốc Dropbox
+. /etc/dsnvps/backup.dropbox.conf
+folders=$(rclone lsf --dirs-only ${nameaction}:)
+
+for folder in $folders; do
+    # Bỏ dấu '/' ở cuối nếu có
+    folder=${folder%/}  
+    # Kiểm tra nếu folder có dạng địa chỉ IP
+    if [[ $folder =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        echo "$folder" >> /etc/dsnvps/.tmp/olaus.txt
+    fi
+done
+
+# Kiểm tra file olaus.txt có nội dung hay không
+if [ ! -s /etc/dsnvps/.tmp/olaus.txt ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy folder backup."
+    echo "-------------------------------------------------------------------------"
+    echo "Folder Backup có dạng: AAA.XXX.YYY.ZZZ - Địa chỉ IP Server." 
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+mapfile -t ipvps_list < /etc/dsnvps/.tmp/olaus.txt
+echo "========================================================================="
+echo "Danh sách các folder backup :"
+echo "-------------------------------------------------------------------------"
+total=${#ipvps_list[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+    left_db="${ipvps_list[i]:- }"                    
+    if (( right_index <= total )); then           
+        right_db="${ipvps_list[right_index-1]}"      
+        printf "%-4s %-30s %-4s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-4s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với IP Server [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng nhập một số hợp lệ."
+        sleep 4
+        tput cuu 4
+        for ((i=0; i<4; i++)); do
+            tput el
+            tput cud1
+        done
+        tput cuu 4
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#ipvps_list[@]} )); then
+        folder=${ipvps_list[lua_chon-1]}
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng nhập một số hợp lệ."
+        sleep 4
+        tput cuu 4
+        for ((i=0; i<4; i++)); do
+            tput el
+            tput cud1
+        done
+        tput cuu 4
+    fi
+done
+
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra: $folder" 
+printf "=========================================================================\n"
+echo "Danh sách backup folder (Database & Website):"
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/listfolderdropbox
+cat > "/etc/dsnvps/.tmp/listfolderdropbox.sh" <<END
+#!/bin/bash
+. /etc/dsnvps/backup.dropbox.conf 
+rclone lsf \${nameaction}:${folder} --dirs-only > /etc/dsnvps/.tmp/listfolderdropbox
+END
+sh /etc/dsnvps/.tmp/listfolderdropbox.sh
+rm -rf /etc/dsnvps/.tmp/listfolderdropbox.sh
+
+if [ ! -s /etc/dsnvps/.tmp/listfolderdropbox ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file backup nào trên Dropbox !"
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+# Hiển thị danh sách folder trên Dropbox
+clear
+echo "========================================================================="
+echo "Danh sách folder backup trên Dropbox: "
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/listfolderdropbox
+echo "========================================================================="
+echo "Chọn cách tải về backup:"
+echo "-------------------------------------------------------------------------"
+options=("Tải bản backup gần nhất của tất cả website/database" "Tải toàn bộ file backup trên Dropbox")
+PS3="Nhập lựa chọn của bạn [0 -Thoát]: "
+select opt in "${options[@]}"; do
+    if [ "$REPLY" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+        exit
+    fi
+    case $opt in
+        "Tải bản backup gần nhất của tất cả website/database") cachtaibackup=gannhat; break;;
+        "Tải toàn bộ file backup trên Dropbox") cachtaibackup=toanbo; break;;
+        *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách."; continue;;
+    esac
+done
+
+if [ "$cachtaibackup" = "gannhat" ]; then
+    echo "========================================================================="
+    read -r -p "Bạn chắc chắn download bản backup gần nhất? [y/N] " response
+    if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+
+        rm -rf /etc/dsnvps/.tmp/listfolderdropboxgan
+        cat > "/etc/dsnvps/.tmp/listfolderdropboxgan.sh" <<END
+#!/bin/bash
+. /etc/dsnvps/backup.dropbox.conf 
+rclone lsf \${nameaction}:${folder} --dirs-only > /etc/dsnvps/.tmp/listfolderdropboxgan
+END
+        sh /etc/dsnvps/.tmp/listfolderdropboxgan.sh
+        rm -rf /etc/dsnvps/.tmp/listfolderdropboxgan.sh
+        listfolder=$(cat /etc/dsnvps/.tmp/listfolderdropboxgan)
+
+        for foldername in $listfolder; do
+            echo "========================================================================="
+            echo "Đang tải bản backup gần nhất của: $foldername"
+            if [ ! -d /home/$mainsite/private_html/backup/${foldername} ]; then
+                mkdir -p /home/$mainsite/private_html/backup/${foldername}
+            fi
+            echo "-------------------------------------------------------------------------"
+            echo "To: /home/$mainsite/private_html/backup/${foldername}"
+            rm -rf /etc/dsnvps/.tmp/listfilegan
+            cat > "/etc/dsnvps/.tmp/listfilegan.sh" <<END
+#!/bin/bash
+. /etc/dsnvps/backup.dropbox.conf 
+# Try to get the latest .sql.gz file first
+rclone lsl \${nameaction}:${folder}/${foldername} | grep ".sql.gz$" | sort -k1,2 -r | head -n 1 | awk '{print \$4}' > /etc/dsnvps/.tmp/listfilegan
+# If no .sql.gz file is found, fall back to files with timestamp suffix (e.g., .sql.gz_15h11m-16-09-25)
+if [ ! -s /etc/dsnvps/.tmp/listfilegan ]; then
+    rclone lsl \${nameaction}:${folder}/${foldername} | grep -E ".sql.gz_.*$" | sort -k1,2 -r | head -n 1 | awk '{print \$4}' > /etc/dsnvps/.tmp/listfilegan
+fi
+# If still no file is found (for non-database backups, e.g., .zip), get the latest file
+if [ ! -s /etc/dsnvps/.tmp/listfilegan ]; then
+    rclone lsl \${nameaction}:${folder}/${foldername} | sort -k1,2 -r | head -n 1 | awk '{print \$4}' > /etc/dsnvps/.tmp/listfilegan
+fi
+END
+            sh /etc/dsnvps/.tmp/listfilegan.sh
+            rm -rf /etc/dsnvps/.tmp/listfilegan.sh
+            pathfile=$(cat /etc/dsnvps/.tmp/listfilegan)
+            echo "-------------------------------------------------------------------------"
+            echo "File backup: $pathfile"
+            rm -rf /etc/dsnvps/.tmp/downloadgan.sh
+            cat > "/etc/dsnvps/.tmp/downloadgan.sh" <<END
+#!/bin/bash
+. /etc/dsnvps/backup.dropbox.conf 
+rclone copy --progress "\${nameaction}:${folder}/${foldername}/$pathfile" /home/$mainsite/private_html/backup/${foldername}
+END
+            sh /etc/dsnvps/.tmp/downloadgan.sh
+            rm -rf /etc/dsnvps/.tmp/downloadgan.sh
+        done
+
+        clear
+        printf "=========================================================================\n"
+        echo "Download các file backup gần nhất hoàn thành."
+        echo "-------------------------------------------------------------------------"
+        echo "Folder chứa backup:"
+        echo "-------------------------------------------------------------------------"
+        echo "/home/$mainsite/private_html/backup"
+        echo "-------------------------------------------------------------------------"
+        echo "Bây giờ bạn có thể sử dụng các chức năng có sẵn của DSNVPS để phục hồi"
+        echo "-------------------------------------------------------------------------"
+        echo "Website & Database từ các file backup vừa tải về."
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS Menu => Sao Lưu & Phục Hồi Website => Phục Hồi 1 Website" 
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS Menu => Sao Lưu & Phục Hồi Database => Phục Hồi 1 Database "
+        printf "=========================================================================\n"
+        printf "=========================================================================\n"
+        read -p "Nhấn [ Enter ] để tiếp tục..."
+        clear
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    else
+        clear
+        printf "=========================================================================\n"
+        echo "Hủy bỏ."
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    fi
+
+elif [ "$cachtaibackup" = "toanbo" ]; then
+    echo "========================================================================="
+    read -r -p "Bạn chắc chắn download toàn bộ file backup? [y/N] " response
+    if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+
+        rm -rf /etc/dsnvps/.tmp/listzvgam*
+        cat > "/etc/dsnvps/.tmp/listzvgam.sh" <<END
+#!/bin/bash
+. /etc/dsnvps/backup.dropbox.conf 
+rclone lsl \${nameaction}:${folder} > /etc/dsnvps/.tmp/listzvgam
+END
+        sh /etc/dsnvps/.tmp/listzvgam.sh
+        rm -rf /etc/dsnvps/.tmp/listzvgam.sh
+        cat /etc/dsnvps/.tmp/listzvgam | awk '{ print $4 }' > /etc/dsnvps/.tmp/listzvgamxz
+        listfolder=$(cat /etc/dsnvps/.tmp/listzvgamxz)
+
+        for pathfolder in $listfolder; do
+            export dsnvps=$pathfolder
+            export sim=${dsnvps%/*}
+            filename="${pathfolder##*/}"
+            echo "========================================================================="
+            echo "Đang tải xuống: $filename"
+            if [ ! -d /home/$mainsite/private_html/backup/${sim} ]; then
+                mkdir -p /home/$mainsite/private_html/backup/${sim}
+            fi
+            echo "-------------------------------------------------------------------------"
+            echo "To: /home/$mainsite/private_html/backup/${sim}"
+            rm -rf /etc/dsnvps/.tmp/downloadxz.sh
+            cat > "/etc/dsnvps/.tmp/downloadxz.sh" <<END
+#!/bin/bash
+. /etc/dsnvps/backup.dropbox.conf 
+rclone copy --progress "\${nameaction}:${folder}/$pathfolder" /home/$mainsite/private_html/backup/${sim}
+END
+            sh /etc/dsnvps/.tmp/downloadxz.sh
+            rm -rf /etc/dsnvps/.tmp/downloadxz.sh
+        done
+
+        clear
+        printf "=========================================================================\n"
+        echo "Download toàn bộ các file backup ${folder} hoàn thành."
+        echo "-------------------------------------------------------------------------"
+        echo "Folder chứa backup:"
+        echo "-------------------------------------------------------------------------"
+        echo "/home/$mainsite/private_html/backup"
+        echo "-------------------------------------------------------------------------"
+        echo "Bây giờ bạn có thể sử dụng các chức năng có sẵn của DSNVPS để phục hồi"
+        echo "-------------------------------------------------------------------------"
+        echo "Website & Database từ các file backup vừa tải về."
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS Menu => Sao Lưu & Phục Hồi Website => Phục Hồi 1 Website" 
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS Menu => Sao Lưu & Phục Hồi Database => Phục Hồi 1 Database "
+        printf "=========================================================================\n"
+        printf "=========================================================================\n"
+        read -p "Nhấn [ Enter ] để tiếp tục..."
+        clear
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    else
+        clear
+        printf "=========================================================================\n"
+        echo "Hủy bỏ."
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    fi
+else
+    clear
+    printf "=========================================================================\n"
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+fi

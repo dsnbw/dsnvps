@@ -1,0 +1,38 @@
+#!/bin/bash
+dsnvpsroot=/etc/dsnvps/menu
+dsnvpsrootchild=/etc/dsnvps/menu/childmenu/
+echo "========================================================================="
+while true; do
+
+printf "%-44s %s\n" "1) Sao Lưu VPS Tới Google Drive     |""3) Sao Lưu VPS Tới Telegram        |"
+printf "%-44s %s\n" "2) Sao Lưu VPS Tới One Drive        |""4) Sao Lưu VPS Tới Dropbox         |"
+printf "%-44s %s\n" "------------------------------------------------------------------------|"
+printf "%-44s %s\n" "5) Sao Lưu Data Tới VPS Backup      |""-----------------------------------|"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in   
+    1) clear && $dsnvpsroot/dsnvps-rclone-menu;;
+    2) clear && $dsnvpsroot/dsnvps-rclone-onedrive-menu;;
+    3) clear && $dsnvpsroot/dsnvps-telegram-menu;;  
+    4) clear && $dsnvpsroot/dsnvps-rclone-dropbox-menu;;
+    5) /etc/dsnvps/menu/childmenu/dsnvps-befor-rsync;;
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 7   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<7; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 7   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+
+ 

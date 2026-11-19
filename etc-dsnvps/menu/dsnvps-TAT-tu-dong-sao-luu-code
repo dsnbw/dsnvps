@@ -1,0 +1,42 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+website=$(cat /etc/dsnvps/.tmp/websiteautobackup)
+websiteTO=`echo $website | tr '[a-z]' '[A-Z]'`
+echo "-------------------------------------------------------------------------"
+echo "Hiện $websiteTO đang BẬT tự động sao lưu"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT chế độ sao lưu tự động $website  ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /bin/auto-backupcode-$website
+if [ -f /etc/cron.d/dsnvps.code.cron ]; then
+cat > "/etc/dsnvps/.tmp/removebackupcode" <<END
+sed -i '/auto-backupcode-$website/d' /etc/cron.d/dsnvps.code.cron
+END
+chmod +x /etc/dsnvps/.tmp/removebackupcode
+/etc/dsnvps/.tmp/removebackupcode 
+rm -rf /etc/dsnvps/.tmp/removebackupcode
+systemctl restart crond
+fi
+clear
+echo "========================================================================="
+echo "TẮT sao lưu tự động $website thành công."
+/etc/dsnvps/menu/dsnvps-sao-luu
+        ;;
+    *)
+        clear
+echo "========================================================================= "
+echo "Hủy bỏ "
+/etc/dsnvps/menu/dsnvps-sao-luu
+        ;;
+esac

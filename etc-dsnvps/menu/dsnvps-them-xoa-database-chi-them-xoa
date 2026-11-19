@@ -1,0 +1,65 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -r /etc/dsnvps/menu/dsnvps-tao-mat-khau-bao-ve-folder.py /usr/local/bin/htpasswd.py
+chmod 755 /usr/local/bin/htpasswd.py
+fi
+if [ ! -f /etc/dsnvps/pwprotect.default ]; then
+echo "" > /etc/dsnvps/pwprotect.default
+fi
+if [ ! -f /etc/cron.d/dsnvps.db.cron ]; then
+touch /etc/cron.d/dsnvps.db.cron
+fi
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+mkdir -p /home/$mainsite/private_html/backup
+fi
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+
+
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/8120"
+echo "========================================================================="
+while true; do
+
+printf "%-35s %s\n" "1) Tạo Database             |" "4) Xem User/Password/Dung Lượng Data  |"
+printf "%-34s %s\n" "2) Xoá Database             |" "5) Xem Mật Khẩu User ROOT MySQL       |"
+printf "%-36s %s\n" "3) Thống Kê Databases       |" "6) Đổi Mật Khẩu User ROOT MySQL       |"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in   
+    1) /etc/dsnvps/menu/dsnvps-tao-database;;
+    2) /etc/dsnvps/menu/dsnvps-xoa-database;;
+    3) /etc/dsnvps/menu/dsnvps-list-database-tren-vps-them-xoa-function;;  
+    4) /etc/dsnvps/menu/dsnvps-xem-thong-tin-username-password-database;;
+    5) /etc/dsnvps/menu/dsnvps-hien-mat-khau-root-mysql;;
+    6) /etc/dsnvps/menu/dsnvps-change-root-mysql-password;;
+
+    #15) clear; exit 0;;
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 6   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<6; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 6   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+
+ 

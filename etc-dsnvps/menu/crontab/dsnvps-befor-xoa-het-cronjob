@@ -1,0 +1,28 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ ! -f /var/spool/cron/crontabs/root ]; then
+/etc/dsnvps/menu/crontab/dsnvps-xoa-het-cronjob
+exit
+fi
+
+if [ "$(grep "auto-start-mysql" /var/spool/cron/crontabs/root | awk '{print $6}')" == "auto-start-mysql" ]; then
+/etc/dsnvps/menu/crontab/dsnvps-xoa-het-cronjob-but-auto-start-mariadb
+exit
+fi
+if [ "$(grep "auto-start-mysql" /var/spool/cron/crontabs/root | awk '{print $6}')" == "" ]; then
+/etc/dsnvps/menu/crontab/dsnvps-xoa-het-cronjob
+exit
+fi
+clear
+echo "Chúng tôi không thể tìm thấy cronjob cho bạn"
+
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+exit
+fi

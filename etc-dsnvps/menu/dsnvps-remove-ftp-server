@@ -1,0 +1,45 @@
+#!/bin/bash 
+if [ -f /etc/pure-ftpd/pure-ftpd.conf ]; then
+echo "========================================================================= "
+read -r -p "Bạn muốn remove FTP server? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+        echo "Chuẩn bị gỡ cài đặt FTP Server ... "
+sleep 2
+apt-get remove -y -qq pure-ftpd
+rm -rf /etc/pure-ftpd/*.*
+rm -rf /etc/dsnvps/FTP-Account.info
+if [ ! -f /etc/dsnvps/FTP-Account.info ]; then
+echo "=========================================================================" > /etc/dsnvps/FTP-Account.info
+echo "Please Do Not Delete This File " >> /etc/dsnvps/FTP-Account.info
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/FTP-Account.info
+echo "If you delete this file, DSNVPS will not run !" >> /etc/dsnvps/FTP-Account.info
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/FTP-Account.info
+echo "All FTP User for all domain on VPS list below:" >> /etc/dsnvps/FTP-Account.info
+echo "=========================================================================" >> /etc/dsnvps/FTP-Account.info
+echo "" >> /etc/dsnvps/FTP-Account.info
+fi
+clear
+iptables -I INPUT -p tcp --dport 21 -j DROP
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Huỷ bỏ gỡ cài đặt FTP Server "
+/etc/dsnvps/menu/dsnvps-ftpserver-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "DSNVPS hoàn thành remove FTP Server "
+/etc/dsnvps/menu/dsnvps-ftpserver-menu
+fi
+clear
+echo "========================================================================= "
+echo "Bạn chưa cài đặt FTP server "
+/etc/dsnvps/menu/dsnvps-ftpserver-menu
+exit
+fi
+
+

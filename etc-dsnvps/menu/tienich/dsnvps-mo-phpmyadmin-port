@@ -1,0 +1,46 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ "$(iptables -L -n | grep :$priport | awk 'NR==1 {print $1}')" == "ACCEPT" ]; then
+clear
+echo "========================================================================="
+echo "Port Phpmyadmin port ($priport) đang MỞ."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần mở lại nó!"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit
+fi
+
+echo "========================================================================="
+echo "Port ($priport) phải được mở nếu bạn muốn truy cập Phpmyadmin, "
+echo "-------------------------------------------------------------------------"
+echo "Hãy tải các file qua port này như: Backup files, Log files"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn mở port $priport ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "Vui lòng chờ....";sleep 2
+clear
+echo "========================================================================="
+echo "Mở phpmyadmin port ($priport) thành công !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn đã có thể truy cập phpmyadmin và tải về backup, log, CSR...files"
+	echo "-------------------------------------------------------------------------"
+	iptables -I INPUT -p tcp --dport $priport -j ACCEPT
+	if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn hủy mở Phpmyadmin Port (Port $priport)"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+

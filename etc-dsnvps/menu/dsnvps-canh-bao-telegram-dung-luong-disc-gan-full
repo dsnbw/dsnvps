@@ -1,0 +1,59 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+curTime=$(date +%s)
+if [ ! -f /etc/dsnvps/.tmp/disc_alert ]; then
+    touch -a -m -t 201102180130.09 /etc/dsnvps/.tmp/disc_alert
+fi
+
+# Kiểm tra thời gian
+filetime=$(date -r /etc/dsnvps/.tmp/disc_alert +%s)
+if [ -z "$filetime" ]; then
+    touch /etc/dsnvps/.tmp/disc_alert
+    exit 1
+fi
+diffdisc=$(($curTime-$filetime))
+
+if [ ! -f /etc/dsnvps/telegram.conf ]; then
+    echo ""
+    exit 0
+fi
+
+if [ "$diffdisc" -gt 1800 ]; then
+    # Kiểm tra dung lượng đĩa
+    checktruenumber='^[0-9]+$'
+    if [ ! -f /etc/dsnvps/minfreedisc.info ]; then
+        echo "1000" > /etc/dsnvps/minfreedisc.info
+    fi
+    minfreedisc=$(cat /etc/dsnvps/minfreedisc.info)
+    if ! [[ $minfreedisc =~ $checktruenumber ]] ; then
+        echo "1000" > /etc/dsnvps/minfreedisc.info
+        minfreedisc=1000
+    fi
+
+    # ===================================================================
+    # TÍNH DUNG LƯỢNG FREE CHÍNH XÁC THEO /home HOẶC / (ĐƠN VỊ MB)
+    # ===================================================================
+    if mountpoint -q /home 2>/dev/null; then
+        disfree_kb=$(df /home | awk 'NR==2 {print $4}')   # dung lượng trống ở KiB
+        FREE_SPACE_READABLE=$(df -h /home | awk 'NR==2 {print $4}')  # dạng đẹp: 15G, 850M...
+    else
+        disfree_kb=$(df / | awk 'NR==2 {print $4}')       # dung lượng trống ở KiB
+        FREE_SPACE_READABLE=$(df -h / | awk 'NR==2 {print $4}')
+    fi
+    disfree=$(calc $disfree_kb/1024)  # chuyển sang MB (làm tròn xuống)
+
+    TELEGRAM_CONF="/etc/dsnvps/telegram.conf"
+    if [[ $disfree =~ $checktruenumber ]] && [ "$disfree" -lt "$minfreedisc" ]; then
+        if [ -f "$TELEGRAM_CONF" ]; then
+            source "$TELEGRAM_CONF"
+            MESSAGE="⚠️ CẢNH BÁO DUNG LƯỢNG ĐĨA GẦN FULL ⚠️%0A%0AServer: $serverip%0ADung lượng trống hiện tại: $disfree MB ($FREE_SPACE_READABLE)%0ANgưỡng cảnh báo: $minfreedisc MB%0A%0AVui lòng kiểm tra và dọn dẹp ngay để tránh hết dung lượng!"
+            curl -s --max-time 10 -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+                -d chat_id="$CHAT_ID" \
+                -d text="$MESSAGE" \
+                -d parse_mode="HTML"
+        fi
+    fi
+    touch /etc/dsnvps/.tmp/disc_alert
+fi
+exit 0

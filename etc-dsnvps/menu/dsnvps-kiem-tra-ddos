@@ -1,0 +1,404 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Global variables
+DDOS1_CONF="/etc/nginx/conf/ddos1.conf"
+DDOS2_CONF="/etc/nginx/conf/ddos2.conf"
+MODSEC_CONF="/etc/nginx/modsec/modsecurity.conf"
+MODSEC_RULES="/etc/nginx/modsec/modsecurity_rules.conf"
+TMP_DIR="/tmp"
+
+# Configuration presets
+declare -A CONFIGS=(
+    ["1"]="10m 30 10 20"
+    ["2"]="10m 50 20 40" 
+    ["3"]="10m 70 25 50"
+    ["4"]="10m 80 25 60"
+    ["5"]="10m 90 30 65"
+    ["6"]="10m 100 40 80"
+    ["7"]="10m 200 60 150"
+    ["8"]="10m 250 70 180"
+    ["9"]="10m 300 80 200"
+)
+
+# Function to check nginx version
+check_nginx_more() {
+    { [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] || nginx -V 2>&1 | grep -q "nginx-more"; }
+}
+
+# Function to get ModSecurity status
+get_modsec_status() {
+    if [[ -f "$MODSEC_CONF" ]]; then
+        local ttlog=$(grep "SecAuditEngine" "$MODSEC_CONF" | awk '{print $2}')
+        if check_nginx_more; then
+            if grep -q "SecRuleEngine DetectionOnly" "$MODSEC_CONF"; then
+                echo "ModSecurity => Mode: Detection Only | Log: $ttlog"
+            elif grep -q "SecRuleEngine On" "$MODSEC_CONF"; then
+                echo "ModSecurity => Mode: Blocking | Log: $ttlog"
+            fi
+        fi
+    fi
+}
+
+# Function to get enabled ModSecurity rules
+get_enabled_rules() {
+    if ! check_nginx_more || [[ ! -f "$MODSEC_RULES" ]]; then
+        return
+    fi
+    
+    local valid_rules=("901" "905" "911" "913" "920" "921" "922" "930" "931" "932" "933" "934" "941" "942" "943" "944" "949" "950" "951" "952" "953" "954" "955" "959" "980")
+    local enabled_rules=()
+    
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^\#?(include\ /etc/nginx/modsec-crs/rules/(REQUEST|RESPONSE)-([0-9]+)-.*\.conf) ]]; then
+            local rule_number="${BASH_REMATCH[3]}"
+            if [[ " ${valid_rules[*]} " =~ " $rule_number " ]] && [[ ! "$line" =~ ^# ]]; then
+                enabled_rules+=("$rule_number")
+            fi
+        fi
+    done < "$MODSEC_RULES"
+    
+    if [[ ${#enabled_rules[@]} -gt 0 ]]; then
+        echo "ModSecurity Rule đang BẬT: ${enabled_rules[*]}"
+    else
+        echo "ModSecurity Rule đang BẬT: Tất Cả Rule TẮT"
+    fi
+}
+
+# Function to check pro version
+check_pro_version() {
+    if [[ ! -f /usr/bin/gxred ]]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+        exit
+    fi
+}
+
+# Function to backup current config
+backup_config() {
+    cp "$DDOS1_CONF" "$TMP_DIR/ddos1.conf" 2>/dev/null
+    cp "$DDOS2_CONF" "$TMP_DIR/ddos2.conf" 2>/dev/null
+}
+
+# Function to restore config on error
+restore_config() {
+    cp "$TMP_DIR/ddos1.conf" "$DDOS1_CONF" 2>/dev/null
+    cp "$TMP_DIR/ddos2.conf" "$DDOS2_CONF" 2>/dev/null
+}
+
+# Function to create DDoS config
+create_ddos_config() {
+    local zone_size="$1"
+    local rate="$2" 
+    local conn_limit="$3"
+    local burst="$4"
+    
+    # Create ddos1.conf
+    cat > "$DDOS1_CONF" << EOF
+limit_conn_zone \$binary_remote_addr zone=conn_limit_per_ip:${zone_size};
+limit_req_zone \$binary_remote_addr zone=req_limit_per_ip:${zone_size} rate=${rate}r/s;
+EOF
+
+    # Create ddos2.conf  
+    cat > "$DDOS2_CONF" << EOF
+limit_conn conn_limit_per_ip ${conn_limit};
+limit_req zone=req_limit_per_ip burst=${burst} nodelay;
+#===============================================================
+# Config tránh lỗi ảnh và hiển thị website khi bị hạn chế Request Rate
+location ~* \.(jpg|jpeg|png|gif|css|js|ico|svg|woff|woff2|ttf)\$ {
+limit_conn conn_limit_per_ip 999;
+limit_req zone=req_limit_per_ip burst=999 nodelay;
+}
+EOF
+}
+
+# Function to test and apply config
+apply_config() {
+    if ! nginx -t &>/dev/null; then
+        restore_config
+        echo "========================================================================="
+        echo "Nginx bị lỗi với cấu hình mới. DSNVPS không thể chạy chức năng này!"
+        echo "========================================================================="
+        return 1
+    fi
+    
+    /etc/dsnvps/menu/inc/re-start-nginx-service
+    return 0
+}
+
+# Function to display current load capacity status
+show_load_capacity_status() {
+    if [[ $(wc -c < "$DDOS1_CONF") -lt 5 && $(wc -c < "$DDOS2_CONF") -lt 5 ]]; then
+        echo "Tăng Khả Năng Chịu Tải Cho Website: TẮT"
+    else
+        echo "Tăng Khả Năng Chịu Tải Cho Website: BẬT"
+    fi
+}
+
+# Function to configure preset
+configure_preset() {
+    local preset="$1"
+    local config_values=(${CONFIGS[$preset]})
+    
+    if [[ ${#config_values[@]} -ne 4 ]]; then
+        echo "Cấu hình không hợp lệ!"
+        return 1
+    fi
+    
+    echo "========================================================================="
+    echo "Cấu hình $preset:"
+    echo "========================================================================="
+    echo "limit_conn_zone \$binary_remote_addr zone=conn_limit_per_ip:${config_values[0]};"
+    echo "-------------------------------------------------------------------------"
+    echo "limit_req_zone \$binary_remote_addr zone=req_limit_per_ip:${config_values[0]} rate=${config_values[1]}r/s;"
+    echo "-------------------------------------------------------------------------"
+    echo "limit_conn conn_limit_per_ip ${config_values[2]};"
+    echo "-------------------------------------------------------------------------"
+    echo "limit_req zone=req_limit_per_ip burst=${config_values[3]} nodelay;"
+    echo "========================================================================="
+    
+    read -p "Bạn đồng ý với thiết lập cấu hình này? (y/N): " choice
+    if [[ "$choice" == "y" ]]; then
+        echo "========================================================================="
+        echo "Vui lòng chờ ..."; sleep 2
+        
+        check_pro_version
+        backup_config
+        
+        create_ddos_config "${config_values[0]}" "${config_values[1]}" "${config_values[2]}" "${config_values[3]}"
+        
+        if apply_config; then
+        clear
+            echo "========================================================================="
+            echo "Hoàn thành thiết lập: Cấu hình $preset !"
+            sleep 2
+        fi
+    else
+        echo "========================================================================="
+        echo "Giữ nguyên cấu hình hiện tại"; sleep 2
+    fi
+}
+
+# Function to configure custom settings
+configure_custom() {
+    echo "========================================================================="
+    echo "Tùy Chọn Cấu Hình:"
+    echo "========================================================================="
+    echo "Yêu cầu: 5 < ZONE_SIZE < 32 | 5 < RATE, CONN_LIMIT, BURST < 1000"
+    echo "========================================================================="
+    
+    local zone_size rate conn_limit burst
+    
+    # Input validation function
+    validate_input() {
+        local value="$1"
+        local min="$2" 
+        local max="$3"
+        local name="$4"
+        
+        if [[ "$value" == "0" ]]; then
+            echo "Thoát!"; sleep 2
+            clear
+            /etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+            exit
+        fi
+        
+        if ! [[ $value =~ ^[0-9]+$ && $value -gt $min && $value -lt $max ]]; then
+            echo "$value không hợp lệ. $min < $name < $max . Vui lòng nhập lại !"
+            return 1
+        fi
+        return 0
+    }
+    
+    # Get inputs
+    while true; do
+        read -p "Nhập ZONE_SIZE (5-32) [0 -Thoát]: " zone_size
+        validate_input "$zone_size" 5 32 "ZONE_SIZE" && break
+    done
+    
+    while true; do
+        read -p "Nhập RATE (5-1000) [0 -Thoát]: " rate  
+        validate_input "$rate" 5 1000 "RATE" && break
+    done
+    
+    while true; do
+        read -p "Nhập CONN_LIMIT (5-1000) [0 -Thoát]: " conn_limit
+        validate_input "$conn_limit" 5 1000 "CONN_LIMIT" && break
+    done
+    
+    while true; do
+        read -p "Nhập BURST (5-1000) [0 -Thoát]: " burst
+        validate_input "$burst" 5 1000 "BURST" && break  
+    done
+    
+    echo "========================================================================="
+    echo "Cấu hình tùy chọn:"
+    echo "ZONE_SIZE = ${zone_size}m, RATE = ${rate}r/s, CONN_LIMIT = $conn_limit, BURST = $burst"
+    echo "========================================================================="
+    
+    read -p "Bạn sẽ cấu hình với các giá trị này? (y/n): " confirm
+    if [[ $confirm =~ ^[yY]$ ]]; then
+        check_pro_version
+        backup_config
+        
+        create_ddos_config "${zone_size}m" "$rate" "$conn_limit" "$burst"
+        
+        if apply_config; then
+            echo "========================================================================="
+            echo "Hoàn thành thiết lập: Tùy Chọn Thông Số!"
+            sleep 2
+        fi
+    fi
+}
+
+# Function to disable all configurations
+disable_all_configs() {
+    echo "========================================================================="
+    echo "DSNVPS sẽ xóa hết Cấu hình Limit Request Rate hiện tại của server."
+    echo "========================================================================="
+    
+    read -p "Bạn muốn tiếp tục ? (y/N): " choice
+    if [[ "$choice" == "y" ]]; then
+        echo "========================================================================="
+        echo "Vui lòng chờ ..."; sleep 2
+        
+        backup_config
+        
+        echo "" > "$DDOS1_CONF"
+        echo "" > "$DDOS2_CONF"
+        
+        if apply_config; then
+            echo "========================================================================="
+            echo "Hoàn thành xóa thiết lập Limit Request Rate của server !"
+            sleep 2
+        fi
+    else
+        echo "========================================================================="
+        echo "Giữ nguyên cấu hình hiện tại"; sleep 2
+    fi
+}
+
+# Function to show current configuration
+show_current_config() {
+    echo "Vui lòng chờ ..."; sleep 2
+    
+    if [[ $(wc -c < "$DDOS1_CONF") -lt 5 && $(wc -c < "$DDOS2_CONF") -lt 5 ]]; then
+        echo "========================================================================="
+        echo "Không tìm thấy cấu hình Limit Request Rate hiện tại của server !"
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn hãy thiết lập cấu hình Limit Request Rate để bảo vệ server."
+        sleep 4
+        return
+    fi
+    
+    clear
+    echo "========================================================================="
+    echo "Cấu hình Tăng Tải Website hiện tại của VPS:"
+    echo "========================================================================="
+    [[ -f "$DDOS1_CONF" ]] && cat "$DDOS1_CONF"
+    [[ -f "$DDOS2_CONF" ]] && head -n 2 "$DDOS2_CONF"
+}
+
+# Main menu function
+main_menu() {
+    /etc/dsnvps/menu/dsnvps-menu-all-function
+    
+    echo "========================================================================="
+    echo "               Anti DoS/DDoS, Flood, SQL Injection, XSS..."
+    echo "========================================================================="
+    
+    show_load_capacity_status
+    
+    local modsec_status=$(get_modsec_status)
+    if [[ -n "$modsec_status" ]]; then
+        echo "========================================================================="
+        echo "$modsec_status"
+    fi
+    
+    if check_nginx_more; then
+        local enabled_rules=$(get_enabled_rules)
+        if [[ -n "$enabled_rules" ]]; then
+            echo "========================================================================="
+            echo "$enabled_rules"
+        fi
+        echo "========================================================================="
+    else
+        echo "========================================================================="
+        echo "Cấu hình Nginx ModSecurity: Chỉ hoạt động trên Nginx-More."
+        echo "========================================================================="
+    fi
+}
+
+# Load capacity configuration menu
+load_capacity_menu() {
+    echo "========================================================================="
+    echo "Chức năng này BẬT sẽ giảm tải Website khi có traffic lớn hoặc bị tấn công"
+    echo "-------------------------------------------------------------------------"
+    echo -e "DoS/Flood. Website có thể \033[1;31mchịu tải traffic gấp nhiều lần \033[0mkhi không BẬT."
+    echo "-------------------------------------------------------------------------"
+    echo -e "Nếu web gặp lỗi, hãy chọn config cao hơn hoặc \033[1;31m[10) Tùy Chọn Thông Số]\033[0m"
+    echo "========================================================================="
+    
+    while true; do
+        printf "%-35s  %s\n" "1) Cấu Hình 1" "7) Cấu Hình 7"
+        printf "%-35s  %s\n" "2) Cấu Hình 2" "8) Cấu Hình 8"
+        printf "%-35s  %s\n" "3) Cấu Hình 3" "9) Cấu Hình 9"
+        printf "%-35s  %s\n" "4) Cấu Hình 4" "10) Tùy Chọn Thông Số"
+        printf "%-35s  %s\n" "5) Cấu Hình 5" "11) Tắt Cấu Hình Tăng Tải"
+        printf "%-35s  %s\n" "6) Cấu Hình 6" "12) Check Cấu Hình Đang Sử Dụng"
+        echo "========================================================================="
+        
+        read -p "Lựa chọn cấu hình [0 -Thoát]: " choice
+        
+        case "$choice" in
+            [1-9]) configure_preset "$choice";;
+            10) configure_custom;;
+            11) disable_all_configs;;
+            12) show_current_config;;
+0) clear; exit 0;;
+            *) 
+                echo "Bạn nhập sai, vui lòng nhập lại!"
+                sleep 2
+                ########## XOA 4 DONG PHIA TREN ################
+tput cuu 9   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<9; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 9   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+                continue
+                ;;
+        esac
+        
+        /etc/dsnvps/menu/dsnvps-kiem-tra-ddos
+    done
+}
+
+# Main execution
+main_menu
+
+while true; do
+    printf "%-35s %s\n" "1) Tăng Chịu Tải Cho Website     |" "3) Số Kết Nối Đang SYN_RECV"
+    printf "%-34s %s\n" "---------------------------------|" "4) Kết Nối Tới Cổng 80 & 443"
+    printf "%-35s %s\n" "2) Cấu Hình Nginx ModSecurity    |" "5) IP Đang Kết Nối & Total Kết Nối"
+    echo "========================================================================="
+    
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    
+    case $choice in 
+        1) load_capacity_menu;;
+        2) /etc/dsnvps/menu/checkddos/dsnvps-cau-hinh-nginx-chong-dos-ddos;;
+        3) /etc/dsnvps/menu/checkddos/dsnvps-so-rysync;;
+        4) /etc/dsnvps/menu/checkddos/dsnvps-so-ket-noi;;
+        5) /etc/dsnvps/menu/checkddos/dsnvps-ip-dang-ket-noi-va-so-ket-noi;;
+0) clear; exit 0;;
+        *) 
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 2
+        #echo "You typed wrong, Please type in the ordinal number on the list."; 3
+        tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6;; 
+        
+    esac
+done

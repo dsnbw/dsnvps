@@ -1,0 +1,3 @@
+#!/bin/bash
+timeout 60 python3 /etc/dsnvps/menu/inc/checktelegram.py > /etc/dsnvps/.tmp/telegram_check.log 2>&1
+python3 /etc/dsnvps/menu/dsnvps-upload-telegram.py

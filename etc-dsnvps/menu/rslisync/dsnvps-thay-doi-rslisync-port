@@ -1,0 +1,174 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+clear
+echo "========================================================================="
+echo "Bạn chưa cài đặt Resilio Sync"
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+exit 
+fi
+
+iptables -I INPUT -p tcp --dport $(grep -E '^rslport[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}') -j DROP
+iptables -I INPUT -p tcp --dport $(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}') -j DROP
+
+
+
+ssh_port=$(grep -i "^Port " /etc/ssh/sshd_config | awk '{print $2}' | head -n 1)
+[ -z "$ssh_port" ] && ssh_port=22
+echo "========================================================================="
+echo "Dùng chức năng này để thay đổi port cho Resilio Sync."
+echo "========================================================================="
+echo "Port của Resilio Sync và port Resilio WebUI không được trùng port SSH, "
+echo "-------------------------------------------------------------------------"
+echo "phpMyAdmin và phải là số tự nhiên nằm trong khoảng (30000 - 50000)."
+echo "========================================================================="
+# Lấy port SSH hiện tại
+ssh_port=$(grep -i "^Port " /etc/ssh/sshd_config | awk '{print $2}' | head -n 1)
+[ -z "$ssh_port" ] && ssh_port=22
+
+# Hàm kiểm tra port đã được sử dụng chưa
+is_port_in_use() {
+    local port=$1
+    if command -v lsof &>/dev/null; then
+        lsof -iTCP:"$port" -sTCP:LISTEN &>/dev/null
+    elif command -v netstat &>/dev/null; then
+        netstat -tuln | grep -q ":$port "
+    else
+        return 1
+    fi
+}
+
+# Nhập port rslsync (port sync)
+while true; do
+    echo -n "Nhập Port Resilio Sync [0 -Thoát]: "
+    read rslsyncport
+
+    if [ "$rslsyncport" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+        exit 0
+    fi
+
+    if [[ "$rslsyncport" =~ ^[0-9]+$ ]] &&
+       [ "$rslsyncport" -ge 30000 ] &&
+       [ "$rslsyncport" -le 50000 ] &&
+       [ "$rslsyncport" != "$priport" ] &&
+       [ "$rslsyncport" != "$ssh_port" ]; then
+
+        if is_port_in_use "$rslsyncport"; then
+            echo "========================================================================="
+            echo "Port $rslsyncport đang được sử dụng. Vui lòng chọn port khác!"
+            sleep 4 && tput cuu 3 && tput ed
+        else
+            break
+        fi
+    else
+        echo "========================================================================="
+        echo "Port không hợp lệ hoặc đang được sử dụng. Vui lòng nhập lại!"
+        sleep 4 && tput cuu 3 && tput ed
+    fi
+done
+
+# Nhập port rslsync WebUI
+echo "========================================================================="
+while true; do
+    echo -n "Nhập Port Cho Resilio Sync WebUI [0 -Thoát]: "
+    read rslsyncportwebui
+
+    if [ "$rslsyncportwebui" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+        exit 0
+    fi
+
+    if [[ "$rslsyncportwebui" =~ ^[0-9]+$ ]] &&
+       [ "$rslsyncportwebui" -ge 30000 ] &&
+       [ "$rslsyncportwebui" -le 50000 ] &&
+       [ "$rslsyncportwebui" != "$priport" ] &&
+       [ "$rslsyncportwebui" != "$ssh_port" ] &&
+       [ "$rslsyncportwebui" != "$rslsyncport" ]; then
+
+        if is_port_in_use "$rslsyncportwebui"; then
+            echo "========================================================================="
+            echo "Port $rslsyncportwebui đang được sử dụng. Vui lòng chọn port khác!"
+            sleep 4 && tput cuu 3 && tput ed
+        else
+            break
+        fi
+    else
+        echo "========================================================================="
+        echo "Port không hợp lệ hoặc đang được sử dụng. Vui lòng nhập lại!"
+        sleep 4 && tput cuu 3 && tput ed
+    fi
+done
+
+
+
+
+  
+  echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ...."
+killall -q rslsync
+pkill rslsync
+systemctl stop resilio-sync.service
+sleep 10
+rm -rf /etc/rslsync-dsnvps/.sync/sync.pid
+yes | cp -rf /etc/dsnvps/rslsync.info /etc/dsnvps/.tmp/rslsync.info
+ cat > "/etc/dsnvps/rslsync.info" <<END
+username = $(grep username /etc/dsnvps/.tmp/rslsync.info | awk 'NR==1 {print $3}')
+password = $(grep password /etc/dsnvps/.tmp/rslsync.info | awk 'NR==1 {print $3}')
+rslport = $rslsyncport
+rslportwebui = $rslsyncportwebui
+END
+cat > "/etc/rslsync-dsnvps/sync.conf" <<END
+{ 
+  "device_name": "dsnvps",
+  "listening_port" : $rslsyncport,
+  "storage_path" : "/etc/rslsync-dsnvps/.sync",
+  "check_for_updates" : false, 
+  "use_upnp" : true,
+  "download_limit" : 0,                       
+  "upload_limit" : 0, 
+  "webui" :
+  {
+    "listen" : "0.0.0.0:$rslsyncportwebui",
+    "login" : "$(grep username /etc/dsnvps/.tmp/rslsync.info | awk 'NR==1 {print $3}')",
+    "password" : "$(grep password /etc/dsnvps/.tmp/rslsync.info | awk 'NR==1 {print $3}')"
+  }
+}
+END
+
+echo "========================================================================= "
+echo "Đóng port cũ: $(grep rslport /etc/dsnvps/.tmp/rslsync.info | awk 'NR==1 {print $3}') và mở port mới: $(grep rslport /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}')"
+sleep 3
+iptables -I INPUT -p tcp --dport $(grep -E '^rslport[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}') -j DROP
+iptables -I INPUT -p tcp --dport $(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/.tmp/rslsync.info | awk '{print $3}') -j DROP
+iptables -I INPUT -p tcp --dport $rslsyncport -j ACCEPT
+iptables -I INPUT -p tcp --dport $rslsyncportwebui -j ACCEPT
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+rm -rf /etc/dsnvps/.tmp/rslsync.info
+systemctl start resilio-sync.service
+clear 
+echo "========================================================================= "
+echo "DSNVPS hoàn thành thay đổi port Resilio Sync."
+echo "-------------------------------------------------------------------------"
+echo "Thông tin quản lý:"
+echo "-------------------------------------------------------------------------"
+echo "Resilio Sync WebUI: http://$serverip:$(grep rslport /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}')"
+echo "-------------------------------------------------------------------------"
+echo "User: $(grep username /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}') | Password: $(grep password /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}')"
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+esac
+clear
+echo "========================================================================= "
+echo "Hủy bỏ thay đổi port Resilio Sync."
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+
+
+

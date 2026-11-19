@@ -1,0 +1,47 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="$(dsnvps_pick_domain wp)" || exit 0
+vf="/etc/nginx/conf.d/${dom}.conf"
+mu_dir="/home/${dom}/public_html/wp-content/mu-plugins"
+
+echo "1) CHẶN XML-RPC ở tầng Nginx (chống Brute Force & DDoS xmlrpc.php)"
+echo "2) MỞ LẠI XML-RPC trên Nginx"
+echo "3) Tối Ưu Heartbeat API (giảm tải CPU Admin / tắt ngoài Frontend)"
+echo "4) Gỡ Giới Hạn Heartbeat API"
+read -r -p "Chọn [1-4]: " ch
+case "$ch" in
+    1)
+        if ! grep -q "xmlrpc.php" "$vf"; then
+            cp -a "$vf" "${vf}.bak.xml"
+            sed -i "s|server_name .*;|& \n\tlocation = /xmlrpc.php { deny all; access_log off; log_not_found off; }|" "$vf"
+            nginx -t >/dev/null 2>&1 && { systemctl reload nginx; rm -f "${vf}.bak.xml"; echo -e "${C_GREEN}[OK] Đã chặn XML-RPC cho ${dom}.${C_RESET}"; } || { mv -f "${vf}.bak.xml" "$vf"; echo -e "${C_RED}[ERR] Lỗi Nginx.${C_RESET}"; }
+        else
+            echo -e "${C_YELLOW}XML-RPC đã được chặn từ trước.${C_RESET}"
+        fi
+        ;;
+    2)
+        sed -i '/xmlrpc\.php/d' "$vf"
+        nginx -t >/dev/null 2>&1 && systemctl reload nginx
+        echo -e "${C_GREEN}[OK] Đã mở lại XML-RPC cho ${dom}.${C_RESET}"
+        ;;
+    3)
+        mkdir -p "$mu_dir"
+        cat > "${mu_dir}/dsnvps-heartbeat.php" <<'PHP'
+<?php
+add_action('init', function() {
+    if (!is_admin()) { wp_deregister_script('heartbeat'); }
+}, 1);
+add_filter('heartbeat_settings', function($s) {
+    $s['interval'] = 60;
+    return $s;
+});
+PHP
+        chown nginx:nginx "${mu_dir}/dsnvps-heartbeat.php"
+        echo -e "${C_GREEN}[OK] Đã tối ưu Heartbeat API (tắt ở frontend, 60s trong admin) cho ${dom}.${C_RESET}"
+        ;;
+    4)
+        rm -f "${mu_dir}/dsnvps-heartbeat.php"
+        echo -e "${C_YELLOW}[OK] Đã khôi phục Heartbeat API mặc định cho ${dom}.${C_RESET}"
+        ;;
+esac

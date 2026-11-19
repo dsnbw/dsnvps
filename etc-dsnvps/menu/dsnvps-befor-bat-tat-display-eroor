@@ -1,0 +1,31 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/php.ini ]; then
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy php.ini trên server"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+exit
+fi
+
+if [ "$(cat /etc/php.ini | grep display_errors | awk '{print $3}')" == "" ]; then
+clear
+echo "========================================================================="
+echo "DSNVPS không thể thực hiện chức năng này"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+exit
+fi
+
+if [ "$(cat /etc/php.ini | grep display_errors | awk '{print $3}')" == "Off" ]; then
+/etc/dsnvps/menu/dsnvps-dang-tat-display_errors
+fi
+if [ "$(cat /etc/php.ini | grep display_errors | awk '{print $3}')" == "On" ]; then
+/etc/dsnvps/menu/dsnvps-dang-bat-display_errors
+fi
+}

@@ -1,0 +1,27 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Khi bạn thay đổi cấu hình VPS (Nâng cấp), các config hiện tại của PHP.INI"
+echo "-------------------------------------------------------------------------"
+echo "& WWW.CONF (PHP) và MY.CNF (MYSQL) sẽ không còn phù hợp nữa."
+echo "-------------------------------------------------------------------------"
+echo "Sử dụng chức năng này để thay đổi config các file trên cho phù hợp với  "
+echo "-------------------------------------------------------------------------"
+echo "cấu hình mới (RAM & CPU) sau khi nâng cấp."
+echo "========================================================================="
+echo "Hoặc bạn đã tự cấu hình lại các dịch vụ PHP và MySQL và bị lỗi. Dùng chức "
+echo "-------------------------------------------------------------------------"
+echo "năng này để đưa config về mặc định. Các config của bạn sẽ bị clear hết."
+echo "-------------------------------------------------------------------------"
+echo "NHƯNG: DSNVPS sẽ tạo file backup của các file này trước khi re-config."
+
+echo "========================================================================="
+read -p "Nhấn [Enter] để tiếp tục ..."
+clear
+/etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu

@@ -1,0 +1,84 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+if [ ! -f /etc/dsnvps/dsnvps.config.firstime ]; then
+
+#if [ -f /root/.bashrc ]; then
+#grep /home /root/.bashrc > /etc/dsnvps/.tmp/checkbashrc
+#if [ `ls -l /etc/dsnvps/.tmp/checkbashrc | awk '{print $5}'` -lt 3 ]; then
+#echo "cd /home" >> /root/.bashrc
+#fi
+#fi
+
+
+cat > "/etc/logrotate.d/nginx" <<END
+/var/log/nginx/*.log {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /bin/kill -USR1 $(cat /etc/nginx/nginx.pid 2>/dev/null) 2>/dev/null || true
+    endscript
+}
+END
+cat > "/etc/logrotate.d/php-fpm" <<END
+/home/*/logs/php-fpm*.log {
+        daily
+        compress
+        maxage 7
+        missingok
+        notifempty
+        sharedscripts
+        delaycompress
+        postrotate
+            /bin/kill -SIGUSR1 \`cat /var/run/php-fpm/php-fpm.pid 2>/dev/null\` 2>/dev/null || true
+        endscript
+}
+END
+cat > "/etc/logrotate.d/mysql" <<END
+/home/*/logs/mysql*.log {
+        create 640 mysql mysql
+        notifempty
+        daily
+        rotate 3
+        maxage 7
+        missingok
+        compress
+        postrotate
+        # just if mysqld is really running
+        if test -x /usr/bin/mysqladmin && \
+           /usr/bin/mysqladmin ping &>/dev/null
+        then
+           /usr/bin/mysqladmin flush-logs
+        fi
+        endscript
+	su mysql mysql
+}
+END
+fi
+
+if [ "$(grep opcache.blacklist /etc/php.d/opcache.ini)" == "" ]; then
+echo "opcache.blacklist_filename=/etc/dsnvps/opcache.blacklist" >> /etc/php.d/opcache.ini
+fi
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+/home/$mainsite/private_html/*
+/home/*/public_html/wp-content/plugins/backwpup/*
+/home/*/public_html/wp-content/plugins/duplicator/*
+/home/*/public_html/wp-content/plugins/updraftplus/*
+END
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+fi
+
+echo "Configured logrotate DONE !" > /etc/dsnvps/dsnvps.config.firstime
+if [ ! -f /etc/cron.hourly/checkpaidversiondsnvps ]; then
+echo "/etc/dsnvps/menu/dsnvps-check-paid-version" > /etc/cron.hourly/checkpaidversiondsnvps
+chmod +x /etc/cron.hourly/checkpaidversiondsnvps
+fi

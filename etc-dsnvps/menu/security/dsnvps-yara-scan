@@ -1,0 +1,52 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+YARA_RULE="/etc/dsnvps/menu/inc/wp-malware.yar"
+if ! command -v yara >/dev/null 2>&1; then
+    echo -e "${C_CYAN}Đang cài đặt YARA Engine...${C_RESET}"
+    dsnvps_pkg_install yara >/dev/null 2>&1
+fi
+if [[ ! -f "$YARA_RULE" ]]; then
+    echo -e "${C_RED}[ERR] Không tìm thấy file rule: ${YARA_RULE}${C_RESET}"
+    exit 1
+fi
+
+target_domain="${1:-}"
+if [[ -z "$target_domain" ]]; then
+    target_domain="$(dsnvps_pick_domain all)" || exit 0
+fi
+
+scan_path="/home/${target_domain}/public_html"
+if [[ ! -d "$scan_path" ]]; then
+    echo -e "${C_RED}[ERR] Thư mục ${scan_path} không tồn tại!${C_RESET}"
+    exit 1
+fi
+
+report="/etc/dsnvps/.tmp/yara_scan_${target_domain}_$(date +%Y%m%d_%H%M%S).log"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_YELLOW}Đang quét mã độc YARA cho: ${target_domain} (${scan_path})${C_RESET}"
+echo -e "${C_DIM}(Chạy chế độ low-priority nice -n 19 ionice -c3 để không làm chậm web)${C_RESET}"
+
+# Check WP core checksums first if WordPress
+if [[ -f "${scan_path}/wp-config.php" ]] && command -v wp >/dev/null 2>&1; then
+    echo -e "${C_CYAN}[1/2] Kiểm tra toàn vẹn file lõi WordPress (wp core verify-checksums)...${C_RESET}"
+    dsnvps_wp "$target_domain" core verify-checksums 2>&1 | tee -a "$report" || true
+fi
+
+echo -e "${C_CYAN}[2/2] Đang quét YARA các file PHP/JS nghi ngờ...${C_RESET}"
+nice -n 19 ionice -c3 yara -r -w "$YARA_RULE" "$scan_path" 2>/dev/null | tee -a "$report" || true
+
+# Also check PHP files inside wp-content/uploads (major backdoor vector)
+if [[ -d "${scan_path}/wp-content/uploads" ]]; then
+    echo -e "${C_CYAN}[+] Kiểm tra file PHP lạ trong wp-content/uploads...${C_RESET}"
+    find "${scan_path}/wp-content/uploads" -type f -iname "*.php*" 2>/dev/null | tee -a "$report" || true
+fi
+
+hits=$(grep -cvE '^(Success:|Checking|Warning:)' "$report" 2>/dev/null || echo 0)
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_GREEN}Hoàn tất quét! Báo cáo lưu tại: ${report}${C_RESET}"
+if [[ "$hits" -eq 0 ]]; then
+    echo -e "${C_GREEN}✔ Không phát hiện dấu hiệu mã độc rõ ràng.${C_RESET}"
+else
+    echo -e "${C_YELLOW}⚠ Phát hiện ${hits} dòng cảnh báo — vui lòng kiểm tra kỹ trước khi xóa.${C_RESET}"
+fi

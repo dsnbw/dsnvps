@@ -1,0 +1,16 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_YELLOW}        DSNVPS ENTERPRISE OPTIMIZATION SUITE (1-CLICK TURBO)${C_RESET}"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+/etc/dsnvps/menu/optimize/dsnvps-opt-bloat
+/etc/dsnvps/menu/optimize/dsnvps-opt-zram --auto
+/etc/dsnvps/menu/optimize/dsnvps-opt-kernel
+/etc/dsnvps/menu/optimize/dsnvps-opt-disk
+/etc/dsnvps/menu/optimize/dsnvps-opt-oom
+/etc/dsnvps/menu/optimize/dsnvps-opt-jemalloc
+/etc/dsnvps/menu/optimize/dsnvps-opt-journald
+/etc/dsnvps/menu/optimize/dsnvps-opt-php-jit --auto
+/etc/dsnvps/menu/optimize/dsnvps-opt-nginx
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_GREEN}✔ Hoàn tất tối ưu toàn diện hệ thống!${C_RESET}"

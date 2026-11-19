@@ -1,0 +1,77 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để MỞ port (INPUT) cho server bằng IPtables"
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập port bạn muốn MỞ [0 -Thoát]: "
+read portopen
+if [ "$portopen" = "0" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+    exit
+fi
+if [ "$portopen" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, hãy nhập chính xác."
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+if [[ ! ${portopen} =~ ^[0-9]+$ ]] ;then 
+clear
+echo "========================================================================="
+echo "Port bạn nhập: ${portopen} không phải là số tự nhiên."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!" 
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+if ! [[ $portopen -ge 1 && $portopen -le 65535  ]] ; then  
+clear
+echo "========================================================================="
+echo "$portopen không đúng!"
+echo "-------------------------------------------------------------------------"
+echo "Port phải là số tự nhiên nằm trong khoảng (1 - 65535)."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!" 
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi  
+if [ $portopen = $priport ]; then
+clear
+echo "========================================================================="
+echo "Port $portopen là port Phpmyadmin. Bạn hãy sử dụng chức năng "
+echo "-------------------------------------------------------------------------"
+echo "[Mở/Đóng Port Phpmyadmin] nên bạn muốn Mở/Đóng port $portopen!"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+if [ "$(iptables -L -n | grep :$portopen | awk 'NR==1 {print $1}')" == "ACCEPT" ]; then
+clear
+echo "========================================================================="
+echo "Port $portopen đang mở."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần mở lại nó!"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+clear
+echo "========================================================================="
+echo "Cổng bạn muốn mở: $portopen"
+echo "-------------------------------------------------------------------------"
+iptables -I INPUT -p tcp --dport $portopen -j ACCEPT
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+fi

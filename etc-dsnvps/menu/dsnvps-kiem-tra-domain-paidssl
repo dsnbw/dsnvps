@@ -1,0 +1,147 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$checksite/public_html ]; then
+find /home/$checksite/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 0 ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+done
+echo "========================================================================="
+echo "Sử dụng chức năng này để kiểm tra SSL status cho website cài đặt SSL"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn xem danh sách website trên server? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "========================================================================="
+echo "Danh sách website:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/checksite-list | pr -2 -t 
+fi
+rm -rf /etc/dsnvps/.tmp/checksite-list 
+echo "========================================================================="
+echo -n "Nhập tên website [ENTER]: " 
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+websiteTO=`echo $website | tr '[a-z]' '[A-Z]'`
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn chưa nhập tên website"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$website/public_html ] && [ -f /etc/nginx/conf.d/www.$website.conf ]; then
+website=www.$website
+fi
+#################################################################
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ $(echo "$website" | cut -c 1-4) == "www." ]; then
+website_redirect=$(echo "$website" | sed 's/....//')
+else
+website_redirect=www.$website
+fi
+#################################################################
+#################################################################
+if [ -f /etc/nginx/conf.d/$website_redirect.conf ]; then
+website=$website_redirect
+fi
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ $(echo "$website" | cut -c 1-4) == "www." ]; then
+website_redirect=$(echo "$website" | sed 's/....//')
+else
+website_redirect=www.$website
+fi
+#################################################################
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy $Website trên server "
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi  
+
+if [ ! -d /home/$website/public_html ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy folder public_html của $website"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+##############
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..." 
+sleep 2
+echo "check" > /home/$website/public_html/dsnvps.check
+checkurlsttSSL=$(curl -o /dev/null --silent --head --write-out '%{http_code}' "https://$website/dsnvps.check")
+grep ssl_certificate_key /etc/nginx/conf.d/$website.conf > /etc/dsnvps/.tmp/paidsslsec0
+rm -rf /home/$website/public_html/dsnvps.check
+if [  "$checkurlsttSSL" == "200" ] && [ ! -z /etc/dsnvps/.tmp/paidsslsec0 ]; then
+
+echo | openssl s_client -servername $website -connect $website:443 2>/dev/null | openssl x509 -noout -issuer > /etc/dsnvps/.tmp/paidsslsec
+grep O=Let /etc/dsnvps/.tmp/paidsslsec > /etc/dsnvps/.tmp/paidsslsec2
+
+if [ `ls -l /etc/dsnvps/.tmp/paidsslsec2 | awk '{print $5}'` -gt 5 ]; then
+clear
+echo "========================================================================="
+echo "$website không dùng PaidSSL"
+echo "-------------------------------------------------------------------------"
+echo "Bạn không thể thực hiện chức năng này."
+rm -rf /etc/dsnvps/.tmp/paidsslsec*
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/paidsslsec*
+
+echo | openssl s_client -servername $website -connect $website:443 2>/dev/null | openssl x509 -noout -dates | sed 's/notBefore=/Ngay\ Dang\ Ky:\ /g' | sed 's/notAfter=/Ngay\ Het\ Han:\ /g' > /etc/dsnvps/.tmp/checltimessl
+sed -i 's/GMT//g' /etc/dsnvps/.tmp/checltimessl
+awk '{for (i=6; i<NF; i++) $i = $(i+1); NF--};1' /etc/dsnvps/.tmp/checltimessl > /etc/dsnvps/.tmp/checltimessl2
+clear
+echo "========================================================================="
+echo "SSL for $websiteTO:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/checltimessl2
+rm -rf /etc/dsnvps/.tmp/checltimessl*
+rm -rf /etc/dsnvps/.tmp/paidsslsec0
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+else
+clear
+echo "========================================================================="
+echo "$website chưa cài đặt SSL."
+rm -rf /etc/dsnvps/.tmp/paidsslsec0
+rm -rf /etc/dsnvps/.tmp/checltimessl*
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+
+

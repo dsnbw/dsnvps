@@ -1,0 +1,65 @@
+#!/bin/bash
+
+if [[ ! -f /etc/dsnvps/vps_backup_rsync.info ]] && ! command -v sshpass >/dev/null 2>&1; then
+    apt-get install -y -qq sshpass
+fi
+
+if [ -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+    if [ ! -f /etc/cron.d/dsnvps.rsync.cron ]; then
+        rm -rf /etc/dsnvps/Auto_backup_VPS_by_rsync
+    fi
+fi
+
+if [ -f /etc/cron.d/dsnvps.rsync.cron ]; then
+    if [ ! -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+        rm -rf /etc/cron.d/dsnvps.rsync.cron
+    fi
+fi
+
+show_phan_tren_menu() {
+    /etc/dsnvps/menu/dsnvps-menu-all-function
+    printf "=========================================================================\n"
+    printf "                          Quản lý VPS Backup \n"
+    printf "=========================================================================\n"
+    printf "                    Sao lưu dữ liệu tới VPS Backup\n"
+    printf "=========================================================================\n"
+    if [ -f /etc/dsnvps/vps_backup_rsync.info ]; then
+        if [ ! "$(grep "thanhcong" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')" == "" ]; then
+            printf "            VPS Backup: Đã cấu hình | IP: $(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}') \n"
+            printf "=========================================================================\n"
+        fi
+    fi
+    echo "Hướng dẫn sử dụng: http://go.dsnvps/backupvps"
+    printf "=========================================================================\n"
+}
+while true; do
+clear
+show_phan_tren_menu
+    if [ ! -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+        printf "%-35s %s\n" "1) Kết nối VPS Backup" 		" 3) Sao lưu ngay lập tức"
+        printf "%-42s %s\n" "2) Cấu hình thời gian đồng bộ" "4) Tắt sao lưu tới VPS Backup"
+    else
+        printf "%-35s %s\n" "1) Kết nối VPS Backup" 			" 	3) Sao lưu ngay lập tức"
+        printf "%-35s %s\n" "2) Cấu hình lại thời gian đồng bộ" "	4) Tắt sao lưu tới VPS Backup"
+    fi
+    echo "========================================================================="
+    
+    # Lựa chọn của người dùng
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+        1) /etc/dsnvps/menu/dsnvps-rsync-ket-noi-vps-backup;;
+        2) /etc/dsnvps/menu/dsnvps-rsync-cau-hinh-thu-muc-sao-luu;;
+        3) /etc/dsnvps/menu/dsnvps-rsync-sync-toi-vps-backup-ngay;;
+       # 4) /etc/dsnvps/menu/dsnvps-rsync-doi-mat-khau-tai-khoan-root-vps-backup;;
+        4) /etc/dsnvps/menu/dsnvps-rsync-ngat-ket-noi-vps-backup;;
+0) clear; exit 0;;
+        *)
+            echo "========================================================================="
+            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+            tput cuu 6
+            for ((i=0; i<6; i++)); do tput el; tput cud1; done
+            tput cuu 6
+            ;;
+    esac
+done

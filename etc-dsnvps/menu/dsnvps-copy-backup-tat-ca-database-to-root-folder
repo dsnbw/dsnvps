@@ -1,0 +1,138 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+code=-`date |md5sum |cut -c '1-15'`
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/website-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/website-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/website-list
+for checksite in $listwebsite 
+do
+if [ -d /home/$checksite/public_html ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/website-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/website-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không có website nào trên hệ thống"
+echo "--------------------------------------------------------------------------"
+echo "Bạn không thể sử dụng chức năng này !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+
+if [ ! -f /home/$mainsite/private_html/backup/AllDB/*.sql.gz ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy file backup Full Database trên server !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi
+
+echo "========================================================================="
+echo "Dùng chức năng này để copy backup Full database tới root folder của"
+echo "-------------------------------------------------------------------------"
+echo "domain bạn chọn. Bạn sẽ dễ dàng wget chuyển backup sang server khác."
+echo "========================================================================="
+read -r -p "Bạn muốn xem danh sách website trên server ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "========================================================================="
+echo "Danh sách website:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/website-list | pr -2 -t 
+fi
+rm -rf /etc/dsnvps/.tmp/website-list 
+echo "========================================================================="
+echo -n "Nhập tên website [ENTER]: " 
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập chính xác"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+clear
+echo "========================================================================="
+echo "$website có thể không dùng định dạng tên miền!"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$website/public_html ] && [ -f /etc/nginx/conf.d/www.$website.conf ]; then
+website=www.$website
+fi
+if [ $(echo "$website" | cut -c 1-4) == "www." ]; then
+website_redirect=$(echo "$website" | sed 's/....//')
+fi
+#################################################################
+if [ -f /etc/nginx/conf.d/$website_redirect.conf ]; then
+website=$website_redirect
+fi
+
+
+if [ -d /home/$website/public_html ]; then
+if [ -f  /home/$mainsite/private_html/backup/AllDB/*.sql.gz ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy file Full Database backup trên server"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5
+find /home/$mainsite/private_html/backup/AllDB/ -name '*.sql.gz' -type f -exec basename {} \;  > /etc/dsnvps/.tmp/linkdatabasename
+filename=`cat /etc/dsnvps/.tmp/linkdatabasename`
+if [ ! -d /home/$website/public_html/0-DSNVPS ]; then
+mkdir -p /home/$website/public_html/0-DSNVPS
+echo "11" >/home/$website/public_html/0-DSNVPS/index.php
+fi
+if [ ! -f /home/$website/public_html/0-DSNVPS/index.php ]; then
+echo "11" >/home/$website/public_html/0-DSNVPS/index.php
+fi
+yes | cp -rf /home/$mainsite/private_html/backup/AllDB/$filename /home/$website/public_html/0-DSNVPS
+chown -R nginx:nginx /home/$website/public_html/0-DSNVPS
+clear
+echo "========================================================================="
+echo "Copy backup tới folder public_html của $website hoàn tất."
+echo "-------------------------------------------------------------------------"
+echo "Link tải file backup:"
+echo "-------------------------------------------------------------------------"
+echo "http://$website/0-DSNVPS/$filename"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+else
+clear
+echo "========================================================================="
+echo "Không tìm thấy Full Backup Database trên server !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy kiểm tra lại !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi
+else
+clear
+echo "========================================================================="
+echo "$website không tồn tại trên server "
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+

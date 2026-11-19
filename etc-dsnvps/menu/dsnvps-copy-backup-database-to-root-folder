@@ -1,0 +1,348 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+code=-`date |md5sum |cut -c '1-15'`
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/website-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/website-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+for checksite in $listwebsite 
+do
+if [ -d /home/$checksite/public_html ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/website-list
+fi
+done
+if [ ! -f /etc/dsnvps/.tmp/website-list ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/website-list
+clear
+echo "========================================================================="
+echo "Không có website nào trên hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "Bạn không thể sử dụng chức năng này !"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+find /home/$mainsite/private_html/backup/ -name "*.tar.gz*" > /etc/dsnvps/.tmp/dsnvps_check_backup_database_size
+find /home/$mainsite/private_html/backup/ -name "*.sql.gz*" >> /etc/dsnvps/.tmp/dsnvps_check_backup_database_size
+numberfiles=$(cat /etc/dsnvps/.tmp/dsnvps_check_backup_database_size | wc -l)
+if [ "$numberfiles" == "0" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_backup_database_size
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/website-list
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy file backup của database trên server!"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_backup_database_size
+echo "========================================================================="
+echo "Dùng chức năng này để copy backup của database tới root folder"
+echo "-------------------------------------------------------------------------"
+echo "của domain. Bạn sẽ dễ dàng wget backup để di chuyển sang server khác."
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|sys|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+listdatabase=$(cat /etc/dsnvps/.tmp/checkalldatabase)
+for checkdata in $listdatabase 
+do
+rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+find /var/lib/mysql/$checkdata -name "*.*" > /etc/dsnvps/.tmp/check_database_co_du_lieu
+sodong=`cat /etc/dsnvps/.tmp/check_database_co_du_lieu | wc -l`
+if [ "$sodong" -gt 1 ]; then
+echo "$checkdata" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+done
+####### Tìm database có backup
+DB_LIST_FILE="/etc/dsnvps/.tmp/checkdatabase-list"
+DB_BACKUP_LIST_FILE="/etc/dsnvps/.tmp/checkdatabase-list_co_backup"
+BACKUP_DIR="/home/$mainsite/private_html/backup"
+> "$DB_BACKUP_LIST_FILE"
+while IFS= read -r database; do
+    if [ -d "$BACKUP_DIR/$database" ] && ls "$BACKUP_DIR/$database"/*.sql.gz* &>/dev/null; then
+        echo "$database" >> "$DB_BACKUP_LIST_FILE"
+    fi
+done < "$DB_LIST_FILE"
+####################
+if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list_co_backup ]; then
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/website-list
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy database có backup file trên server !"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+echo "========================================================================="
+echo "Danh sách Database có file sao lưu:"
+echo "-------------------------------------------------------------------------"
+mapfile -t file_list < /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+    left_db="${file_list[i]:- }"                  # Tên database bên trái
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"    # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+# Chọn database
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với Database [0 -Thoát]: " 
+    read -r choice
+    if [[ $choice == "0" ]]; then
+        clear
+        rm -rf /etc/dsnvps/.tmp/checkalldatabase
+        rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+        rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+        rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+        rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+        rm -rf /etc/dsnvps/.tmp/website-list
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+        exit
+    fi
+    # Kiểm tra input rỗng
+    if [[ -z "$choice" ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi: Bạn chưa nhập lựa chọn. Vui lòng nhập số từ 1-${#file_list[@]}"
+        sleep 2 && tput cuu 4 && tput ed
+        continue
+    fi
+    # Kiểm tra có phải số không và trong khoảng hợp lệ
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+        databasename=${file_list[choice-1]}
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi: Lựa chọn không hợp lệ. Vui lòng nhập số từ 1-${#file_list[@]}"
+        sleep 2 && tput cuu 4 && tput ed
+    fi
+done
+# Tìm tất cả file backup (có .sql.gz hoặc .sql.gz.* trong tên)
+backup_files=()
+backup_dir="/home/$mainsite/private_html/backup/$databasename"
+if [ -d "$backup_dir" ]; then
+    temp_file="/tmp/backup_files_$$"
+    find "$backup_dir" -type f \( -name "*.sql.gz" -o -name "*.sql.gz.*" \) > "$temp_file"
+    while IFS= read -r file; do
+        if [ -n "$file" ]; then
+            backup_files+=("$file")
+        fi
+    done < "$temp_file"
+    rm -f "$temp_file"
+fi
+# Kiểm tra nếu không có file backup
+if [ ${#backup_files[@]} -eq 0 ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file backup nào trong thư mục:"
+    echo "/home/$mainsite/private_html/backup/$databasename"
+    rm -rf /etc/dsnvps/.tmp/checkalldatabase
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+    rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+    rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+    rm -rf /etc/dsnvps/.tmp/website-list
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+    exit
+fi
+# Sắp xếp file theo thời gian tạo (mới nhất trước)
+sorted_files=()
+for file in "${backup_files[@]}"; do
+    timestamp=$(stat -c %Y "$file")
+    sorted_files+=("$timestamp:$file")
+done
+# Sắp xếp theo timestamp giảm dần
+IFS=$'\n' sorted_files=($(sort -rn -t: -k1 <<< "${sorted_files[*]}"))
+# Tạo danh sách file đã sắp xếp
+final_files=()
+for item in "${sorted_files[@]}"; do
+    file_path="${item#*:}"
+    final_files+=("$file_path")
+done
+# Nếu chỉ có 1 file, sử dụng trực tiếp
+if [ ${#final_files[@]} -eq 1 ]; then
+    selected_file="${final_files[0]}"
+    filename=$(basename "$selected_file")
+else
+    # Hiển thị danh sách để user chọn
+    echo "========================================================================="
+    echo "DANH SÁCH FILE BACKUP CỦA DATABASE: $databasename"
+    echo "========================================================================="
+    for i in "${!final_files[@]}"; do
+        file_path="${final_files[i]}"
+        file_time=$(date -r "$file_path" "+%H:%M %d/%m/%Y")
+        if [ $i -eq 0 ]; then
+            printf "%2d. Backup tạo lúc: %s (File mới nhất)\n" $((i+1)) "$file_time"
+        else
+            printf "%2d. Backup tạo lúc: %s\n" $((i+1)) "$file_time"
+        fi
+    done
+    echo ""
+    # Chọn file backup
+    while true; do
+        echo -n "Chọn file backup để copy [0 -Thoát]: "
+        read -r backup_choice
+        if [[ $backup_choice == "0" ]]; then
+            clear
+            rm -rf /etc/dsnvps/.tmp/checkalldatabase
+            rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+            rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+            rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+            rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+            rm -rf /etc/dsnvps/.tmp/website-list
+            /etc/dsnvps/menu/dsnvps-them-xoa-database
+            exit
+        fi
+        # Kiểm tra input rỗng
+        if [[ -z "$backup_choice" ]]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Lỗi: Bạn chưa nhập lựa chọn. Vui lòng nhập số từ 1-${#final_files[@]}"
+            sleep 2 && tput cuu 4 && tput ed
+            continue
+        fi
+        if [[ $backup_choice =~ ^[0-9]+$ ]] && (( backup_choice >= 1 && backup_choice <= ${#final_files[@]} )); then
+            selected_file="${final_files[$((backup_choice-1))]}"
+            filename=$(basename "$selected_file")
+            break
+        else
+            echo "-------------------------------------------------------------------------"
+            echo "Lỗi: Lựa chọn không hợp lệ. Vui lòng nhập số từ 1-${#final_files[@]}"
+            sleep 2 && tput cuu 4 && tput ed
+        fi
+    done
+fi
+# Hiển thị danh sách website
+mapfile -t website_list < /etc/dsnvps/.tmp/website-list
+echo "========================================================================="
+echo "Chọn website bạn muốn copy backup database vào:"
+echo "-------------------------------------------------------------------------"
+total=${#website_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+    left_site="${website_list[i]:- }"             # Tên website bên trái
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_site="${website_list[right_index-1]}" # Tên website bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_site" "$right_index." "$right_site"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_site"
+    fi
+done
+# Chọn website
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r website_choice
+    if [[ $website_choice == "0" ]]; then
+        clear
+        rm -rf /etc/dsnvps/.tmp/checkalldatabase
+        rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+        rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+        rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+        rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+        rm -rf /etc/dsnvps/.tmp/website-list
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+        exit
+    fi
+    # Kiểm tra input rỗng
+    if [[ -z "$website_choice" ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi: Bạn chưa nhập lựa chọn. Vui lòng nhập số từ 1-${#website_list[@]}"
+        sleep 2 && tput cuu 4 && tput ed
+        continue
+    fi
+    # Kiểm tra có phải số không và trong khoảng hợp lệ
+    if [[ $website_choice =~ ^[0-9]+$ ]] && (( website_choice >= 1 && website_choice <= ${#website_list[@]} )); then
+        website=${website_list[website_choice-1]}
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi: Lựa chọn không hợp lệ. Vui lòng nhập số từ 1-${#website_list[@]}"
+        sleep 2 && tput cuu 4 && tput ed
+    fi
+done
+# Thực hiện copy file backup
+if [ -d /home/$website/public_html ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Tìm thấy backup của $databasename trên server"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup được chọn: $filename"
+    echo "-------------------------------------------------------------------------"
+    file_time=$(date -r "/home/$mainsite/private_html/backup/$databasename/$filename" "+%H:%M %d/%m/%Y")
+    echo "Thời gian tạo: $file_time"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup sẽ được copy vào:"
+    echo "-------------------------------------------------------------------------"
+    echo "/home/$website/public_html/0-DSNVPS/"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 3
+    # Tạo thư mục nếu chưa có
+    if [ ! -d /home/$website/public_html/0-DSNVPS ]; then
+        mkdir -p /home/$website/public_html/0-DSNVPS
+        echo "" >/home/$website/public_html/0-DSNVPS/index.php
+    fi
+    # Copy file backup đã chọn
+    yes | cp -rf /home/$mainsite/private_html/backup/$databasename/$filename /home/$website/public_html/0-DSNVPS
+    clear
+    echo "========================================================================="
+    echo "Copy file backup tới folder public_html của $website hoàn tất."
+    echo "-------------------------------------------------------------------------"
+    echo "Database: $databasename"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup: $filename"
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian backup: $file_time"
+    echo "-------------------------------------------------------------------------"
+    echo "Link tải file backup:"
+    echo "-------------------------------------------------------------------------"
+    echo "http://$website/0-DSNVPS/$filename"
+    rm -rf /etc/dsnvps/.tmp/checkalldatabase
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+    rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+    rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+    rm -rf /etc/dsnvps/.tmp/website-list
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+else
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy thư mục public_html của $website !"
+    rm -rf /etc/dsnvps/.tmp/checkalldatabase
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+    rm -rf /etc/dsnvps/.tmp/check_database_co_du_lieu
+    rm -rf /etc/dsnvps/.tmp/checkdatabase-list_co_backup
+    rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+    rm -rf /etc/dsnvps/.tmp/website-list
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+    exit
+fi

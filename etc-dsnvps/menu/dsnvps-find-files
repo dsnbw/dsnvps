@@ -1,0 +1,4 @@
+#!/bin/bash 
+#/etc/dsnvps/menu/dsnvps-dsnk-check-gioi-can-thiet  
+touch /etc/dsnvps/.tmp/ckla
+# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed)

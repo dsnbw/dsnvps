@@ -1,0 +1,5 @@
+#!/bin/bash
+. /root/dsnvps.conf 
+# Anti-debug removed
+touch /etc/dsnvps/menu/dsnvps-ftpserver-read
+/etc/dsnvps/menu/dsnvps-ftpserver-menu

@@ -1,0 +1,46 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ "$(iptables -L -n | grep :$priport | awk 'NR==1 {print $1}')" == "DROP" ]; then
+clear
+echo "========================================================================="
+echo "Cổng PhpMyAdmin ($priport) đang ĐÓNG."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần đóng lại cổng này!" 
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit
+fi
+
+echo "========================================================================="
+echo "Nếu bạn đóng cổng PhpMyAdmin (cổng: $priport), bạn sẽ không thể truy cập"
+echo "-------------------------------------------------------------------------"
+echo "PhpMyAdmin, xem trạng thái và không thể tải xuống bất kỳ tệp nào qua cổng này"
+echo "-------------------------------------------------------------------------"
+echo "Như: Tệp sao lưu, tệp nhật ký..."
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn ĐÓNG cổng $priport? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "Vui lòng chờ....";sleep 2
+clear
+echo "========================================================================="
+echo "Đóng cổng PhpMyAdmin ($priport) thành công!"
+echo "-------------------------------------------------------------------------"
+iptables -I INPUT -p tcp --dport $priport -j DROP
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn đã hủy đóng cổng PhpMyAdmin (Cổng $priport)"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+

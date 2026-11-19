@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#Tieng Viet:
+sed -ri "s|.*date.timezone =.*|date.timezone = Asia/Bangkok|" /etc/php.ini
+timedatectl set-timezone Asia/Ho_Chi_Minh
+# Tieng Anh:
+#sed -ri "s|.*date.timezone =.*|date.timezone = America/Caracas|" /etc/php.ini
+#yes | cp /usr/share/zoneinfo/Etc/GMT-4 /etc/localtime

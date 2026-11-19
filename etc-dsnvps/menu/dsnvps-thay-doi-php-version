@@ -1,0 +1,115 @@
+#!/bin/bash
+. /root/dsnvps.conf
+rm -rf /etc/dsnvps/.tmp/cinso
+if ! command -v php >/dev/null 2>&1; then
+    echo "PHP chua duoc cai dat tren server!"
+    read -p "Nhan [Enter] de quay ve..."
+    exit 1
+fi
+
+php_version=$(php -v | head -n 1 | awk '{print $2}')
+php_versioncut=$(php -v | head -n 1 | awk '{print $2}' | cut -d. -f1,2)
+available_versions=("7.4" "8.0" "8.1" "8.2" "8.3" "8.4")
+lines=()
+for v in "${available_versions[@]}"; do
+    if [ "$v" != "$php_versioncut" ]; then
+        lines+=("$v")
+    fi
+done
+
+clear
+echo "========================================================================"
+echo "Sử dụng chức năng này để thay đổi phiên bản PHP cho Server."
+echo "------------------------------------------------------------------------"
+echo "Phiên bản PHP đang cài đặt trên server: $php_versioncut"
+echo "------------------------------------------------------------------------"
+echo "Danh sách các phiên bản PHP có thể thay đổi:"
+echo "========================================================================"
+for i in "${!lines[@]}"; do
+    echo "$((i+1)). PHP ${lines[i]}"
+done
+echo "========================================================================"
+
+while true; do
+    read -p "Nhập số để lựa chọn phiên bản PHP [0 -Thoát]: " choice
+    if [[ "$choice" == "0" ]]; then
+        clear
+        echo "========================================================================"
+        echo "Hủy bỏ."
+        sleep 0.5
+        exit 0
+    fi
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [[ "$choice" -gt 0 && "$choice" -le "${#lines[@]}" ]]; then
+        selected_version="${lines[$((choice-1))]}"
+        echo "------------------------------------------------------------------------"
+        read -p "Bạn có chắc chắn thay PHP $php_versioncut bằng PHP $selected_version? (y/n): " confirm
+        if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+            echo "========================================================================"
+            echo "Đang cài đặt và chuyển sang PHP $selected_version. Vui lòng chờ..."
+            echo "------------------------------------------------------------------------"
+            export DEBIAN_FRONTEND=noninteractive
+            has_imagick=0
+            has_redis=0
+            has_memcache=0
+            [ -f /etc/php.d/imagick.ini ] && has_imagick=1
+            dpkg -s php${php_versioncut}-redis >/dev/null 2>&1 && has_redis=1
+            dpkg -s php${php_versioncut}-memcached >/dev/null 2>&1 && has_memcache=1
+
+            apt-get update -qq
+            apt-get install -y \
+                php${selected_version}-fpm php${selected_version}-cli php${selected_version}-common \
+                php${selected_version}-mysql php${selected_version}-curl php${selected_version}-gd \
+                php${selected_version}-mbstring php${selected_version}-xml php${selected_version}-zip \
+                php${selected_version}-bcmath php${selected_version}-intl php${selected_version}-soap \
+                php${selected_version}-opcache php${selected_version}-sqlite3 php${selected_version}-ldap \
+                php${selected_version}-tidy php${selected_version}-xsl php${selected_version}-snmp \
+                php${selected_version}-readline
+
+            [ "$has_imagick" -eq 1 ] && apt-get install -y php${selected_version}-imagick || true
+            [ "$has_redis" -eq 1 ] && apt-get install -y php${selected_version}-redis || true
+            [ "$has_memcache" -eq 1 ] && apt-get install -y php${selected_version}-memcached || true
+
+            systemctl stop php${php_versioncut}-fpm 2>/dev/null || true
+            systemctl disable php${php_versioncut}-fpm 2>/dev/null || true
+
+            update-alternatives --set php /usr/bin/php${selected_version}
+
+            rm -f /etc/php.ini /etc/php.d /etc/php-fpm.conf /etc/php-fpm.d
+            ln -sfn /etc/php/${selected_version}/fpm/php.ini /etc/php.ini
+            ln -sfn /etc/php/${selected_version}/fpm/php.ini /etc/php/${selected_version}/cli/php.ini
+            ln -sfn /etc/php/${selected_version}/fpm/conf.d /etc/php.d
+            ln -sfn /etc/php/${selected_version}/fpm/php-fpm.conf /etc/php-fpm.conf
+            ln -sfn /etc/php/${selected_version}/fpm/pool.d /etc/php-fpm.d
+
+            ln -sfn /usr/lib/systemd/system/php${selected_version}-fpm.service /etc/systemd/system/php-fpm.service
+            systemctl daemon-reload
+
+            # Clean duplicate opcache/imagick names so dsnvps sees opcache.ini / imagick.ini
+            rm -f /etc/php.d/10-opcache.ini
+            if [ "$has_imagick" -eq 1 ]; then
+                rm -f /etc/php.d/20-imagick.ini
+                echo "extension=imagick.so" > /etc/php.d/imagick.ini
+            fi
+
+            /etc/dsnvps/menu/inc/setup/config-php.ini-www.conf-belong-ram
+            /etc/dsnvps/menu/inc/setup/config-opcache.ini-sysctl.conf-php-fpm.conf-limits.conf-belong-ram-cpu
+            sed -i 's/^opcache.enable=0/opcache.enable=1/' /etc/php.d/opcache.ini 2>/dev/null || true
+
+            mkdir -p /var/lib/php/session /var/log/php-fpm
+            chown -R nginx:nginx /var/lib/php/session /var/log/php-fpm
+
+            systemctl enable php${selected_version}-fpm
+            systemctl restart php${selected_version}-fpm
+
+            echo "========================================================================"
+            echo "Đã chuyển đổi sang PHP $selected_version thành công!"
+            php -v
+            echo "========================================================================"
+            read -p "Nhấn [Enter] để tiếp tục..."
+            exit 0
+        else
+            clear
+            exit 0
+        fi
+    fi
+done

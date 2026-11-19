@@ -1,0 +1,32 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /home/$mainsite/private_html/backup/AllDB/*.sql.gz ]; then
+clear
+echo "========================================================================="
+eecho "Bạn chưa thực hiện sao lưu Full database!"
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi
+find /home/$mainsite/private_html/backup/AllDB/ -type f -exec basename {} \;  > /etc/dsnvps/.tmp/backupname
+filename=`cat /etc/dsnvps/.tmp/backupname`
+rm -rf /etc/dsnvps/.tmp/backupname
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+clear
+echo "========================================================================="
+echo "Tìm thấy backup Full database trên server"
+echo "-------------------------------------------------------------------------"
+echo "Link download: "
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/AllDB/$filename"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi

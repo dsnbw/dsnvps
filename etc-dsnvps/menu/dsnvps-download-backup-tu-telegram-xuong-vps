@@ -1,0 +1,163 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/telegram_group.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn phải hoàn thành [Cấu Hình Tự Động Sao Lưu] "
+    echo "-------------------------------------------------------------------------"
+    echo "trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+if [ ! -f /etc/dsnvps/telegram.session ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Telegram chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra file cấu hình Telegram
+if [ ! -f /etc/dsnvps/backup.telegram.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa cấu hình [ Cấu Hình Tự Động Sao Lưu ]."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn cần cấu hình nó trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra python3
+if ! command -v python3 >/dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt python3 trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra telethon
+if ! python3 -c "import telethon" >/dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt telethon trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra group_id
+grep -q "group_id" /etc/dsnvps/telegram_group.conf
+if [ $? -ne 0 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "File cấu hình Telegram không hợp lệ. Hãy chạy [Xóa Tất Cả Cấu Hình]."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Tạo thư mục backup nếu chưa có
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+    mkdir -p /home/$mainsite/private_html/backup
+fi
+
+# Kiểm tra kết nối tới Telegram
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới Telegram - Tối đa 60 giây"; sleep 2
+# Tạo thư mục tmp nếu chưa có
+mkdir -p /etc/dsnvps/.tmp
+
+# Chạy script kiểm tra với timeout để tránh treo (ẩn thông báo kill)
+{
+    timeout 60 python3 /etc/dsnvps/menu/inc/checktelegram.py > /etc/dsnvps/.tmp/telegram_check.log 2>&1
+} 2>/dev/null
+check_exit_code=$?
+
+# Kiểm tra kết quả
+if [ $check_exit_code -eq 124 ] || [ $check_exit_code -eq 143 ]; then
+    check_result="ERROR: Timeout - Script chạy quá 60 giây. Có thể do database bị lock."
+elif [ $check_exit_code -ne 0 ]; then
+    if [ -f /etc/dsnvps/.tmp/telegram_check.log ]; then
+        check_result=$(cat /etc/dsnvps/.tmp/telegram_check.log 2>/dev/null)
+        if [ -z "$check_result" ] || [ "$check_result" = "" ]; then
+            check_result="ERROR: Script bị dừng bất thường (exit code: $check_exit_code)"
+        fi
+    else
+        check_result="ERROR: Không tìm thấy file log (exit code: $check_exit_code)"
+    fi
+else
+    if [ -f /etc/dsnvps/.tmp/telegram_check.log ]; then
+        check_result=$(cat /etc/dsnvps/.tmp/telegram_check.log 2>/dev/null)
+        if [ -z "$check_result" ] || [ "$check_result" = "" ]; then
+            check_result="ERROR: Kết quả trống - có thể script bị lỗi"
+        fi
+    else
+        check_result="ERROR: Không tìm thấy file kết quả"
+    fi
+fi
+
+# Cleanup
+rm -rf /etc/dsnvps/.tmp/checktelegram.py /etc/dsnvps/.tmp/telegram_check.log 2>/dev/null
+
+if [[ "$check_result" != "OK" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Kết nối tới Telegram thất bại!"
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi: $check_result"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy thử lại hoặc [Xóa Tất Cả Cấu Hình] để kết nối Telegram lại."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+sleep 3 && tput cuu 2 && tput ed
+clear
+# Chạy script Python để tải backup
+echo "========================================================================="
+echo "Dùng chức năng này để tải backup từ Telegram về VPS."
+echo "========================================================================="
+if [ -f /etc/dsnvps/menu/dsnvps-download-telegram.py ]; then
+    python3 /etc/dsnvps/menu/dsnvps-download-telegram.py
+    if [ $? -eq 0 ]; then
+        clear
+        echo "========================================================================="
+        echo "Tải backup từ Telegram hoàn tất!"
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+    else
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Tải backup từ Telegram thất bại!"
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+        exit 1
+    fi
+else
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file /etc/dsnvps/menu/dsnvps-download-telegram.py"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại cấu hình DSNVPS."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit 1
+fi

@@ -1,0 +1,411 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+
+# Anti-debug removedrm" = "0" ]; then
+                    clear
+                    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                    exit 0
+                else
+                    echo "========================================================================="
+                    echo "Hủy xóa API Global"
+                    echo "========================================================================="
+                    sleep 3
+                    tput cuu 6 && tput ed
+                fi
+                ;;
+0) clear; exit 0;;
+            *)
+                echo "Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 0"
+                ;;
+        esac
+    done
+fi
+
+# Bỏ logic API cũ - chỉ sử dụng SSL API
+
+# Nhập API mới (hỗ trợ cả Global API Key và API Token)
+echo "========================================================================="
+echo "Chọn loại API:"
+echo "-------------------------------------------------------------------------"
+echo "1. Global API Key (Email + Key)"
+echo "2. API Token (Nên dùng)"
+echo "========================================================================="
+
+while true; do
+    read -p "Lựa chọn của bạn [0 -Thoát]: " api_type
+    
+    case $api_type in
+        1)
+            echo "========================================================================="
+            echo "CẤU HÌNH SỬ DỤNG GLOBAL API KEY"
+            echo "========================================================================="
+            echo "Truy cập: https://go.dsnvps/clapi"
+            echo "-------------------------------------------------------------------------"
+            echo "Và lấy API Keys - Global API Key ở dưới cùng của trang đó."
+            echo "========================================================================="
+            while true; do
+                echo -n "Nhập Email Cloudflare [0 -Thoát]: "
+                read -r apiemail
+                
+                if [ "$apiemail" = "0" ]; then
+                    clear
+                    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                    exit 0
+                fi
+                
+                if [ -z "$apiemail" ]; then
+                    echo "========================================================================="
+                    echo "Bạn nhập sai, vui lòng nhập lại!"
+                    sleep 2
+                    continue
+                fi
+                break
+            done
+            
+            while true; do
+                echo "-------------------------------------------------------------------------"
+                echo -n "Nhập Global API Key [0 -Thoát]: "
+                read -r apitoken
+                
+                if [ "$apitoken" = "0" ]; then
+                    clear
+                    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                    exit 0
+                fi
+                
+                if [ -z "$apitoken" ]; then
+                    echo "========================================================================="
+                    echo "Bạn nhập sai, vui lòng nhập lại!"
+                    sleep 2
+                    continue
+                fi
+                break
+            done
+            break
+            ;;
+        2)
+            echo "========================================================================="
+            echo "CẤU HÌNH SỬ DỤNG API TOKEN"
+            echo "========================================================================="
+            echo "Truy cập: https://go.dsnvps/clapi"
+            echo "-------------------------------------------------------------------------"
+            echo "Và tạo API Token với các quyền sau:"
+            echo "-------------------------------------------------------------------------"
+            echo "Permissions:"
+            echo "-----------"
+            echo "Zone - Zone - Read"
+            echo "Zone - Zone - Edit"
+            echo "Zone - Zone Setting - Edit"
+            echo "Zone - SSL and Certificate - Edit"
+            echo "Zone - SSL and Certificate - Read "
+            echo "Zone - DNS - Edit" 
+            echo "Zone - Cache Pure - Pure"
+            echo "-------------------------------------------------------------------------"
+            echo "Zone Resources:"
+            echo "----------------"   
+            echo "Include: All zones"
+            echo "========================================================================="         
+            while true; do
+                echo -n "Nhập API Token [0 -Thoát]: "
+                read -r apitoken
+                
+                if [ "$apitoken" = "0" ]; then
+                    clear
+                    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                    exit 0
+                fi
+                
+                if [ -z "$apitoken" ]; then
+                    echo "========================================================================="
+                    echo "Bạn nhập sai, vui lòng nhập lại!"
+                    sleep 2
+                    continue
+                fi
+                break
+            done
+            apiemail=""  # Không cần email với API Token
+            break
+            ;;
+0) clear; exit 0;;
+        *)
+            echo "Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 0"
+            ;;
+    esac
+done
+
+# Kiểm tra API với vòng lặp cho phép nhập lại
+while true; do
+    echo "========================================================================="
+    if [ -n "$apiemail" ]; then
+        echo "DSNVPS đang kiểm tra Global API Key ..."
+    else
+        echo "DSNVPS đang kiểm tra API Token ..."
+    fi
+    sleep 4
+
+    # Kiểm tra API dựa trên loại
+    if [ -n "$apiemail" ]; then
+        # Global API Key
+        user_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user" \
+             -H "X-Auth-Email: $apiemail" \
+             -H "X-Auth-Key: $apitoken" \
+             -H "Content-Type: application/json")
+        zone_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones" \
+             -H "X-Auth-Email: $apiemail" \
+             -H "X-Auth-Key: $apitoken" \
+             -H "Content-Type: application/json")
+    else
+        # API Token
+        user_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+             -H "Authorization: Bearer $apitoken" \
+             -H "Content-Type: application/json")
+        zone_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones" \
+             -H "Authorization: Bearer $apitoken" \
+             -H "Content-Type: application/json")
+    fi
+
+    if echo "$user_response" | grep -q '"success":true'; then
+        
+        if echo "$zone_response" | grep -q '"success":true'; then
+            echo "========================================================================="
+            if [ -n "$apiemail" ]; then
+                echo "Global API Key chính xác."
+            else
+                echo "API Token chính xác."
+            fi
+            echo "-------------------------------------------------------------------------"
+            if [ -n "$apiemail" ]; then
+                echo "Đang lưu cấu hình Global API Key ..."
+            else
+                echo "Đang lưu cấu hình API Token ..."
+            fi
+            sleep 3
+            
+            # Lưu thông tin vào file cấu hình chung
+            if [ -n "$apiemail" ]; then
+                echo "global_ssl_api_email=\"$apiemail\"" > /etc/dsnvps/ssl-cloudflare-api-global.conf
+            else
+                echo "global_ssl_api_email=\"\"" > /etc/dsnvps/ssl-cloudflare-api-global.conf
+            fi
+            echo "global_ssl_api_token=\"$apitoken\"" >> /etc/dsnvps/ssl-cloudflare-api-global.conf
+            chmod 600 /etc/dsnvps/ssl-cloudflare-api-global.conf
+            
+            clear
+            echo "========================================================================="
+            if [ -n "$apiemail" ]; then
+                echo "Cấu hình Global API Key thành công!"
+                echo "-------------------------------------------------------------------------"
+                echo "Loại: Global API Key"
+                echo "-------------------------------------------------------------------------"
+                echo "Email: $apiemail"
+                echo "-------------------------------------------------------------------------"
+                echo "API Key: ${apitoken:0:10}..."
+            else
+                echo "Cấu hình API Token thành công!"
+                echo "-------------------------------------------------------------------------"
+                echo "Loại: API Token"
+                echo "-------------------------------------------------------------------------"
+                echo "API Token: ${apitoken:0:10}..."
+            fi
+            echo "-------------------------------------------------------------------------"
+            echo "Từ bây giờ, khi cấu hình DDNS cho domain/subdomain, DSNVPS sẽ tự động tạo"
+            echo "-------------------------------------------------------------------------"
+            echo "và cập nhật DNS record cho domain/subdomain. API này cũng có thể được sử dụng"
+            echo "-------------------------------------------------------------------------"
+            echo "cho chức năng SSL Cloudflare."
+            echo "========================================================================="
+            
+            # Hiển thị danh sách domain có thể quản lý với API này
+            if [ -n "$apiemail" ]; then
+                echo "Danh sách domain có thể quản lý DDNS với Global API Key này:"
+            else
+                echo "Danh sách domain có thể quản lý DDNS với API Token này:"
+            fi
+            echo "-------------------------------------------------------------------------"
+            
+            # Cài đặt jq nếu chưa có để parse JSON chính xác
+            if ! command -v jq &> /dev/null; then
+                echo "Đang cài đặt jq để parse JSON..."
+                if command -v yum &> /dev/null; then
+                    apt-get install -y -qq jq >/dev/null 2>&1
+                elif command -v dnf &> /dev/null; then
+                    apt-get install -y -qq jq >/dev/null 2>&1
+                fi
+            fi
+            
+            # Sử dụng jq để parse JSON chính xác (nếu có jq)
+            if command -v jq &> /dev/null; then
+                domains=$(echo "$zone_response" | jq -r '.result[].name' 2>/dev/null | head -10)
+            else
+                # Fallback: Extract domains từ JSON response một cách chính xác hơn
+                domains=$(echo "$zone_response" | grep -o '"name":"[^"]*"' | grep -v '@\|account\|Free\|Website' | cut -d'"' -f4 | head -10)
+            fi
+            
+            if [ -n "$domains" ]; then
+                echo "$domains" | nl -w2 -s'. '
+                domain_count=$(echo "$domains" | wc -l)
+                
+                # Lấy tổng số zones từ JSON response
+                if command -v jq &> /dev/null; then
+                    total_zones=$(echo "$zone_response" | jq -r '.result_info.total_count' 2>/dev/null)
+                else
+                    total_zones=$(echo "$zone_response" | grep -oP '"total_count":\K[0-9]+' | head -1)
+                fi
+                
+                # Hiển thị thông tin về domain còn lại
+                if [ -n "$total_zones" ] && [ "$total_zones" -gt "$domain_count" ]; then
+                    remaining=$((total_zones - domain_count))
+                    echo "... (và $remaining domain khác)"
+                elif [ "$domain_count" -eq 10 ]; then
+                    echo "... (có thể có thêm domain khác)"
+                fi
+            else
+                echo "Không tìm thấy domain nào trong tài khoản Cloudflare."
+            fi
+            
+            echo "========================================================================="
+            echo "Nhấn Enter để quay lại menu chính..."
+            read
+            clear
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            exit 0
+        else
+            echo "========================================================================="
+            if [ -n "$apiemail" ]; then
+                echo "Global API Key không có quyền truy cập zones hoặc không có domain nào"
+            else
+                echo "API Token không có quyền truy cập zones hoặc không có domain nào"
+            fi
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng kiểm tra lại quyền hạn của API."
+            echo "========================================================================="
+            sleep 4
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            exit 0
+        fi
+    else
+        echo "========================================================================="
+        if [ -n "$apiemail" ]; then
+            echo "Bạn nhập sai Email hoặc Global API Key"
+        else
+            echo "API Token không hợp lệ hoặc đã hết hạn"
+        fi
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn có muốn nhập lại không?"
+        echo "-------------------------------------------------------------------------"
+        echo "1. Nhập lại API"
+        echo "2. Quay về menu chính"
+        echo "========================================================================="
+        
+        while true; do
+            read -p "Lựa chọn của bạn [0 -Thoát]: " retry_choice
+            
+            case $retry_choice in
+                1)
+                    echo "========================================================================="
+                    if [ -n "$apiemail" ]; then
+                        echo "CẤU HÌNH LẠI GLOBAL API KEY"
+                        echo "========================================================================="
+                        echo "Truy cập: https://go.dsnvps/clapi"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Và lấy API Keys - Global API Key ở dưới cùng của trang đó."
+                        echo "========================================================================="
+                        while true; do
+                            echo -n "Nhập Email Cloudflare [0 -Thoát]: "
+                            read -r apiemail
+                            
+                            if [ "$apiemail" = "0" ]; then
+                                clear
+                                /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                                exit 0
+                            fi
+                            
+                            if [ -z "$apiemail" ]; then
+                                echo "========================================================================="
+                                echo "Bạn nhập sai, vui lòng nhập lại!"
+                                sleep 2
+                                continue
+                            fi
+                            break
+                        done
+                        
+                        while true; do
+                            echo "-------------------------------------------------------------------------"
+                            echo -n "Nhập Global API Key [0 -Thoát]: "
+                            read -r apitoken
+                            
+                            if [ "$apitoken" = "0" ]; then
+                                clear
+                                /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                                exit 0
+                            fi
+                            
+                            if [ -z "$apitoken" ]; then
+                                echo "========================================================================="
+                                echo "Bạn nhập sai, vui lòng nhập lại!"
+                                sleep 2
+                                continue
+                            fi
+                            break
+                        done
+                    else
+                        echo "CẤU HÌNH LẠI API TOKEN"
+                        echo "========================================================================="
+                        echo "Truy cập: https://go.dsnvps/clapi"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Và tạo API Token với các quyền sau:"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Permissions:"
+                        echo "-----------"
+            echo "Zone - Zone - Read"
+            echo "Zone - Zone - Edit"
+            echo "Zone - Zone Setting - Edit"
+            echo "Zone - SSL and Certificate - Edit"
+            echo "Zone - SSL and Certificate - Read "
+            echo "Zone - DNS - Edit" 
+            echo "Zone - Cache Pure - Pure"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Zone Resources:"
+                        echo "----------------"   
+                        echo "Include: All zones"
+                        echo "========================================================================="  
+                        
+                        while true; do
+                            echo -n "Nhập API Token [0 -Thoát]: "
+                            read -r apitoken
+                            
+                            if [ "$apitoken" = "0" ]; then
+                                clear
+                                /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                                exit 0
+                            fi
+                            
+                            if [ -z "$apitoken" ]; then
+                                echo "========================================================================="
+                                echo "Bạn nhập sai, vui lòng nhập lại!"
+                                sleep 2
+                                continue
+                            fi
+                            break
+                        done
+                    fi
+                    break
+                    ;;
+                2)
+                    clear
+                    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+                    exit 0
+                    ;;
+0) clear; exit 0;;
+                *)
+                    echo "Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 0"
+                    ;;
+            esac
+        done
+    fi
+done

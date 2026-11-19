@@ -1,0 +1,34 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+NGINX_CONF="/etc/nginx/nginx.conf"
+BROTLI_CONF="/etc/nginx/conf/brotli.conf"
+[[ -f "$NGINX_CONF" ]] || { echo -e "${C_YELLOW}[SKIP] Không tìm thấy nginx.conf${C_RESET}"; exit 0; }
+
+cp -a "$NGINX_CONF" "${NGINX_CONF}.bak.opt"
+if ! grep -q "pcre_jit" "$NGINX_CONF"; then
+    sed -i 's|^worker_rlimit_nofile .*|&\npcre_jit on;|' "$NGINX_CONF"
+fi
+
+# Check if nginx actually has brotli module before enabling
+if nginx -V 2>&1 | grep -qi brotli || ls /etc/nginx/modules-enabled/*brotli* /usr/lib*/nginx/modules/*brotli* >/dev/null 2>&1; then
+    cat > "$BROTLI_CONF" <<'BROT'
+brotli on;
+brotli_comp_level 5;
+brotli_static on;
+brotli_types text/plain text/css text/xml text/javascript application/javascript application/x-javascript application/json application/xml application/xml+rss application/atom+xml application/vnd.ms-fontobject font/eot font/opentype font/otf font/ttf image/svg+xml image/x-icon;
+BROT
+    if ! grep -q "conf/brotli.conf" "$NGINX_CONF"; then
+        sed -i 's|include /etc/nginx/conf.d/\*.conf;|include /etc/nginx/conf/brotli.conf;\n    include /etc/nginx/conf.d/*.conf;|' "$NGINX_CONF"
+    fi
+fi
+
+if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx >/dev/null 2>&1 || systemctl restart nginx >/dev/null 2>&1 || true
+    rm -f "${NGINX_CONF}.bak.opt"
+    echo -e "${C_GREEN}[OK] Nginx Dual Compression (Brotli+Gzip) & pcre_jit đã tối ưu.${C_RESET}"
+else
+    mv -f "${NGINX_CONF}.bak.opt" "$NGINX_CONF"
+    echo -e "${C_RED}[ERR] Nginx test lỗi, đã rollback cấu hình gốc.${C_RESET}"
+    exit 1
+fi

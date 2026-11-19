@@ -1,0 +1,28 @@
+#!/bin/bash
+rm -rf /usr/local/ioncube
+php_version=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+if [ "$(arch)" = "aarch64" ]; then
+	if [ "$php_version" == "8.99" ]; then
+   wget -O - https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_aarch64_beta.tar.gz | tar -xzf - -C /usr/local
+   rm -r -f /root/ioncube_loaders_lin_aarch64_beta.tar.gz
+   rm -r -f /etc/php.d/*.ioncube.*
+   rm -r -f /etc/php.d/ioncube.*
+	else
+   wget -O - https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_aarch64.tar.gz | tar -xzf - -C /usr/local
+   rm -r -f /root/ioncube_loaders_lin_aarch64.tar.gz
+   rm -r -f /etc/php.d/*.ioncube.*
+   rm -r -f /etc/php.d/ioncube.*
+	fi
+else
+	if [ "$php_version" == "8.99" ]; then
+   wget -O - https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64_beta.tar.gz | tar -xzf - -C /usr/local
+   rm -r -f /root/ioncube_loaders_lin_x86-64_beta.tar.gz
+   rm -r -f /etc/php.d/*.ioncube.*
+   rm -r -f /etc/php.d/ioncube.*
+	else
+   wget -O - https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_x86-64.tar.gz | tar -xzf - -C /usr/local
+   rm -r -f /root/ioncube_loaders_lin_x86-64.tar.gz
+   rm -r -f /etc/php.d/*.ioncube.*
+   rm -r -f /etc/php.d/ioncube.*
+	fi
+fi

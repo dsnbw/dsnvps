@@ -1,0 +1,131 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra xem strace có đang chạy không
+if pgrep -x "strace" > /dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Tiến trình strace đang chạy. Vui lòng dừng strace trước khi tiếp tục."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra xem nftables có được cài đặt không
+if ! command -v nft &> /dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: nftables không được cài đặt trên hệ thống này!"
+    echo "Vui lòng cài đặt nftables trước khi sử dụng chức năng này."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để MỞ port (INPUT) cho server bằng Nftables"
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập port bạn muốn MỞ [0 -Thoát]: "
+read portopen
+if [ "$portopen" = "0" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit
+fi
+if [ "$portopen" = "" ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn nhập sai, hãy nhập chính xác."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+if [[ ! ${portopen} =~ ^[0-9]+$ ]]; then
+    clear
+    echo "========================================================================="
+    echo "Port bạn nhập: ${portopen} không phải là số tự nhiên."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy làm lại!"
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+if ! [[ $portopen -ge 1 && $portopen -le 65535 ]]; then
+    clear
+    echo "========================================================================="
+    echo "$portopen không đúng!"
+    echo "-------------------------------------------------------------------------"
+    echo "Port phải là số tự nhiên nằm trong khoảng (1 - 65535)."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy làm lại!"
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+if [ $portopen = $priport ]; then
+    clear
+    echo "========================================================================="
+    echo "Port $portopen là port phpMyAdmin. Bạn hãy sử dụng chức năng "
+    echo "-------------------------------------------------------------------------"
+    echo "[Mở/Đóng Port phpMyAdmin] nên bạn muốn Mở/Đóng port $portopen!"
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra xem port đã được mở chưa trong chuỗi input
+if nft list chain inet filter input 2>/dev/null | grep -q "tcp dport $portopen accept"; then
+    clear
+    echo "========================================================================="
+    echo "Port $portopen đang mở."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn không cần mở lại nó!"
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+
+# Tạo table và chain cơ bản nếu chưa có
+if ! nft list table inet filter >/dev/null 2>&1; then
+    nft add table inet filter
+fi
+if ! nft list chain inet filter input >/dev/null 2>&1; then
+    nft add chain inet filter input "{ type filter hook input priority 0; policy drop; }"
+    nft add rule inet filter input iif lo accept
+    nft add rule inet filter input ct state established,related accept
+    nft add rule inet filter input icmp type echo-request accept
+    nft add rule inet filter input icmpv6 type echo-request accept
+    nft add rule inet filter input tcp dport 22 accept
+    nft add rule inet filter input tcp dport { 80, 443 } accept
+fi
+
+# Thêm rule để mở port (cả TCP và UDP)
+nft add rule inet filter input tcp dport $portopen accept
+nft add rule inet filter input udp dport $portopen accept
+
+# Lưu cấu hình nftables
+mkdir -p /etc/nftables
+nft list ruleset > /etc/nftables/main.nft
+chmod 600 /etc/nftables/main.nft
+
+# Cập nhật /etc/nftables.conf để include ruleset
+if [ ! -f /etc/nftables.conf ]; then
+    printf '#!/usr/sbin/nft -f\nflush ruleset\n' > /etc/nftables.conf
+    echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+elif ! grep -Fx 'include "/etc/nftables/main.nft"' /etc/nftables.conf >/dev/null; then
+    echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+fi
+
+# Bật và khởi động lại nftables
+systemctl enable nftables
+systemctl restart nftables
+
+clear
+echo "========================================================================="
+echo "Cổng bạn muốn mở: $portopen"
+echo "-------------------------------------------------------------------------"
+echo "Port $portopen đã được mở thành công (TCP và UDP)!"
+/etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu

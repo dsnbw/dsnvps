@@ -1,0 +1,424 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+rm -rf /etc/dsnvps/.tmp/juaks
+# Anti-debug removed
+
+# Lấy số dòng tối đa của terminal
+LINES=$(tput lines)
+LINES_PER_PAGE=$((LINES - 3))  # Số dòng hiển thị, trừ đi dòng tiêu đề và thông báo
+if [ "$LINES_PER_PAGE" -le 1 ]; then
+    LINES_PER_PAGE=1  # Đảm bảo hiển thị ít nhất 1 dòng
+fi
+
+TOTAL_LINES=$(wc -l < "$LOG_FILE")  # Tổng số dòng trong file
+CURRENT_LINE=$TOTAL_LINES  # Bắt đầu từ dòng cuối cùng
+
+while true; do
+clear
+    printf "=========================================================================\n"
+    printf "                        Log Login SSH to Server \n"
+    printf "=========================================================================\n"
+     # Tính toán vị trí của dòng đầu tiên và dòng cuối cùng để hiển thị
+    START_LINE=$((CURRENT_LINE - LINES_PER_PAGE + 1))
+    if [ "$START_LINE" -lt 1 ]; then
+        START_LINE=1
+    fi
+
+    # Hiển thị các dòng từ START_LINE đến CURRENT_LINE
+    sed -n "${START_LINE},${CURRENT_LINE}p" "$LOG_FILE"
+
+    # Cập nhật dòng tiếp theo để hiển thị
+    CURRENT_LINE=$((START_LINE - 1))
+
+    # Nếu đã xem hết log
+    if [ "$CURRENT_LINE" -le 0 ]; then
+        echo "========================================================================="
+echo "Hết LOG. Nhấn [ Enter ] để quay trở lại DSNVPS Main Menu"
+        read -r
+        clear
+        dsnvps
+        exit
+    fi
+
+    # Hiển thị thông báo chờ người dùng nhấn Enter
+echo "========================================================================="
+echo "Nhấn Enter để xem trang tiếp theo HOẶC nhấn '0' để thoát."
+echo "========================================================================="
+read -n 1 -s -r input
+
+if [ "$input" = "0" ]; then
+    echo "========================================================================="
+    echo "Thoát xem SSH Login Log."; sleep 0.2
+    clear
+    echo "========================================================================="
+    echo "Thoát xem SSH Login Log."; sleep 2
+    dsnvps
+    exit
+fi
+done
+      
+;;      
+############################################        
+
+######################################################
+ 3)
+
+if [ ! -f /etc/dsnvps/log-auto-start-nginx-mysql-php.txt ]; then
+touch /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "Log Sample ---------------------------- Log Sample" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "Hien tai chua co LOG nen DSNVPS hien thi LOG mau" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "Log THAT se hien thi o ben duoi nhung dong nay !." >> /etc/dsnvps/log-login-ssh.txt
+
+echo "[2024-12-24 14:43:01] Dich vu nginx bi dung. dang BAT lai ..." >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "[2024-12-24 14:43:01] Dich vu nginx Da BAT THANH CONG." >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "[2024-12-24 14:43:02] Dich vu mysqld bi dung. dang BAT lai ..." >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "[2024-12-24 14:43:02] Dich vu mysqld Da BAT THANH CONG." >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+echo "Log Sample ---------------------------- Log Sample" >> /etc/dsnvps/log-auto-start-nginx-mysql-php.txt
+
+fi
+
+if [ ! -s /etc/dsnvps/log-auto-start-nginx-mysql-php.txt ]; then
+clear
+echo "========================================================================="
+echo "Hiện tại chưa có Log Service Stop"
+dsnvps
+exit
+fi
+
+
+
+
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                          Service Stop Log \n"
+printf "=========================================================================\n"
+#!/bin/bash
+
+LOG_FILE="/etc/dsnvps/log-auto-start-nginx-mysql-php.txt"
+
+# Kiểm tra nếu file không tồn tại hoặc không có nội dung
+if [ ! -s "$LOG_FILE" ]; then
+    printf "=========================================================================\n"
+echo "Chưa có log trong file $LOG_FILE"
+    dsnvps
+    exit 1
+fi
+
+# Lấy chiều cao của cửa sổ terminal
+terminal_height=$(tput lines)
+
+# Tính toán số dòng cần hiển thị (ví dụ: 80% chiều cao của cửa sổ)
+LINES_PER_PAGE=$(( terminal_height * 80 / 100 ))
+
+# Tổng số dòng trong file (sử dụng tac để đảo ngược nội dung)
+TOTAL_LINES=$(wc -l < "$LOG_FILE")
+CURRENT_LINE=1  # Bắt đầu từ dòng đầu tiên
+
+# Hiển thị toàn bộ log từ dưới lên trên
+while [ $CURRENT_LINE -le $TOTAL_LINES ]; do
+clear
+    printf "=========================================================================\n"
+    printf "                        Service Stop Log \n"
+    printf "=========================================================================\n"
+    # Tính toán vị trí của dòng đầu tiên và dòng cuối cùng để hiển thị
+    END_LINE=$((CURRENT_LINE + LINES_PER_PAGE - 1))
+    if [ "$END_LINE" -gt "$TOTAL_LINES" ]; then
+        END_LINE="$TOTAL_LINES"
+    fi
+
+    # Hiển thị các dòng từ CURRENT_LINE đến END_LINE từ dưới lên trên
+    tac "$LOG_FILE" | sed -n "${CURRENT_LINE},${END_LINE}p" | tac
+
+    # Cập nhật dòng tiếp theo để hiển thị
+    CURRENT_LINE=$((END_LINE + 1))
+
+    # Nếu đã xem hết log
+    if [ "$CURRENT_LINE" -gt "$TOTAL_LINES" ]; then
+        echo "========================================================================="
+ echo "Hết LOG. Nhấn [ Enter ] để quay trở lại DSNVPS Main Menu"
+        read -r
+        clear
+        dsnvps
+        exit
+    fi
+
+    # Hiển thị thông báo chờ người dùng nhấn Enter
+    echo "========================================================================="
+echo "Nhấn Enter để xem trang tiếp theo HOẶC nhấn '0' để thoát."
+    echo "========================================================================="
+    read -n 1 -s -r input
+
+    if [ "$input" = "0" ]; then
+        echo "========================================================================="
+echo "Thoát xem Service Stop Log."; sleep 0.2
+clear
+echo "========================================================================="
+echo "Thoát xem Service Stop Log."; sleep 2
+        dsnvps
+        exit
+    fi
+done
+;;
+######################################################
+##########################################################################
+4)
+ 
+        
+if [ ! -f /etc/dsnvps/telegram.conf ]; then
+    echo "========================================================================="
+    echo "Hướng dẫn tạo Telegram Bot Token: https://go.dsnvps/8911"
+while true; do
+    echo "========================================================================="
+echo -n "Nhập Telegram Bot Token [0 -Thoát]: "
+    read -r BOT_TOKEN
+
+    if [ "$BOT_TOKEN" = "0" ]; then
+        clear
+        echo "========================================================================="
+        echo "Huỷ bỏ !"
+        dsnvps
+        exit
+    fi
+
+    # Kiểm tra nếu người dùng để trống
+    if [ -z "$BOT_TOKEN" ]; then
+echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 4
+        tput cuu 4  # Di chuyển con trỏ lên 2 dòng
+        tput ed     # Xóa từ vị trí con trỏ trở xuống
+        continue
+    fi
+
+echo "Kiểm tra Telegram Bot Token ..."; sleep 4
+    tput cuu 1  # Di chuyển con trỏ lên một dòng
+    tput el     # Xóa dòng hiện tại
+
+    # Gửi yêu cầu xác thực token
+    response=$(curl -s -X GET "https://api.telegram.org/bot$BOT_TOKEN/getUpdates")
+    CHAT_ID=$(echo "$response" | grep -oP '"chat":{"id":\K[0-9]+' | head -n 1)
+
+    # Nếu không tìm thấy CHAT_ID, yêu cầu nhập lại
+    if [ -z "$CHAT_ID" ]; then
+echo "Mã không đúng hoặc bạn chưa start bot này. Vui lòng nhập lại."; sleep 5
+        tput cuu 4  # Di chuyển con trỏ lên 2 dòng
+        tput ed     # Xóa từ vị trí con trỏ trở xuống
+        continue
+    fi
+
+    # Token chính xác
+    echo "========================================================================="
+echo "Telegram Bot Token chính xác"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ...."; sleep 2
+
+    # Lưu thông tin vào file cấu hình
+    echo "BOT_TOKEN=\"$BOT_TOKEN\"" > /etc/dsnvps/telegram.conf
+    echo "CHAT_ID=\"$CHAT_ID\"" >> /etc/dsnvps/telegram.conf
+    break
+done
+
+clear
+    echo "========================================================================="
+echo "Bạn đã hoàn tất cài hình Telegram cho DSNVPS."; sleep 2
+if [[ "$is_pro_version" == true && ! -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy BẬT [ Auto Check Login/Nginx/MySQL/PHP ] để nhận thông báo khi "; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "server có Login SSH hoặc có sự lỗi với Nginx/MYSQL/PHP."; sleep 2
+fi
+if [[ "$is_pro_version" == false &&  -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy đăng ký VPro365 Key để nhận thông báo khi server có Login SSH hoặc"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "có sự cố với Nginx/MYSQL/PHP."; sleep 2
+fi
+if [[ "$is_pro_version" == false && ! -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy BẬT [ Auto Check Login/Nginx/MySQL/PHP ] để nhận thông báo khi"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "server có Login SSH hoặc có sự lỗi với Nginx/MYSQL/PHP."; sleep 2
+fi
+if [[ "$is_pro_version" == true &&  -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Mỗi khi có LOGIN SSH vào Server hoặc Nginx/MySQL/PHP bị lỗi STOP"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS sẽ BẬT lại dịch vụ này và ghi Log & gửi thông báo Telegram !"; sleep 2
+fi  
+  dsnvps
+ exit
+else
+    echo "========================================================================="
+echo "Telegram đã được cấu hình thành công."
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn Xóa cấu hình hiện tại để cấu hình lại [y/N] ? " response
+if [[ "${response,,}" != "y" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Giữ nguyên cấu hình Telegram hiện tại."
+    dsnvps
+    exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3    
+rm -rf /etc/dsnvps/telegram.conf   
+while true; do
+    echo "========================================================================="
+echo -n "Telegram Bot Token [0 - Thoát]: "
+    read -r BOT_TOKEN
+
+    if [ "$BOT_TOKEN" = "0" ]; then
+        clear
+        echo "========================================================================="
+        echo "Huỷ bỏ !"
+        dsnvps
+        exit
+    fi
+
+    # Kiểm tra nếu người dùng để trống
+    if [ -z "$BOT_TOKEN" ]; then
+echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 4
+        tput cuu 4  # Di chuyển con trỏ lên 2 dòng
+        tput ed     # Xóa từ vị trí con trỏ trở xuống
+        continue
+    fi
+
+echo "Kiểm tra Telegram Bot Token ..."; sleep 4
+    tput cuu 1  # Di chuyển con trỏ lên một dòng
+    tput el     # Xóa dòng hiện tại
+
+    # Gửi yêu cầu xác thực token
+    response=$(curl -s -X GET "https://api.telegram.org/bot$BOT_TOKEN/getUpdates")
+    CHAT_ID=$(echo "$response" | grep -oP '"chat":{"id":\K[0-9]+' | head -n 1)
+
+    # Nếu không tìm thấy CHAT_ID, yêu cầu nhập lại
+    if [ -z "$CHAT_ID" ]; then
+echo "Mã không đúng hoặc bạn chưa start bot này. Vui lòng nhập lại."; sleep 2
+        tput cuu 4  # Di chuyển con trỏ lên 2 dòng
+        tput ed     # Xóa từ vị trí con trỏ trở xuống
+        continue
+    fi
+
+    # Token chính xác
+    echo "========================================================================="
+echo "Telegram Bot Token chính xác"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ...."; sleep 2
+
+    # Lưu thông tin vào file cấu hình
+    echo "BOT_TOKEN=\"$BOT_TOKEN\"" > /etc/dsnvps/telegram.conf
+    echo "CHAT_ID=\"$CHAT_ID\"" >> /etc/dsnvps/telegram.conf
+    break
+done
+
+clear
+    echo "========================================================================="
+echo "Bạn đã hoàn tất cài hình lại Telegram."; sleep 2
+if [[ "$is_pro_version" == true && ! -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy BẬT [ Auto Check Login/Nginx/MySQL/PHP ] để nhận thông báo khi"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "server có Login SSH hoặc có sự cố với Nginx/MySQL/PHP."; sleep 2
+fi
+if [[ "$is_pro_version" == false &&  -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy đăng ký VPro365 Key để nhận thông báo khi server có Login SSH hoặc"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "có sự cố với Nginx/MySQL/PHP."; sleep 2
+fi
+if [[ "$is_pro_version" == false && ! -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy BẬT [ Auto Check Login/Nginx/MySQL/PHP ] để nhận thông báo khi"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "server có Login SSH hoặc có sự cố với Nginx/MySQL/PHP."; sleep 2
+fi
+if [[ "$is_pro_version" == true &&  -f /etc/cron.d/check_and_restart_service.cron ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Mỗi khi có LOGIN SSH vào Server hoặc Nginx/MySQL/PHP bị lỗi STOP"; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS sẽ BẬT lại dịch vụ này và ghi Log & gửi thông báo Telegram !"; sleep 2
+fi
+ 
+  dsnvps 
+  exit     
+    
+fi         
+        
+;;        
+# #############################################       
+
+# #######################################
+5)      
+    
+if [ ! -f /etc/dsnvps/.tmp/poal ]; then
+echo "Vui lòng chờ ...."    ;sleep 2
+touch /etc/dsnvps/.tmp/poal
+tput cuu1  # Di chuyển con trỏ lên một dòng
+tput el    # Xóa dòng hiện tại
+echo "========================================================================="
+echo "Giới thiệu sẽ TẮT từ lần sau khi chạy [Auto Check Login/Nginx/MySQL/PHP]"; sleep 4
+tput cuu1  # Di chuyển con trỏ lên một dòng
+tput el    # Xóa dòng hiện tại
+echo "========================================================================="
+clear
+dsnvps
+exit
+else
+echo "Vui lòng chờ ...."    ;sleep 2
+rm -rf /etc/dsnvps/.tmp/poal
+tput cuu1  # Di chuyển con trỏ lên một dòng
+tput el    # Xóa dòng hiện tại
+echo "========================================================================="
+echo "Giới thiệu sẽ BẬT từ lần sau khi chạy [Auto Check Login/Nginx/MySQL/PHP]"; sleep 4
+tput cuu1  # Di chuyển con trỏ lên một dòng
+tput el    # Xóa dòng hiện tại
+clear
+dsnvps
+exit
+fi
+########## XOA 6 DONG PHIA TREN ########################################
+tput cuu 6   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<6; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 6   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+#####################################################################
+
+;;
+####################################################
+#########################################
+        *)
+            echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 2
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 8   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<8; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 8   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue
+            ;;
+    esac
+done
+

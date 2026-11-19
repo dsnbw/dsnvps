@@ -1,0 +1,15 @@
+#!/bin/bash
+rm -rf /bin/dsnvps
+cp /etc/dsnvps/menu/inc/mainmenu/dsnvps /bin/dsnvps
+chmod +x /bin/dsnvps
+mkdir -p /home/dsnvps.demo
+cp -r /etc/dsnvps/menu/inc/errorpage_html /home/dsnvps.demo/
+if [ ! -f /bin/calc ]; then
+cp /etc/dsnvps/menu/inc/calc /bin/
+chmod +x /bin/calc
+fi
+if [ ! -f /usr/bin/dsnvpssc ]; then
+echo "#!/bin/bash" > /usr/bin/dsnvpssc
+echo "/etc/dsnvps/menu/inc/dsnvps-dsnvpssc-shortcut" >> /usr/bin/dsnvpssc
+chmod +x /usr/bin/dsnvpssc
+fi

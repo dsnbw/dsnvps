@@ -1,0 +1,182 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+clear
+echo "========================================================================="
+echo "CSF Firewall đang tắt"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật CSF Firewall lên để chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+fi
+
+rm -rf /etc/dsnvps/.tmp/checkchanipcsf*
+
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+echo "========================================================================="
+echo "Chức năng này sẽ bật CSF Firewall nếu bạn đang tắt nó."
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để chặn danh sách IP (IP Range) truy cập vào server."
+echo "-------------------------------------------------------------------------"
+echo "Để chặn list IP, hãy đổi tên list IP thành Blocklist.txt sau đó upload"
+echo "-------------------------------------------------------------------------"
+echo "vào /home. Sau khi upload xong, hãy nhấn ENTER để DSNVPS lần lượt chặn"
+echo "-------------------------------------------------------------------------"
+echo "tất cả IP (IP Range) có trong danh sách đó."
+echo "-------------------------------------------------------------------------"
+echo "Địa chỉ file danh sách chặn: /home/Blocklist.txt"
+echo "-------------------------------------------------------------------------"
+echo "Chú ý: Mỗi địa chỉ IP (IP Range) nằm ở một dòng trong file Blocklist.txt."
+echo "========================================================================="
+read -p "Bạn đã hoàn thành upload, hãy nhấn [Enter] để DSNVPS chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang tìm kiếm file Blocklist.txt .... "; sleep 3
+
+
+if [ ! -f /home/Blocklist.txt ]; then 
+echo "-------------------------------------------------------------------------"
+echo "Bạn chưa upload file Blocklist.txt vào /home"
+echo "-------------------------------------------------------------------------"
+read -p "Hãy upload Blocklist.txt vào /home rồi nhấn [Enter]."
+fi
+
+
+if [ ! -f /home/Blocklist.txt ]; then 
+echo "-------------------------------------------------------------------------"
+echo "Không tìm thấy file Blocklist.txt ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Không tìm thấy file Blocklist.txt"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này!"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy file Blocklist.txt"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ lần lượt chặn tất cả các IP (range) trong danh sách này"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Sau khi kết thúc, DSNVPS sẽ thông báo kết quả tới bạn."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ...."; sleep 6
+
+rm -rf /etc/dsnvps/.tmp/checkchanipcsf*
+
+Zjob="/home/Blocklist.txt"
+while read -r ipblocknow
+    do
+csf -d $ipblocknow > /etc/dsnvps/.tmp/checkchanipcsftest
+
+grep "is not a valid" /etc/dsnvps/.tmp/checkchanipcsftest > /etc/dsnvps/.tmp/checkchanipcsftest1
+grep "already" /etc/dsnvps/.tmp/checkchanipcsftest > /etc/dsnvps/.tmp/checkchanipcsftest2
+grep "/etc/csf/csf.allow" /etc/dsnvps/.tmp/checkchanipcsftest > /etc/dsnvps/.tmp/checkchanipcsftest3
+grep "Adding" /etc/dsnvps/.tmp/checkchanipcsftest > /etc/dsnvps/.tmp/checkchanipcsftest4
+
+
+if [ -f /etc/dsnvps/.tmp/checkchanipcsftest1 ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsftest1)" -gt 1 ]; then 
+echo "-------------------------------------------------------------------------"
+echo "IP (IP Range): $ipblocknow khong hop le"
+echo "$ipblocknow" >> /etc/dsnvps/.tmp/checkchanipcsfFAILED
+fi
+fi
+
+if [ -f /etc/dsnvps/.tmp/checkchanipcsftest2 ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsftest2)" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "IP (IP Range): $ipblocknow da duoc block tu truoc"
+echo "$ipblocknow" >> /etc/dsnvps/.tmp/checkchanipcsfDACOTUTRUOC
+fi
+fi
+
+if [ -f /etc/dsnvps/.tmp/checkchanipcsftest3 ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsftest3)" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS remove $ipblocknow khoi CSF.Allow va chan"
+csf -ar $ipblocknow >/dev/null 2>&1
+csf -d $ipblocknow >/dev/null 2>&1
+echo "$ipblocknow" >> /etc/dsnvps/.tmp/checkchanipcsfALLOWVACHAN
+fi
+fi
+
+if [ -f /etc/dsnvps/.tmp/checkchanipcsftest4 ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsftest4)" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall Blocled: $ipblocknow"
+echo "$ipblocknow" >> /etc/dsnvps/.tmp/checkchanipcsfBLOCKTAHNHCONG
+fi
+fi
+ done < "$Zjob"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd
+
+clear
+echo "========================================================================="
+echo "Tổng số IP (IP range) trong Blocklist.txt: $(wc -l < /home/Blocklist.txt)"
+echo "-------------------------------------------------------------------------"
+if [ -f /etc/dsnvps/.tmp/checkchanipcsfBLOCKTAHNHCONG ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsfBLOCKTAHNHCONG)" -gt 1 ]; then
+echo "IP (IP Range) chặn thành công: $(wc -l < /etc/dsnvps/.tmp/checkchanipcsfBLOCKTAHNHCONG) IP (IP Range)"
+else
+echo "IP (IP Range) chặn thành công: 0"
+fi
+else
+echo "IP (IP Range) chặn thành công: 0"
+fi
+if [ -f /etc/dsnvps/.tmp/checkchanipcsfFAILED ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsfFAILED)" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "IP (IP Range) không hợp lệ: $(wc -l < /etc/dsnvps/.tmp/checkchanipcsfFAILED)"
+fi
+fi
+
+if [ -f /etc/dsnvps/.tmp/checkchanipcsfDACOTUTRUOC ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsfDACOTUTRUOC)" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "IP (IP Range) đã bị chặn từ trước: $(wc -l < /etc/dsnvps/.tmp/checkchanipcsfDACOTUTRUOC)"
+fi
+fi
+
+if [ -f /etc/dsnvps/.tmp/checkchanipcsfALLOWVACHAN ]; then
+if [ "$(wc -c < /etc/dsnvps/.tmp/checkchanipcsfALLOWVACHAN)" -gt 1 ]; then
+echo "-------------------------------------------------------------------------"
+echo "IP (IP Range) trong CSF.Allow và bị chặn thành công: $(wc -l < /etc/dsnvps/.tmp/checkchanipcsfALLOWVACHAN)"
+fi
+fi
+rm -rf /etc/dsnvps/.tmp/checkchanipcsf*
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+else
+echo "========================================================================= "
+echo "Chức năng này cần CSF Firewall để hoạt động"
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall chưa được cài đặt trên server! "
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn cài đặt CSF Firewall vào server? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình thành công CSF Firewall."
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Bạn hủy bỏ cài đặt CSF Firewall ! "
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi

@@ -1,0 +1,82 @@
+#!/bin/bash
+# Kiểm tra sự tồn tại của file dịch vụ Resilio Sync
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa cài đặt Resilio Sync"
+    /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+    exit
+fi
+
+# Kiểm tra trạng thái dịch vụ bằng systemctl
+if systemctl is-active --quiet resilio-sync.service; then
+        echo "========================================================================="
+    echo "Sử dụng chức năng này để BẬT/TẮT Resilio Sync trên server"
+    echo "-------------------------------------------------------------------------"
+    echo "Hiện tại Resilio đang BẬT"
+    echo "-------------------------------------------------------------------------"
+    read -r -p "Bạn muốn TẮT Resilio Sync? [y/N] " response
+    case $response in
+        [yY][eE][sS]|[yY])
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ...." && sleep 2
+            systemctl stop resilio-sync.service
+            if systemctl is-active --quiet resilio-sync.service; then
+                clear
+                echo "========================================================================="
+                echo "Không thể TẮT Resilio Sync !!!!"
+                /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            else
+                clear
+                echo "========================================================================="
+                echo "Resilio Sync đã được TẮT thành công !"
+                /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            fi
+            clear
+            /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            exit
+            ;;
+        *)
+            clear
+            echo "========================================================================="
+            echo "Hủy bỏ !"
+            /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            exit
+            ;;
+    esac
+else
+    echo "========================================================================="
+    echo "Sử dụng chức năng này để BẬT/TẮT Resilio Sync trên server"
+    echo "-------------------------------------------------------------------------"
+    echo "Hiện tại Resilio Sync đang TẮT"
+    echo "-------------------------------------------------------------------------"
+    read -r -p "Bạn muốn BẬT Resilio Sync? [y/N] " response
+    case $response in
+        [yY][eE][sS]|[yY])
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ...." && sleep 2
+            systemctl start resilio-sync.service
+            if systemctl is-active --quiet resilio-sync.service; then
+                clear
+                echo "========================================================================="
+                echo "BẬT Resilio thành công!"
+                /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            else
+                clear
+                echo "========================================================================="
+                echo "Không thể BẬT Resilio !!!!"
+                /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            fi
+            clear
+            /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            exit
+            ;;
+        *)
+            clear
+            echo "========================================================================="
+            echo "Hủy bỏ !"
+            /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+            exit
+            ;;
+    esac
+fi

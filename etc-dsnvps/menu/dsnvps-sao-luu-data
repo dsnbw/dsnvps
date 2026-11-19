@@ -1,0 +1,275 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+code=`date |md5sum |cut -c '1-10'`
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|sys|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/listdabasehostingaz
+checksize=$(du -sb /etc/dsnvps/.tmp/listdabasehostingaz | awk 'NR==1 {print $1}')
+   if [ "$checksize" == "0" ]; then
+   clear
+   echo "========================================================================="
+   echo "Không tìm thấy database có dữ liệu trên server"; sleep 2
+   /etc/dsnvps/menu/dsnvps-them-xoa-database
+   exit
+   fi
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz | wc -l)
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz)
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz
+rm -rf /etc/dsnvps/.tmp/*check*
+for database in $listdatabasetrenserver 
+do
+if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+rm -rf /etc/dsnvps/.tmp/*list*
+clear
+echo "========================================================================="
+echo "Không tìm thấy database có dữ liệu trên server"; sleep 2
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+abc456=-`date |md5sum |cut -c '1-10'`
+saoluudata ()
+{
+	echo "--------------------------------------------------------------------------"
+echo "Vui lòng không tắt màn hình....!"
+sleep 2
+	if [  -f /bin/auto-backupdb-$dataname ]; then
+	if [ ! "$(grep /bin/auto-backupdb-$dataname /etc/cron.d/dsnvps.db.cron)" == "" ]; then
+		pathname=$(awk -v db="$dataname" -v mainsite="$mainsite" '
+			/gzip.*>.*\.sql\.gz$/ { 
+				# Tìm cột cuối cùng chứa .sql.gz (sau dấu >)
+				for (i=NF; i>=1; i--) {
+					if ($i ~ /\.sql\.gz$/) {
+						print $i
+						next
+					}
+				}
+			}
+		' /bin/auto-backupdb-$dataname | tail -n1)
+		filename2=$(basename "$pathname")
+		if [[ -z "$filename2" || "$filename2" == *"$"* ]]; then
+			filename2=$dataname$abc456.sql.gz
+		fi
+		thongbao=$(echo " ($dataname BAT Auto Backup)")
+	else
+filename2=$dataname$abc456.sql.gz
+thongbao=$(echo "")
+	fi
+else
+filename2=$dataname$abc456.sql.gz
+thongbao=$(echo "")
+fi
+if [ ! -d /home/$mainsite/private_html/backup/$dataname ]; then
+mkdir -p /home/$mainsite/private_html/backup/$dataname
+fi
+cd /home/$mainsite/private_html/backup/$dataname
+rm -rf *.sql.gz
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+if [ -z "$enginecheck" ]; then
+mysqldump --force -u root -p$mariadbpass $dataname --single-transaction | gzip -6 > $filename2
+else
+mysqldump --force -u root -p$mariadbpass $dataname --lock-tables=false | gzip -6 > $filename2
+fi
+
+cd
+clear
+if [ -f /home/$mainsite/private_html/backup/$dataname/$filename2 ]; then
+echo "========================================================================="
+echo "Link file backup$thongbao:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/$dataname/$filename2"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+else
+echo "========================================================================="
+echo "Backup Database $dataname failed"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+fi
+}
+echo "========================================================================="
+echo "Sử dụng chức năng này để sao lưu cơ sở dữ liệu trên server"
+echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2581"
+echo "=========================================================================" 
+rm -rf /etc/dsnvps/.tmp/check*
+
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|sys|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase)
+checksizeabc=$(du -sb /etc/dsnvps/.tmp/checkalldatabase | awk 'NR==1 {print $1}')
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)
+for database in $listdatabasetrenserver 
+do
+if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+if [ "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabaseempty-list
+fi
+ done
+ if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+	if [ "$checksizeabc" == "1" ]; then
+		clear
+	echo "========================================================================="
+	echo "Bạn chưa tạo database trên server"
+		 /etc/dsnvps/menu/dsnvps-them-xoa-database
+	else
+		clear
+	echo "========================================================================="
+	echo "Tất cả database đều không có dữ liệu"
+		 /etc/dsnvps/menu/dsnvps-them-xoa-database
+	fi
+###
+ else
+dsnvps_check_size=`cat /etc/dsnvps/.tmp/checkdatabase-list`
+rm -rf /etc/dsnvps/.tmp/checksiztungdb
+for datbase123 in $dsnvps_check_size 
+do
+echo "$datbase123" >> /etc/dsnvps/.tmp/checksiztungdb
+done
+ fi
+
+mapfile -t file_list < /etc/dsnvps/.tmp/checksiztungdb
+echo "Danh sách Database có dữ liệu:"
+echo "-------------------------------------------------------------------------"
+################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-4s %-30s %-4s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-4s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+echo "========================================================================="
+echo -n "Nhập số tương ứng với Database [0 -Thoát] : " 
+    read -r choice
+    if [[ $choice == "0" ]]; then
+       clear
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+        break
+    fi
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+dataname=${file_list[choice-1]}
+fi
+
+if [ -f /var/lib/mysql/$dataname/db.opt ]; then
+echo "========================================================================="
+echo "Bạn lựa chọn : $dataname"
+echo "-------------------------------------------------------------------------"
+echo -n "Bạn có muốn sao lưu database này? [y/N] : "
+read -r confirm
+if [[ "$confirm" =~ ^[yY][eE][sS]|[yY]$ ]]; then
+    if [ -f /home/$mainsite/private_html/backup/$dataname/*.sql.gz ]; then
+        find /home/$mainsite/private_html/backup/$dataname -name '*.sql.gz' -type f -exec basename {} \;  > /etc/dsnvps/.tmp/backupname
+        filename=`cat /etc/dsnvps/.tmp/backupname`
+        rm -rf /etc/dsnvps/.tmp/backupname
+        echo "========================================================================="
+        echo "Phát hiện bản sao lưu cũ: $filename"; sleep 2
+        echo "--------------------------------------------------------------------------"
+        echo "Bản sao lưu này được tạo vào: $(date -r /home/$mainsite/private_html/backup/$dataname/$filename +%H:%M/%F)"; sleep 2
+        echo "--------------------------------------------------------------------------"
+        echo "Đang đổi tên file sao lưu cũ và tiến hành sao lưu database..."; sleep 2
+        rm -rf /etc/dsnvps/.tmp/dsnvps_ten_file_cu
+        if [ ! -d /home/$mainsite/private_html/backup/$dataname ]; then
+            mkdir -p /home/$mainsite/private_html/backup/$dataname
+        fi
+        cd /home/$mainsite/private_html/backup/$dataname
+        if [ -f /home/$mainsite/private_html/backup/$dataname/*.sql.gz ]; then
+            for file in *.sql.gz; do
+                time=$(date -r /home/$mainsite/private_html/backup/$dataname/$file +%Hh%Mm-%d-%m-%y)
+                mv "$file" "`basename $file .sql.gz`.sql.gz.$time"
+                echo "$file.$time" > /etc/dsnvps/.tmp/dsnvps_ten_file_cu
+            done
+        fi
+        cd
+        echo "========================================================================="
+        echo "DSNVPS đã đổi tên file backup cũ thành:"; sleep 2
+        echo "-------------------------------------------------------------------------"
+        echo "`cat /etc/dsnvps/.tmp/dsnvps_ten_file_cu`"; sleep 2
+        echo "-------------------------------------------------------------------------"
+        echo "Đang tiến hành sao lưu $dataname"; sleep 2
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng không tắt màn hình ssh này ..."
+        sleep 6
+        ####################################################################
+        ###################################################################
+        if [  -f /bin/auto-backupdb-$dataname ]; then
+            if [ ! "$(grep /bin/auto-backupdb-$dataname /etc/cron.d/dsnvps.db.cron)" == "" ]; then
+                filename2=$(grep "$dataname" /bin/auto-backupdb-$dataname | awk 'NR==7 {print $11}')
+                thongbao=$(echo " ($dataname Enabled Auto Backup)")
+            else
+                filename2=$dataname$abc456.sql.gz
+                thongbao=$(echo "")
+            fi
+        else
+            filename2=$dataname$abc456.sql.gz
+            thongbao=$(echo "")
+        fi
+        sleep 2
+        if [ ! -d /home/$mainsite/private_html/backup/$dataname ]; then
+            mkdir -p /home/$mainsite/private_html/backup/$dataname
+        fi
+        cd /home/$mainsite/private_html/backup/$dataname
+
+        enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+        if [ -z "$enginecheck" ]; then
+            mysqldump --force -u root -p$mariadbpass $dataname --single-transaction | gzip -6 > $filename2
+        else
+            mysqldump --force -u root -p$mariadbpass $dataname --lock-tables=false | gzip -6 > $filename2
+        fi
+
+        cd
+        clear
+        if [ -f /home/$mainsite/private_html/backup/$dataname/$filename2 ]; then
+            echo "========================================================================="
+            echo "Link file sao lưu:"
+            echo "-------------------------------------------------------------------------"
+            echo "http://$serverip_priport/backup/$dataname/$filename2"
+            echo "-------------------------------------------------------------------------"
+            echo "File sao lưu cũ được đổi tên thành:"
+            echo "-------------------------------------------------------------------------"
+            echo "$(cat /etc/dsnvps/.tmp/dsnvps_ten_file_cu)"
+            rm -rf /etc/dsnvps/.tmp/*dsnvps*
+        else
+            echo "========================================================================="
+            echo "Sao lưu database $dataname thất bại"
+        fi
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+    else
+    echo "========================================================================="
+        echo "Đang sao lưu database: $dataname ..."
+        saoluudata
+    fi
+else
+clear
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn đã hủy sao lưu database $dataname"
+    /etc/dsnvps/menu/dsnvps-them-xoa-database
+fi
+else
+clear
+echo "========================================================================="
+echo "Không tìm thấy $dataname trên server, vui lòng kiểm tra lại!"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+done

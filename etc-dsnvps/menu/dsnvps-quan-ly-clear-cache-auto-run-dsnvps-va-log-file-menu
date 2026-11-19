@@ -1,0 +1,89 @@
+#!/bin/bash
+
+echo "========================================================================="
+echo "Xóa Cache Trên Server    "
+echo "------------------------------------------------------------------------|"
+while true; do
+printf "%-35s %s\n" "1) Clear Zend Opcache (PHP Cache)" "3) Clear Memcached" 
+printf "%-35s %s\n" "2) Clear Redis Cache " "4) Clear ALL Caches"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    #read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+    case $choice in
+    
+    
+    1) luachonclearcache="zendcacehe"; break;;
+    2) luachonclearcache="redisache"; break;;
+    3) luachonclearcache="memcaceh"; break;;
+    4) luachonclearcache="allcache"; break;;
+    50000000) luachonclearcache="clearcloudflare"; break;;
+    60000000) luachonclearcache="autorundsnvps"; break;;
+    0) luachonclearcache="cancel"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";sleep 3
+    # *)      echo "You typed wrong, Please type in the ordinal number on the list."; sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 5   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<5; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 5   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+if [ "$luachonclearcache" = "zendcacehe" ]; then
+if [ ! -f /etc/php.d/opcache.ini ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache hiện đang tắt."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần clear Zend Opcache"
+dsnvps
+fi
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+echo "========================================================================= "
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+echo "Xóa Zend Opache => Done !"
+dsnvps
+elif [ "$luachonclearcache" = "memcaceh" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-memcache
+elif [ "$luachonclearcache" = "autorundsnvps" ]; then
+/etc/dsnvps/menu/dsnvps-bat-tat-tu-dong-chay-dsnvps
+elif [ "$luachonclearcache" = "clearcloudflare" ]; then
+/etc/dsnvps/menu/dsnvps-clear-cache-website-cloudflare
+elif [ "$luachonclearcache" = "redisache" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-redis-cache
+elif [ "$luachonclearcache" = "allcache" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+echo "========================================================================= "
+if [ -f /etc/php.d/opcache.ini ]; then
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+fi
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-redis-cache-check
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-memcache-check
+clear
+echo "========================================================================= "
+echo "Xóa Zen Opcache, Memcached, Redis Cache => Hoàn thành  !"
+dsnvps
+else
+clear
+exit 0
+fi
+
+
+

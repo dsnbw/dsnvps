@@ -1,0 +1,245 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
+if [ "$vercheck" -lt 10 ]; then
+############################################
+############################################
+# Lấy port SSH hiện tại
+SSH_PORT=$(ss -tlnp | grep sshd | awk '{print $4}' | sed 's/.*://' | head -1)
+if [ -z "$SSH_PORT" ]; then
+    SSH_PORT=22
+fi
+
+# Kiểm tra và cài đặt iptables nếu chưa có
+if ! rpm -q iptables-services iptables >/dev/null 2>&1; then
+    dnf -y -q install iptables-services iptables >/dev/null 2>&1
+fi
+
+# Vô hiệu hóa firewalld và kích hoạt iptables
+systemctl disable firewalld >/dev/null 2>&1
+systemctl stop firewalld >/dev/null 2>&1
+systemctl enable iptables >/dev/null 2>&1
+systemctl start iptables >/dev/null 2>&1
+
+# Backup cấu hình hiện tại
+iptables-save > /root/iptables_backup_$(date +%Y%m%d_%H%M%S).txt 2>/dev/null
+
+# Bảo vệ kết nối hiện tại trước khi xóa
+iptables -I INPUT 1 -m state --state ESTABLISHED,RELATED -j ACCEPT >/dev/null 2>&1
+
+# Chính sách ACCEPT toàn bộ
+iptables -P INPUT ACCEPT >/dev/null 2>&1
+iptables -P OUTPUT ACCEPT >/dev/null 2>&1
+iptables -P FORWARD ACCEPT >/dev/null 2>&1
+
+# Xóa tất cả quy tắc hiện tại (trừ rule bảo vệ)
+iptables -F >/dev/null 2>&1
+iptables -X >/dev/null 2>&1
+iptables -t nat -F >/dev/null 2>&1
+iptables -t mangle -F >/dev/null 2>&1
+
+# Thêm các rule ACCEPT
+iptables -A INPUT -i lo -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -o lo -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport $SSH_PORT -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport $SSH_PORT -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 443 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 443 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 25 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 465 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 587 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 25 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 465 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 587 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 53 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p udp --dport 53 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 53 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p udp --dport 53 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 21 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 34618 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 11211 -s 127.0.0.1 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p tcp --dport 6379 -s 127.0.0.1 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p tcp --dport 6379 -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p udp --dport 123 -j ACCEPT >/dev/null 2>&1
+iptables -A INPUT -p icmp -j ACCEPT >/dev/null 2>&1
+iptables -A OUTPUT -p icmp -j ACCEPT >/dev/null 2>&1
+
+# === BẮT ĐẦU HỖ TRỢ IPv6 (ip6tables) ===
+# Kiểm tra và cài đặt ip6tables nếu chưa có (trên hệ thống cũ dùng iptables-services)
+if ! rpm -q ip6tables >/dev/null 2>&1; then
+    dnf -y -q install ip6tables >/dev/null 2>&1 || yum -y -q install ip6tables >/dev/null 2>&1 || true
+fi
+
+# Kích hoạt service ip6tables nếu có
+systemctl enable ip6tables >/dev/null 2>&1 || true
+systemctl start ip6tables >/dev/null 2>&1 || true
+
+# Backup cấu hình ip6tables hiện tại
+ip6tables-save > /root/ip6tables_backup_$(date +%Y%m%d_%H%M%S).txt 2>/dev/null || true
+
+# Bảo vệ kết nối hiện tại (IPv6)
+ip6tables -I INPUT 1 -m state --state ESTABLISHED,RELATED -j ACCEPT >/dev/null 2>&1
+
+# Chính sách ACCEPT toàn bộ
+ip6tables -P INPUT ACCEPT >/dev/null 2>&1
+ip6tables -P OUTPUT ACCEPT >/dev/null 2>&1
+ip6tables -P FORWARD ACCEPT >/dev/null 2>&1
+
+# Xóa tất cả quy tắc hiện tại (IPv6)
+ip6tables -F >/dev/null 2>&1
+ip6tables -X >/dev/null 2>&1
+ip6tables -t nat -F >/dev/null 2>&1
+ip6tables -t mangle -F >/dev/null 2>&1
+
+# Thêm các rule ACCEPT cho IPv6
+ip6tables -A INPUT -i lo -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -o lo -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport $SSH_PORT -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --sport $SSH_PORT -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 443 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 80 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 443 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 25 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 465 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 587 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 25 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 465 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 587 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 53 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p udp --dport 53 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 53 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p udp --dport 53 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 21 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 34618 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 11211 -s ::1 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p tcp --dport 6379 -s ::1 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p tcp --dport 6379 -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p udp --dport 123 -j ACCEPT >/dev/null 2>&1
+ip6tables -A INPUT -p ipv6-icmp -j ACCEPT >/dev/null 2>&1
+ip6tables -A OUTPUT -p ipv6-icmp -j ACCEPT >/dev/null 2>&1
+
+# Lưu cấu hình ip6tables
+service ip6tables save >/dev/null 2>&1 || ip6tables-save > /etc/sysconfig/ip6tables 2>/dev/null || true
+# === KẾT THÚC HỖ TRỢ IPv6 ===
+
+# Lưu cấu hình
+service iptables save >/dev/null 2>&1
+
+# Tạo script reset
+#cat > /root/iptables_reset.sh << 'EOF'
+#!/bin/bash
+#iptables -F >/dev/null 2>&1
+#iptables -X >/dev/null 2>&1
+#iptables -t nat -F >/dev/null 2>&1
+#iptables -t mangle -F >/dev/null 2>&1
+#iptables -P INPUT ACCEPT >/dev/null 2>&1
+#iptables -P OUTPUT ACCEPT >/dev/null 2>&1
+#iptables -P FORWARD ACCEPT >/dev/null 2>&1
+#service iptables save >/dev/null 2>&1
+#EOF
+#chmod +x /root/iptables_reset.sh 2>/dev/null
+############################################
+###########################################
+else
+###############
+# Cài đặt nftables
+if ! rpm -q nftables >/dev/null 2>&1; then
+    dnf -y -q install nftables
+    if ! rpm -q nftables >/dev/null 2>&1; then
+        echo "Lỗi: Không thể cài đặt nftables. Vui lòng kiểm tra kho hoặc kết nối mạng."
+        exit 1
+    fi
+fi
+
+# Thêm quy tắc tạm thời để bảo vệ SSH trước khi thay đổi
+nft add table inet temp_table
+nft add chain inet temp_table input "{ type filter hook input priority -10; policy accept; }"
+nft add rule inet temp_table input tcp dport 22 accept
+nft add rule inet temp_table input ct state established,related accept
+
+# Kiểm tra và vô hiệu hóa firewalld nếu tồn tại
+if systemctl is-active firewalld >/dev/null 2>&1; then
+    systemctl disable firewalld
+    systemctl stop firewalld
+fi
+
+# Kích hoạt và khởi động nftables
+systemctl enable nftables
+systemctl start nftables
+
+# Xóa tất cả quy tắc hiện tại
+nft flush ruleset
+
+# Tạo bảng nftables
+nft add table inet filter
+
+# Tạo chuỗi INPUT, OUTPUT, FORWARD
+nft add chain inet filter input "{ type filter hook input priority 0; policy drop; }"
+nft add chain inet filter output "{ type filter hook output priority 0; policy drop; }"
+nft add chain inet filter forward "{ type filter hook forward priority 0; policy drop; }"
+
+# Quy tắc INPUT
+nft add rule inet filter input ct state established,related accept
+nft add rule inet filter input iif lo accept # Cho phép loopback
+nft add rule inet filter input tcp dport 80 accept
+nft add rule inet filter input tcp dport 443 accept
+nft add rule inet filter input tcp dport 22 accept # SSH và SFTP
+nft add rule inet filter input tcp dport 21 accept # FTP
+nft add rule inet filter input tcp dport 25 accept
+nft add rule inet filter input tcp dport 465 accept
+nft add rule inet filter input tcp dport 587 accept
+nft add rule inet filter input tcp dport 53 accept
+nft add rule inet filter input udp dport 53 accept
+nft add rule inet filter input tcp dport 34618 accept # Custom service (cần xác minh ứng dụng)
+nft add rule inet filter input tcp dport 11211 ip saddr 127.0.0.1 accept # Memcached, giới hạn localhost
+nft add rule inet filter input tcp dport 6379 ip saddr 127.0.0.1 accept # Redis, giới hạn localhost
+
+# Quy tắc OUTPUT
+nft add rule inet filter output ct state established,related accept
+nft add rule inet filter output oif lo accept # Cho phép loopback
+nft add rule inet filter output tcp dport 80 accept
+nft add rule inet filter output tcp dport 443 accept
+nft add rule inet filter output tcp dport 22 accept
+nft add rule inet filter output tcp dport 25 accept
+nft add rule inet filter output tcp dport 465 accept
+nft add rule inet filter output tcp dport 587 accept
+nft add rule inet filter output tcp dport 53 accept
+nft add rule inet filter output udp dport 53 accept
+nft add rule inet filter output tcp dport 6379 accept # Cho phép kết nối đến Redis server bên ngoài
+
+# Xóa bảng tạm thời nếu tồn tại
+if nft list table inet temp_table >/dev/null 2>&1; then
+    nft delete table inet temp_table
+fi
+
+# Lưu cấu hình
+mkdir -p /etc/nftables
+nft list ruleset > /etc/nftables/main.nft
+chmod 600 /etc/nftables/main.nft
+
+# Cập nhật /etc/nftables.conf để include ruleset
+if [ ! -f /etc/nftables.conf ]; then
+    echo '# nftables configuration' > /etc/nftables.conf
+    echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+elif ! grep -Fx 'include "/etc/nftables/main.nft"' /etc/nftables.conf >/dev/null; then
+    echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+fi
+
+# Khởi động lại nftables để áp dụng
+systemctl restart nftables  
+##################     
+fi
+
+#Cai Dat CSF Firewall
+#/etc/dsnvps/menu/dsnvps-cai-csf-firewall-cai-dat-CSF-FIREWALL

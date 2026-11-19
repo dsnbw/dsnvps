@@ -1,0 +1,15 @@
+#!/bin/bash
+clear
+echo "========================================================================="
+echo "           Kiểm Tra & Cập Nhật Nginx (Ubuntu 24.04)"
+echo "========================================================================="
+nginx -v
+echo "-------------------------------------------------------------------------"
+read -p "Bạn muốn kiểm tra và nâng cấp Nginx qua APT không? (y/N): " c
+if [[ "$c" =~ ^[Yy]$ ]]; then
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y nginx
+    nginx -t && systemctl restart nginx
+    echo "Hoàn tất!"
+fi
+read -p "Nhấn [Enter] để quay lại..."

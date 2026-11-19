@@ -1,0 +1,104 @@
+#!/bin/bash
+
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$checksite/public_html ]; then
+find /home/$checksite/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 5 ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+done
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không tìm thấy website có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-tien-ich
+fi
+
+echo "========================================================================="
+echo "Dùng chức năng này để xem danh sách 5 file và folder dung lượng lớn nhất"
+mapfile -t website_list < /etc/dsnvps/.tmp/checksite-list
+echo "========================================================================="
+echo "Danh sách các website có dữ liệu trên server:"
+echo "-------------------------------------------------------------------------"
+for ((i = 0; i < ${#website_list[@]}; i+=2)); do
+    if ((i+1 < ${#website_list[@]})); then
+        printf "%-4s %-20s %-4s %-20s\n" "$((i+1))." "${website_list[i]}" "$((i+2))." "${website_list[i+1]}"
+    else
+        printf "%-4s %-20s\n" "$((i+1))." "${website_list[i]}"
+    fi
+done
+
+while true; do
+    echo "========================================================================="
+echo -n "Nhập số tương ứng với website [0 -Thoát]: "
+    read -r selection
+    
+    # Check if nothing is entered or if the input is invalid
+    if [[ -z "$selection" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$selection" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-maldet-menu
+        break
+    elif [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#website_list[@]} )); then
+        website=${website_list[selection-1]}
+        break  # Exit the loop if the selection is valid
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy $website "
+/etc/dsnvps/menu/dsnvps-tien-ich
+fi   
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /etc/dsnvps/.tmp/*list*
+clear  
+cd /home/$website/public_html
+find . -type f -print0 | xargs -0 du | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfile
+find . -type d -print0 | xargs -0 du | sort -n | tail -10 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfolder
+cd
+echo "========================================================================="
+echo "10 File lớn nhất trong /home/$website/public_html:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/listfile
+echo "-------------------------------------------------------------------------"
+echo "10 Folder lớn nhất trong /home/$website/public_html:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/listfolder
+rm -rf /etc/dsnvps/.tmp/*list*
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit;

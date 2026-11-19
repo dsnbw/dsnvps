@@ -1,0 +1,617 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+RED='\e[31m'
+BOLD='\e[1m'
+RESET='\e[0m'
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+time=$(date +"%m-%d-%Y-%H-%M")
+# Get total RAM (MB)
+svram=$(free -m | awk '/^Mem:/{print $2}')
+
+# Calculate RAM allocation: 50% for database, 50% for PHP/Nginx/OS
+ramfordb=$(echo "$svram * 0.5" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+ramforphpnginx=$(echo "$svram - $ramfordb" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+
+# Calculate pm.max_children (assume 40MB per process)
+pmmaxchildren=$(echo "$ramforphpnginx / 40" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+if [ $pmmaxchildren -lt 5 ]; then
+    pmmaxchildren=5  # Minimum 5 children
+fi
+
+# Calculate memory_limit (20% of ramforphpnginx, cap at 512M)
+memorylimitmacdinh=$(echo "$ramforphpnginx * 0.2" | bc | cut -d'.' -f1)  # Làm tròn thành số nguyên
+if [ $(echo "$memorylimitmacdinh > 512" | bc) -eq 1 ]; then
+    memorylimitmacdinh=512
+elif [ $(echo "$memorylimitmacdinh < 128" | bc) -eq 1 ]; then
+    memorylimitmacdinh=128
+fi
+memlimitmax=$(calc $svram/3)
+
+grep "disable_functions =" /etc/php.ini | awk 'NR==1 {print $3}' > /etc/dsnvps/.tmp/dsnvpsdishamdisable
+checksize=$(du -sb /etc/dsnvps/.tmp/dsnvpsdishamdisable | awk 'NR==1 {print $1}')
+max_execution_time=$(grep "max_execution_time\ =" /etc/php.ini | grep -o '[0-9]*')
+max_input_time=$(grep "max_input_time\ =" /etc/php.ini | grep -o '[0-9]*')
+memory_limit=$(grep "memory_limit\ =" /etc/php.ini | grep -o '[0-9]*')
+upload_max_filesize=$(grep "upload_max_filesize\ =" /etc/php.ini | grep -o '[0-9]*')
+display_errors=$(grep "display_errors\ =" /etc/php.ini | awk 'NR==1 {print $3}')
+file_uploads=$(grep "file_uploads\ =" /etc/php.ini | awk 'NR==1 {print $3}')
+allow_url_fopen=$(grep "allow_url_fopen\ =" /etc/php.ini | awk 'NR==1 {print $3}')
+allow_url_include=$(grep "allow_url_include\ =" /etc/php.ini | awk 'NR==1 {print $3}')
+log_errorsshow=$(grep "log_errors\ =" /etc/php.ini | awk 'NR==1 {print $3}')
+max_input_vars=$(grep "max_input_vars\ =" /etc/php.ini | grep -o '[0-9]*')
+if [ ! -f /home/$mainsite/private_html/php-info.php ]; then
+echo "<?php  phpinfo(); ?>" > /home/$mainsite/private_html/php-info.php 
+fi
+if command -v php >/dev/null 2>&1; then
+    versionphp=$(php -v | head -n 1 | awk '{print $2}')
+else
+    versionphp=""
+fi
+RED='\e[31m'
+BOLD='\e[1m'
+RESET='\e[0m'
+show_phan_tren_menu()
+{
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+t="Tùy Chỉnh Cấu Hình PHP"; v="$versionphp"; l=${#t}+${#v}; p=$(( (73-l)/2 )); r=$((73-l-p))
+printf "%*s%s \e[1;31m%s\e[0m%*s\n" "$p" "" "$t" "$v" "$r" ""
+echo "========================================================================="
+echo "Max Execution Time: $max_execution_time | Max Input Time: $max_input_time | Allow url fopen: $allow_url_fopen"
+echo "========================================================================="
+echo "Display Errors: $display_errors | Allow url include = $allow_url_include | Memory Limit: ${memory_limit}M"
+echo "========================================================================="
+echo "File Uploads = $file_uploads | Upload Max Filesize: ${upload_max_filesize}M | Max Input Vars: $max_input_vars"
+echo "========================================================================="
+echo "Write PHP Error Log: $log_errorsshow"
+echo "========================================================================="
+echo "Danh sách hàm PHP đang bị Tắt:"
+echo "-------------------------------------------------------------------------"
+if [ $checksize -gt 2 ]; then
+cat /etc/dsnvps/.tmp/dsnvpsdishamdisable  | awk -F, '{for (i=1;i<=NF;i++)print $i}' | pr -4 -t
+else
+echo "Tất cả các hàm PHP đang được BẬT."
+fi
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/8844"
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-38b %s\n" " \e[31m1) BẬT/TẮT hàm PHP\e[0m                " "8) BẬT/TẮT File Upload"
+printf "%-35s %s\n" " 2) Max Execution Time" "9) BẬT/TẮT PHP Error Log"
+printf "%-34s %s\n" " 3) Max Input Time" "10) Upload Max Filesize"
+printf "%-38s %s\n" " 4) BẬT/TẮT Allow Url Fopen" "11) Max Input Vars"
+printf "%-38s %s\n" " 5) BẬT/TẮT Display Errors" "12) Cài đặt/Xoá Ioncube Loader"
+printf "%-34s %s\n" " 6) Memory Limit" "13) Cài đặt/Xoá PHP Imagick"
+printf "%-38s %b\n" " 7) BẬT/TẮT Allow Url Include" "\e[31m14) Cài Đặt Múi Giờ PHP (PHP TimeZone)\e[0m"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1) luachon="enabledisablephpfunction"; break;;
+    2) luachon="MaxExecutionTime"; break;;
+    3) luachon="MaxInputTime"; break;;
+    4) luachon="allowurlfopen"; break;;
+    5) luachon="OnOffDisplayErrors"; break;;
+    6) luachon="MemoryLimit"; break;;
+    7) luachon="allowurlinclude"; break;;
+    8) luachon="fileuploads"; break;; 
+    9) luachon="logerror"; break;; 
+    10) luachon="UploadMaxFilesize"; break;;  
+    11) luachon="max_input_vars"; break;; 
+    12) luachon="installremoveioncube"; break;; 
+    13) luachon="installremoveimagick"; break;;
+    14) luachon="caimuigio"; break;;
+    0) luachon="cancel"; break;;
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 11; for ((i=0; i<11; i++)); do tput el; tput cud1; done; tput cuu 11;; esac; done
+###################################
+#enabledisablephpfunction
+###################################
+if [ "$luachon" = "enabledisablephpfunction" ]; then
+/etc/dsnvps/menu/dsnvps-config-enable-disaable-php-funtion-php.ini
+###################################
+#OnOffDisplayErrors
+###################################
+elif [ "$luachon" = "OnOffDisplayErrors" ]; then
+/etc/dsnvps/menu/dsnvps-befor-bat-tat-display-eroor
+
+
+elif [ "$luachon" = "fileuploads" ]; then
+
+if [ "$(grep "file_uploads\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "On" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình On/Off giá trị: File Upload"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: file_uploads = On"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: file_uploads = On"
+echo "-------------------------------------------------------------------------"
+echo "Nếu file_uploads = Off, bạn không thể upload file tới server = php code."
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [file_uploads = Off] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,file_uploads = On,file_uploads = Off,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [file_uploads = Off] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+    echo "Bạn hủy thay đổi giá trị [file_uploads] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+
+if [ "$(grep "file_uploads\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "Off" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình On/Off giá trị: File Upload"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: file_uploads = On"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: file_uploads = Off"
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [file_uploads = On] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,file_uploads = Off,file_uploads = On,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+clear
+echo "========================================================================="
+echo "Thiết lập [file_uploads = On] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn hủy thay đổi giá trị [file_uploads] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+
+elif [ "$luachon" = "logerror" ]; then
+if [ "$(grep "log_errors\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "On" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình On/Off ghi error log của PHP."
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: log_errors = On"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: log_errors = On"
+echo "-------------------------------------------------------------------------"
+echo "Nếu log_errors = Off, PHP sẽ không ghi error log vào hệ thống."
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [log_errors = Off] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,log_errors = On,log_errors = Off,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+echo "Chờ xíu..."
+rm -rf /home/$mainsite/logs/php-fpm*
+touch /home/$mainsite/logs/php-fpm.log
+chown -R nginx:nginx /home/$mainsite/logs/php-fpm.log
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [log_errors = Off] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn huỷ thay đổi giá trị [log_errors] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+if [ "$(grep "log_errors\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "Off" ]; then
+echo "========================================================================="
+echo "Su dung chuc nang nay cau hinh On/Off ghi error log cua PHP"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: log_errors = On"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: log_errors = Off"
+   echo "========================================================================="
+read -r -p "Bạn muốn đặt [log_errors = On] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,log_errors = Off,log_errors = On,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [log_errors = On] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn huỷ thay đổi giá trị [log_errors] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+elif [ "$luachon" = "allowurlfopen" ]; then
+if [ "$(grep "allow_url_fopen\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "On" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình Bật/Tắt giá trị: Allow url fopen"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: allow_url_fopen = On"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: allow_url_fopen = On"
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [allow_url_fopen = Off] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,allow_url_fopen = On,allow_url_fopen = Off,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [allow_url_fopen = Off] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn huỷ thay đổi giá trị [allow_url_fopen] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+
+if [ "$(grep "allow_url_fopen\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "Off" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình Bật/Tắt giá trị: Allow url fopen"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: allow_url_fopen = On"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: allow_url_fopen = Off"
+   echo "========================================================================="
+read -r -p "Bạn muốn đặt [allow_url_fopen = On] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,allow_url_fopen = Off,allow_url_fopen = On,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [allow_url_fopen = Off] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn huỷ thay đổi giá trị [allow_url_fopen] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+
+elif [ "$luachon" = "allowurlinclude" ]; then
+if [ "$(grep "allow_url_include\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "On" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình Bật/Tắt giá trị: Allow Url Include"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: allow_url_include = Off"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: allow_url_include = On"
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [allow_url_include = Off] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,allow_url_include = On,allow_url_include = Off,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [allow_url_include = Off] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn huỷ thay đổi giá trị [allow_url_include] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+
+if [ "$(grep "allow_url_include\ =" /etc/php.ini | awk 'NR==1 {print $3}')" == "Off" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này cấu hình Bật/Tắt giá trị: Allow Url Include"
+echo "-------------------------------------------------------------------------"
+echo "Mặc định: allow_url_include = Off"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: allow_url_include = Off"
+echo "========================================================================="
+read -r -p "Bạn muốn đặt [allow_url_include = On] ?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+sed -i.bak "s,allow_url_include = Off,allow_url_include = On,g" /etc/php.ini
+echo "-------------------------------------------------------------------------"
+    echo "Chờ xíu..."
+sleep 2
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+    clear
+   echo "========================================================================="
+echo "Thiết lập [allow_url_include = Off] thành công !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+echo "Bạn huỷ thay đổi giá trị [allow_url_include] !"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+fi
+
+###################################
+#MaxExecutionTime
+###################################
+elif [ "$luachon" = "MaxExecutionTime" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình Max Execution Time"
+echo "-------------------------------------------------------------------------"
+echo "Max Execution Time mặc định: 120"
+echo "-------------------------------------------------------------------------"
+echo "Max Execution Time hiện tại: $max_execution_time"
+echo "========================================================================="
+while true; do
+echo -n "Nhập giá trị Max Execution Time [0 -Thoát]: " 
+read maxexecutiontime
+if [ "$maxexecutiontime" = "0" ]; then
+clear
+exit
+elif ! [[ $maxexecutiontime -ge 20 && $maxexecutiontime -le 5000  ]] ; then  
+        echo "========================================================================="
+echo "Max Execution Time phai la so tu nhien nho nhat 20"
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+sed -i "s/.*max_execution_time\ =.*/max_execution_time = ${maxexecutiontime}/g" /etc/php.ini
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+clear
+echo "========================================================================="
+echo "Cấu hình Max Execution Time thành công"
+echo "-------------------------------------------------------------------------"
+echo "Max Execution Time: $maxexecutiontime"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+
+
+###################################
+#MaxInputTime
+###################################
+elif [ "$luachon" = "MaxInputTime" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình Max Input Time"
+echo "-------------------------------------------------------------------------"
+echo "Max Input Time mặc định: 120"
+echo "-------------------------------------------------------------------------"
+echo "Max Input Time hiện tại: $max_input_time"
+echo "========================================================================="
+
+while true; do
+echo -n "Nhập giá trị Max Input Time [0 -Thoát]: " 
+read maxinputtime
+if [ "$maxinputtime" = "0" ]; then
+clear
+exit
+elif ! [[ $maxinputtime -ge 20 && $maxinputtime -le 5000  ]] ; then  
+        echo "========================================================================="
+echo "Max Input Time phai la so tu nhien lon hon 20"
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+sed -i "s/.*max_input_time\ =.*/max_input_time = ${maxinputtime}/g" /etc/php.ini
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+clear
+echo "========================================================================="
+echo "Cấu hình Max Input Time thành công"
+echo "-------------------------------------------------------------------------"
+echo "Max Input Time: $max_input_time"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+
+###################################
+#MemoryLimit
+###################################
+elif [ "$luachon" = "MemoryLimit" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình Memory Limit"
+echo "-------------------------------------------------------------------------"
+echo "Memory Limit mặc định: $memorylimitmacdinh"
+echo "-------------------------------------------------------------------------"
+echo "Memory Limit hiện tại: $memory_limit"
+echo "========================================================================="
+while true; do
+echo -n "Nhập giá trị Memory Limit [0 -Thoát]: " 
+read memorylimit
+if [ "$memorylimit" = "0" ]; then
+clear
+exit
+elif ! [[ $memorylimit -ge 128 && $memorylimit -le $memlimitmax  ]] ; then  
+        echo "========================================================================="
+echo "Memory Limit phải là số tự nhiên nằm trong khoảng (128 - $memlimitmax)"
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+sed -i "s/.*memory_limit\ =.*/memory_limit = ${memorylimit}M/g" /etc/php.ini
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+clear
+echo "========================================================================="
+echo "Cấu hình Memory Limit thành công"
+echo "-------------------------------------------------------------------------"
+echo "Memory Limit: $memorylimit"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+###################################
+#UploadMaxFilesize
+###################################
+elif [ "$luachon" = "UploadMaxFilesize" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình Upload Max Filesize & Post Max Size"
+echo "-------------------------------------------------------------------------"
+echo "mặc định Upload Max Filesize = Post Max Size: 120"
+echo "-------------------------------------------------------------------------"
+echo "Upload Max Filesize hiện tại: $upload_max_filesize"
+echo "========================================================================="
+while true; do
+echo -n "Nhập giá trị Upload Max Filesize [0 -Thoát]: " 
+read uploadmaxfilesize
+if [ "$uploadmaxfilesize" = "0" ]; then
+clear
+exit
+elif ! [[ $uploadmaxfilesize -ge 20 && $uploadmaxfilesize -le 10000  ]] ; then  
+        echo "========================================================================="
+echo "Upload Max Filesize phải là số tự nhiên nằm trong khoảng (20 - 10000)"
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Giá trị client_max_body_size của Nginx cũng được cấu hình bằng $uploadmaxfilesize MB"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 5
+sed -i "s/.*upload_max_filesize\ =.*/upload_max_filesize = ${uploadmaxfilesize}M/g" /etc/php.ini
+sed -i "s/.*post_max_size\ =.*/post_max_size = ${uploadmaxfilesize}M/g" /etc/php.ini
+sed -i "s/.*client_max_body_size.*/client_max_body_size ${uploadmaxfilesize}m;/g" /etc/nginx/nginx.conf 
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+systemctl reload nginx
+
+clear
+echo "========================================================================="
+echo "Cấu hình Upload Max Filesize thành công"
+echo "-------------------------------------------------------------------------"
+echo "Upload Max Filesize: $uploadmaxfilesize MB"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+###################################
+#max_input_vars
+elif [ "$luachon" = "max_input_vars" ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình Max Input Vars"
+echo "-------------------------------------------------------------------------"
+echo "Max Input Vars mặc định: 6000"
+echo "-------------------------------------------------------------------------"
+echo "Max Input Vars hiện tại: $max_input_vars"
+echo "========================================================================="
+while true; do
+echo -n "Nhập giá trị Max Input Vars [0 -Thoát]: " 
+read maxinputvars
+if [ "$maxinputvars" = "0" ]; then
+clear
+exit
+elif ! [[ $maxinputvars -ge 20 && $maxinputvars -le 10000  ]] ; then  
+        echo "========================================================================="
+echo "Max Input Vars phải là số tự nhiên nằm trong khoảng (20 - 10000)"
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+ 
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+sed -i "s/.*max_input_vars\ =.*/max_input_vars = ${maxinputvars}/g" /etc/php.ini
+##Restart PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+#######
+clear
+echo "========================================================================="
+echo "Cấu hình Max Input Vars thành công"
+echo "-------------------------------------------------------------------------"
+echo "Max Input Vars: $maxinputvars"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+###################################
+#phpinimacdinh
+elif [ "$luachon" = "installremoveimagick" ]; then
+/etc/dsnvps/menu/tienich/dsnvps-before-imagick
+elif [ "$luachon" = "installremoveioncube" ]; then
+/etc/dsnvps/menu/tienich/dsnvps-before-ioncube
+elif [ "$luachon" = "caimuigio" ]; then
+clear && /etc/dsnvps/menu/dsnvps-thay-doi-php-timezone-full-timezone
+else
+clear
+exit 0
+fi

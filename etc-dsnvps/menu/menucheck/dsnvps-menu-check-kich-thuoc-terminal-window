@@ -1,0 +1,23 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+tput lines > /etc/dsnvps/.tmp/ip.dsnvps.lines
+if [ -f /etc/dsnvps/.tmp/ip.dsnvps.lines ]; then
+if [ `cat /etc/dsnvps/.tmp/ip.dsnvps.lines` -lt 37 ] ; then
+echo "========================================================================="
+echo "THÔNG BÁO:"
+echo "========================================================================="
+echo "Màn hình Terminal này quá nhỏ. Kết quả chạy DSNVPS có thể không hiển thị"
+echo "-------------------------------------------------------------------------"
+echo "hết. Bạn hãy tăng kích thước cửa sổ Terminal lên để tắt thông báo này!"
+echo "========================================================================="
+echo "Xem cách fix: http://go.dsnvps/vterminal"
+echo "========================================================================="
+read -p "Nhấn [Enter] để tiếp tục ..."
+fi
+fi

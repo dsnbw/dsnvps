@@ -1,0 +1,53 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html/server-log ]; then
+mkdir -p /home/$mainsite/private_html/server-log
+fi
+random=`date |md5sum |cut -c '1-8'`
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/folderlog
+if [ -f /home/$mainsite/logs/php-fpm.log ]; then
+mkdir -p /etc/dsnvps/.tmp/folderlog
+	rm -rf /home/$mainsite/private_html/server-log/php-fpm*
+	\cp -uf /home/$mainsite/logs/php-fpm* /etc/dsnvps/.tmp/folderlog/
+	cd /etc/dsnvps/.tmp/folderlog
+	zip -r php-fpm.log-$random.zip * 
+	cp /etc/dsnvps/.tmp/folderlog/php-fpm.log-$random.zip /home/$mainsite/private_html/server-log
+	cd
+	rm -rf /etc/dsnvps/.tmp/folderlog
+	chown -R nginx:nginx /home/$mainsite/private_html/server-log/*
+	
+		rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	find /home/dsnvps.demo/logs/ -name "*php-fpm*" > /etc/dsnvps/.tmp/dsnvps-checklogzise
+    logsize=$(du -ch $(cat /etc/dsnvps/.tmp/dsnvps-checklogzise) | tail -1 | cut -f 1)
+	if [ "$logsize" = "0" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps-checklogzise
+	clear
+	echo "========================================================================= "
+echo "Không có dữ liệu trong tệp log"
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+exit
+fi
+
+
+clear
+echo "========================================================================= "
+echo "Link tải xuống log PHP-FPM:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/server-log/php-fpm.log-$random.zip "
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+else
+clear
+echo "========================================================================= "
+echo "Tệp log không tồn tại hoặc bạn đã vô hiệu hóa chức năng ghi log."
+/etc/dsnvps/menu/downloadlog/dsnvps-eroor-menu
+fi 

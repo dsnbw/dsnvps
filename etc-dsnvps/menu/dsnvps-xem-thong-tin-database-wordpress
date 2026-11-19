@@ -1,0 +1,113 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này xem Thông tin database của WordPress website."
+mapfile -t file_list < /etc/dsnvps/.tmp/wordpresslist
+echo "========================================================================="
+echo "Danh sách WordPress Website:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-25s %-1s %-25s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-25\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+echo "========================================================================="
+echo -n "Chọn số tương ứng với website [0 -Thoát]: " 
+    read -r choice
+    if [[ $choice == "0" ]]; then
+       clear
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    fi
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+website=${file_list[choice-1]}
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trong hệ thống"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "$website sử dụng WordPress code"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS chuẩn bị lấy thông tin database"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 3
+if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+databasename=`cat /home/$website/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+databaseuser=`cat /home/$website/wp-config.php | grep DB_USER | cut -d \' -f 4`
+databasepass=`cat /home/$website/wp-config.php | grep DB_PASSWORD | cut -d \' -f 4`
+else
+databasename=`cat /home/$website/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+databaseuser=`cat /home/$website/public_html/wp-config.php | grep DB_USER | cut -d \' -f 4`
+databasepass=`cat /home/$website/public_html/wp-config.php | grep DB_PASSWORD | cut -d \' -f 4`
+fi
+if [ ! -f /var/lib/mysql/$databasename/db.opt ]; then
+clear
+echo "========================================================================="
+echo "$website config sử dụng database $databasename."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không tìm thấy database $databasename trên server."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+sizeshow=`du -sh /var/lib/mysql/$databasename | awk 'NR==1 {print $1}'`
+clear
+echo "========================================================================="
+echo "Thông tin database của $website"
+echo "-------------------------------------------------------------------------"
+echo "Database name: $databasename"
+echo "-------------------------------------------------------------------------"
+echo "Username: $databaseuser | Password: $databasepass"
+echo "-------------------------------------------------------------------------"
+echo "Dung lượng hiện tại: $sizeshow"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+
+done

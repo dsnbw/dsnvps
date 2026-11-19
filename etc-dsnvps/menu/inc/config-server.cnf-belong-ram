@@ -1,0 +1,179 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+mkdir -p /var/lib/mariadbtmp
+chown -R mysql:mysql /var/lib/mariadbtmp
+svram=$( free -m | awk '/^Mem:/{print $2}' )
+cpucores=$( awk -F: '/model name/ {core++} END {print core}' /proc/cpuinfo )
+
+#Check RAM AND USE Server.Conf Config
+if [ -f /etc/my.cnf ]; then
+cp /etc/my.cnf /etc/my.cnf-old
+fi
+if [[ $svram -ge 32 && $svram -le 2100  ]] ; then
+timeout=10
+innodbbuffer=48M
+innodb_buffer_pool_instances=2
+innodb_log_file_size=128M
+innodb_log_buffer_size=8M
+innodb_io_capacity=200
+tmp_table_size=32M
+max_connections=50
+thread_cache_size=64
+table_open_cache=2048
+join_buffer_size=64K
+sort_buffer_size=128K
+read_rnd_buffer_size=256K
+###############################################
+elif [[ $svram -ge 2100 && $svram -le 4100  ]] ; then
+timeout=10
+innodbbuffer=192M
+innodb_buffer_pool_instances=2
+innodb_log_file_size=128M
+innodb_log_buffer_size=8M
+innodb_io_capacity=250
+tmp_table_size=128M
+max_connections=60
+thread_cache_size=128
+table_open_cache=4094
+join_buffer_size=128K
+sort_buffer_size=256K
+read_rnd_buffer_size=256K
+###############################################
+elif [[ $svram -ge 4100 && $svram -le 8100  ]] ; then
+timeout=10
+innodbbuffer=512M
+innodb_buffer_pool_instances=2
+innodb_log_file_size=256M
+innodb_log_buffer_size=8M
+innodb_io_capacity=400
+tmp_table_size=256M
+max_connections=80
+thread_cache_size=256
+table_open_cache=4096
+join_buffer_size=256K
+sort_buffer_size=256K
+read_rnd_buffer_size=512k
+###############################################
+elif [[ $svram -ge 8100 && $svram -le 16100  ]] ; then
+timeout=10
+innodbbuffer=1024M
+innodb_buffer_pool_instances=2
+innodb_log_file_size=384M
+innodb_log_buffer_size=8M
+innodb_io_capacity=500
+tmp_table_size=512M
+max_connections=90
+thread_cache_size=256
+table_open_cache=8192
+join_buffer_size=256K
+sort_buffer_size=512K
+read_rnd_buffer_size=512K
+###############################################
+elif [[ $svram -ge 16100 && $svram -le 32100  ]] ; then
+timeout=10
+innodbbuffer=4096M
+innodb_buffer_pool_instances=4
+innodb_log_file_size=512M
+innodb_log_buffer_size=16M
+innodb_io_capacity=600
+tmp_table_size=768M
+max_connections=150
+thread_cache_size=384
+table_open_cache=8192
+join_buffer_size=1M
+sort_buffer_size=2M
+read_rnd_buffer_size=512K
+###############################################
+elif [[ $svram -ge 32100 && $svram -le 64100  ]] ; then
+timeout=10
+innodbbuffer=8192M
+innodb_buffer_pool_instances=8
+innodb_log_file_size=768M
+innodb_log_buffer_size=16M
+innodb_io_capacity=800
+tmp_table_size=1024M
+max_connections=250
+thread_cache_size=384
+table_open_cache=8192
+join_buffer_size=2M
+sort_buffer_size=2M
+read_rnd_buffer_size=512K
+###############################################
+else
+timeout=10
+innodbbuffer=8192M
+innodb_buffer_pool_instances=8
+innodb_log_file_size=1024M
+innodb_log_buffer_size=32M
+innodb_io_capacity=800
+tmp_table_size=1536M
+max_connections=290
+thread_cache_size=384
+table_open_cache=8192
+join_buffer_size=2M
+sort_buffer_size=2M
+read_rnd_buffer_size=2M
+fi
+
+cpu_cores=$(grep -c ^processor /proc/cpuinfo)
+if ! [[ "$cpu_cores" =~ ^[0-9]+$ ]]; then
+    cpu_cores=2
+fi
+
+ cat > "/etc/my.cnf" <<END
+[mysqld]
+# Co ban
+user                = mysql
+bind-address        = 127.0.0.1
+skip-name-resolve   = 1
+port                = 3306
+socket              = /var/lib/mysql/mysql.sock
+
+# Bo nho
+innodb_buffer_pool_size       = $innodbbuffer          # 50-60% tong RAM, thuong la phan quan trong nhat
+innodb_buffer_pool_instances  = $innodb_buffer_pool_instances           # Cai dat nay chia nho bo nho buffer de tang hieu suat
+innodb_log_file_size          = $innodb_log_file_size        # Tang kich thuoc cua InnoDB log file neu du lieu lon
+innodb_log_buffer_size        = $innodb_log_buffer_size         # Du lon de giam ghi log, nhung khong qua lon de ton RAM
+innodb_flush_log_at_trx_commit = 2          # De tang hieu suat ghi, co the chap nhan mat mot so du lieu trong truong hop mat dien
+
+# I/O & Threads
+innodb_io_capacity            = $innodb_io_capacity        # So luong I/O toi da InnoDB co the xu ly
+innodb_read_io_threads        = $cpu_cores           # So luong threads xu ly doc I/O (tuong ung voi so CPU)
+innodb_write_io_threads       = $cpu_cores           # So luong threads xu ly ghi I/O
+innodb_flush_method           = O_DIRECT    # Tranh caching o cap do he dieu hanh de giam luu tru khong can thiet
+innodb_thread_concurrency     = 8           # Gioi han so threads cho cac truy van song song, thuong la so nhan CPU * 2
+
+# Bo nho tam
+tmp_table_size                = $tmp_table_size        # Kich thuoc bo nho tam cho cac bang tam
+max_heap_table_size           = $tmp_table_size        # Gioi han kich thuoc bo nho cho bang tam su dung heap
+query_cache_type              = 0           # Tat bo dem truy van vi no khong hieu qua tren cac he thong hien dai
+query_cache_size              = 0           # Khong dung bo dem truy van
+
+# Ket noi
+max_connections               = $max_connections         # So luong ket noi toi da
+thread_cache_size             = $thread_cache_size          # Luu tru cac threads de xu ly truy van nhanh hon
+table_open_cache              = $table_open_cache        # So bang co the mo cung luc
+open_files_limit              = 65535       # Gioi han so file mo cung luc, dieu chinh dua tren ulimit cua he thong
+interactive_timeout           = 180         
+wait_timeout                  = 180
+connect_timeout               = $timeout
+
+# Toi uu cac chi muc va join
+join_buffer_size              = $join_buffer_size          # Bo nho dem cho cac truy van join phuc tap
+sort_buffer_size              = $sort_buffer_size          # Bo nho dem cho qua trinh sap xep du lieu
+read_rnd_buffer_size          = $read_rnd_buffer_size          # Bo nho dem cho truy van tim kiem du lieu ngau nhien
+
+# Log
+slow_query_log                = 1           # Bat log truy van cham
+slow_query_log_file           = /var/log/mysql-slow.log
+long_query_time               = 5           # Truy van nao chay qua 2 giay se duoc log
+log-error                     = /var/log/mysql/error.log
+
+# Replication (neu co su dung replication)
+server-id                     = 1
+log_bin                       = /var/log/mysql/mysql-bin.log
+binlog_format                 = ROW
+expire_logs_days              = 7           # Xoa log binlog sau 7 ngay
+max_binlog_size               = 100M
+END

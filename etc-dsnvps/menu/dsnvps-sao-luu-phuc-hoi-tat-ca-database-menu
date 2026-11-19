@@ -1,0 +1,30 @@
+#!/bin/bash
+
+prompt="Lựa chọn của bạn [0 -Thoát]:"
+options=("Sao Lưu FULL Database" "Phục Hồi FULL Database" "Link Download Backup File" "Copy Backup Tới Root Của Domain")
+/etc/dsnvps/menu/dsnvps-menu-all-function
+printf "=========================================================================\n"
+printf "                   Sao Lưu & Phục Hồi FULL Database\n"
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1133 "
+echo "========================================================================="
+echo ""
+
+
+PS3="$prompt"
+select opt in "${options[@]}" ; do 
+
+    case "$REPLY" in
+
+    1 ) /etc/dsnvps/menu/dsnvps-befor-sao-luu-tat-ca-database;;
+    2 ) /etc/dsnvps/menu/dsnvps-phuc-hoi-tat-ca-database;;
+    3 ) /etc/dsnvps/menu/dsnvps-link-sao-luu-all-database;;
+    4 ) /etc/dsnvps/menu/dsnvps-copy-backup-tat-ca-database-to-root-folder;;
+0) clear; exit 0;;
+
+    
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+
+    esac
+
+done

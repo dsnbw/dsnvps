@@ -1,0 +1,435 @@
+#!/bin/bash
+set -euo pipefail
+
+BASE_DIR="/etc/dsnvps/seconcronjob"
+SYSTEMD_DIR="/etc/systemd/system"
+ADD_SCRIPT="/etc/dsnvps/menu/crontab/dsnvps-cronjob-theo-giay"
+BACKUP_DIR="/etc/dsnvps/saoluu_secondcronjob"
+BACKUP_PREFIX="backup"
+
+ensure_env() {
+  if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
+    echo "[Lỗi] Vui lòng chạy với quyền root (sudo)." >&2
+    exit 1
+  fi
+  command -v systemctl >/dev/null 2>&1 || { echo "[Lỗi] systemctl không tồn tại." >&2; exit 1; }
+  mkdir -p "$BASE_DIR"
+  mkdir -p "$BACKUP_DIR"
+}
+
+banner() {
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+  echo "========================================================================="
+  echo "                       Quản Lý Micro Cronjob"
+  echo "========================================================================="
+}
+
+count_running() {
+  local count=0
+  if compgen -G "$BASE_DIR/*.timer" > /dev/null; then
+    count=$(ls -1 "$BASE_DIR"/*.timer 2>/dev/null | wc -l)
+  fi
+  echo "$count"
+}
+
+pause() { read -r -p "Nhấn Enter để tiếp tục..." _; }
+
+list_jobs_indexed() {
+  local files
+  mapfile -t files < <(ls -1 "$BASE_DIR"/*.timer 2>/dev/null | sort || true)
+  local i=1
+  for f in "${files[@]}"; do
+    local unit name interval state
+    unit="$(basename "${f}")"
+    name="${unit%.timer}"
+    interval="$(grep -E '^OnUnitActiveSec=' "$BASE_DIR/$unit" 2>/dev/null | head -n1 | cut -d= -f2)"
+    [[ -z "$interval" ]] && interval="N/A"
+    state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    printf "%2d) %-20s  Every: %-8s  Status: %s\n" "$i" "$name" "$interval" "$state"
+    ((i++)) || true
+  done
+}
+
+pick_job() {
+  mapfile -t files < <(ls -1 "$BASE_DIR"/*.timer 2>/dev/null | sort || true)
+  if [[ ${#files[@]} -eq 0 ]]; then
+  echo "-------------------------------------------------------------------------"
+    echo "Hiện chưa có Micro Cronjob nào." >&2
+    return 1
+  fi
+  list_jobs_indexed >&2
+  echo "-------------------------------------------------------------------------" >&2
+  while :; do
+    read -r -p "Chọn số thứ tự [0 - Thoát]: " idx
+    [[ -z "$idx" ]] && continue
+    if [[ "$idx" == "0" ]]; then return 1; fi
+    if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx>=1 && idx<=${#files[@]} )); then
+      local f
+      f="${files[$((idx-1))]}"
+      echo "$(basename "$f" .timer)"
+      return 0
+    else
+      echo "Lựa chọn không hợp lệ." >&2
+    fi
+  done
+}
+
+action_add() {
+  if [[ ! -x "$ADD_SCRIPT" ]]; then
+    echo "[Lỗi] Không tìm thấy script thêm: $ADD_SCRIPT"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy sao chép script vào $ADD_SCRIPT và cấp quyền thực thi."
+    return
+  fi
+  "$ADD_SCRIPT"
+}
+
+action_delete_one() {
+  echo "========================================================================="
+  if ! compgen -G "$BASE_DIR/*.timer" >/dev/null; then
+    echo "Danh sách Micro Cronjob:"
+    echo "-------------------------------------------------------------------------"
+    echo "Hiện tại không có Micro Cronjob nào được add trên VPS."
+    echo "========================================================================="
+    pause
+    return
+  fi
+  echo "Danh sách Micro Cronjob:"
+  echo "-------------------------------------------------------------------------"
+  mapfile -t files < <(ls -1 "$BASE_DIR"/*.timer 2>/dev/null | sort || true)
+  local idx=1
+  for f in "${files[@]}"; do
+    local unit name interval
+    unit="$(basename "$f")"
+    name="${unit%.timer}"
+    interval="$(grep -E '^OnUnitActiveSec=' "$BASE_DIR/$unit" 2>/dev/null | head -n1 | cut -d= -f2)"
+    [[ -z "$interval" ]] && interval="N/A"
+    echo "$idx. $name (mỗi $interval)"
+    ((idx++)) || true
+  done
+  echo "========================================================================="
+  local choice
+  while :; do
+    read -r -p "Chọn số tương ứng với Micro Cronjob muốn xóa [0 -Thoát]: " choice
+    [[ -z "$choice" ]] && continue
+    if [[ "$choice" == "0" ]]; then
+      echo "========================================================================="
+      pause
+      return
+    fi
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice>=1 && choice<=${#files[@]} )); then
+      break
+    fi
+    echo "Lựa chọn không hợp lệ."
+  done
+  local selected_file selected_unit selected_name
+  selected_file="${files[$((choice-1))]}"
+  selected_unit="$(basename "$selected_file")"
+  selected_name="${selected_unit%.timer}"
+  echo "-------------------------------------------------------------------------"
+  echo "Bạn chọn Micro Cronjob: $selected_name"
+  echo "-------------------------------------------------------------------------"
+  read -r -p "Xác nhận xóa Micro Cronjob này? (y/N): " confirm
+  [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "Hủy bỏ."; return; }
+   echo "-------------------------------------------------------------------------" 
+  echo "Đang xóa Micro Cronjob: $selected_name"
+  systemctl disable --now "$selected_unit" 2>/dev/null || true
+  rm -f "$SYSTEMD_DIR/${selected_name}.service" "$SYSTEMD_DIR/$selected_unit" 2>/dev/null || true
+  systemctl daemon-reload || true
+  rm -f "$BASE_DIR/${selected_name}.service" "$selected_file" 2>/dev/null || true
+   echo "-------------------------------------------------------------------------" 
+  echo "==> Hoàn thành! Micro Cronjob '$selected_name' đã được xóa thành công."
+  echo "-------------------------------------------------------------------------"
+  pause
+}
+
+action_check_job() {
+  echo "========================================================================="
+  echo "Dùng chức năng này để xem thời gian chạy của các Micro Cronjob."
+  echo "========================================================================="
+  if ! compgen -G "$BASE_DIR/*.timer" >/dev/null; then
+    echo "Danh sách Micro Cronjob trên server:"
+    echo "-------------------------------------------------------------------------"
+    echo "(Trống)"
+    echo "========================================================================="
+    pause
+    return
+  fi
+  echo "Danh sách Micro Cronjob trên server:"
+  echo "-------------------------------------------------------------------------"
+  mapfile -t files < <(ls -1 "$BASE_DIR"/*.timer 2>/dev/null | sort || true)
+  local idx=1
+  for f in "${files[@]}"; do
+    local unit name interval
+    unit="$(basename "$f")"
+    name="${unit%.timer}"
+    interval="$(grep -E '^OnUnitActiveSec=' "$BASE_DIR/$unit" 2>/dev/null | head -n1 | cut -d= -f2)"
+    [[ -z "$interval" ]] && interval="N/A"
+    echo "$idx. $name (mỗi $interval)"
+    ((idx++)) || true
+  done
+  echo "========================================================================="
+  local choice
+  while :; do
+    read -r -p "Chọn số tương ứng với Micro Cronjob [0 -Thoát]: " choice
+    [[ -z "$choice" ]] && continue
+    if [[ "$choice" == "0" ]]; then
+      echo "========================================================================="
+      pause
+      return
+    fi
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice>=1 && choice<=${#files[@]} )); then
+      break
+    fi
+    echo "Lựa chọn không hợp lệ."
+  done
+  local selected_file selected_unit selected_name
+  selected_file="${files[$((choice-1))]}"
+  selected_unit="$(basename "$selected_file")"
+  selected_name="${selected_unit%.timer}"
+  echo "========================================================================="
+  echo "Micro Cronjob bạn chọn: $selected_name"
+  echo "-------------------------------------------------------------------------"
+  echo "Vui lòng chờ DSNVPS phân tích..."
+  sleep 2
+  clear
+  echo "========================================================================="
+  echo "Micro Cronjob: $selected_name"
+  echo "-------------------------------------------------------------------------"
+  echo "Giải thích về Micro Cronjob này:"
+  local interval script_path state last_trigger
+  interval="$(grep -E '^OnUnitActiveSec=' "$BASE_DIR/$selected_unit" 2>/dev/null | head -n1 | cut -d= -f2)"
+  [[ -z "$interval" ]] && interval="N/A"
+  # Trích xuất đường dẫn script từ ExecStart (lấy dòng cuối cùng có nội dung)
+  script_path="$(grep -E '^ExecStart=' "$BASE_DIR/${selected_name}.service" 2>/dev/null | grep -v '^ExecStart=$' | tail -n1 | cut -d= -f2-)"
+  if [[ -n "$script_path" ]]; then
+    # Nếu có flock, lấy phần cuối cùng (script path) sau tất cả các tham số
+    if [[ "$script_path" =~ flock ]]; then
+      # Sử dụng awk để lấy từ cuối cùng (script path)
+      script_path="$(echo "$script_path" | awk '{print $NF}')"
+    else
+      # Nếu không có flock, lấy toàn bộ sau ExecStart=
+      script_path="$(echo "$script_path" | sed 's/^[[:space:]]*//')"
+    fi
+  fi
+  [[ -z "$script_path" ]] && script_path="N/A"
+  state="$(systemctl is-active "$selected_unit" 2>/dev/null || true)"
+  last_trigger="$(systemctl show -p LastTriggerUSec "$selected_unit" 2>/dev/null | cut -d= -f2)"
+  echo "-------------------------------------------------------------------------"
+  echo "Cronjob sẽ chạy mỗi $interval một lần."
+  echo "-------------------------------------------------------------------------"
+  echo "Script chạy:  $script_path"
+  echo "-------------------------------------------------------------------------"
+  echo "Trạng thái: $state"
+  if [[ -n "$last_trigger" && "$last_trigger" != "0" ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Lần chạy gần nhất: $last_trigger"
+  fi
+ /etc/dsnvps/menu/dsnvps-menu-all-function  
+  echo "========================================================================="
+  echo "                       Quản Lý Micro Cronjob"
+  echo "========================================================================="
+  echo "                    Micro Cronjob đang chạy: $(count_running)"
+  echo "========================================================================="
+  echo "Hướng dẫn sử dụng: http://go.dsnvps/5622"
+  echo "========================================================================="
+  printf "%-37s %-35s\n" "1) Thêm Cronjob" "5) Sao lưu tất cả Cronjob"
+  printf "%-37s %-35s\n" "2) Xóa 1 Cronjob" "6) Phục hồi Cronjob"
+  printf "%-38s %-35s\n" "3) Kiểm tra Cronjob" "7) Xóa bản sao lưu"
+  echo   "4) Liệt kê Cronjob đang chạy"
+  echo "========================================================================="
+  read -r -p "Lựa chọn của bạn [0 -Thoát]: " choice
+  case "$choice" in
+    1) action_add;;
+    2) action_delete_one;;
+    3) action_check_job;;
+    4) action_list_running; pause;;
+    5) action_backup_all;;
+    6) action_restore_from_file;;
+    7) action_delete_backup;;
+0) clear; exit 0;;
+    *) echo "Lựa chọn không hợp lệ."; sleep 2;;
+  esac
+}
+
+action_backup_all() {
+  local ts outfile fname
+  ts="$(date +%Y%m%d-%H%M%S)"
+  fname="${BACKUP_PREFIX}-${ts}.tar.gz"
+  outfile="$BACKUP_DIR/$fname"
+  mkdir -p "$BACKUP_DIR"
+  echo "-------------------------------------------------------------------------"
+  read -r -p "Xác nhận sao lưu tất cả Micro Cronjob? (y/N): " confirm
+  [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "Hủy bỏ."; return; }
+  tar -czf "$outfile" -C "$BASE_DIR" . 2>/dev/null || true
+  echo "========================================================================="
+  echo "Đã sao lưu: $fname"
+  echo "========================================================================="
+  pause
+}
+
+action_restore_from_file() {
+  echo "========================================================================="
+  echo "Chọn file backup để phục hồi:"
+  echo "-------------------------------------------------------------------------"
+  mapfile -t backups < <(ls -1t "$BACKUP_DIR"/*.tar.gz 2>/dev/null || true)
+  if [[ ${#backups[@]} -eq 0 ]]; then
+    echo "(Không tìm thấy backup trong $BACKUP_DIR)"
+    echo "========================================================================="
+    pause
+    return
+  fi
+  local i=1
+  for f in "${backups[@]}"; do
+    local ts
+    ts="$(date -r "$f" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo '-')"
+    printf " %2d) %s    [created: %s]\n" "$i" "$(basename "$f")" "$ts"
+    ((i++)) || true
+  done
+  echo "-------------------------------------------------------------------------"
+  local idx
+  while :; do
+    read -r -p "Chọn số thứ tự [0 - Thoát]: " idx
+    [[ -z "$idx" ]] && continue
+    if [[ "$idx" == "0" ]]; then
+      echo "========================================================================="
+      pause
+      return
+    fi
+    if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx>=1 && idx<=${#backups[@]} )); then
+      break
+    fi
+    echo "Lựa chọn không hợp lệ."
+  done
+  local backup
+  backup="${backups[$((idx-1))]}"
+  echo "-------------------------------------------------------------------------"
+  echo "Bạn đã chọn: $(basename "$backup")"
+  echo "-------------------------------------------------------------------------"
+  read -r -p "Xác nhận phục hồi và ghi đè cấu hình hiện tại? (y/N): " confirm
+  [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "Hủy bỏ."; echo "========================================================================="; pause; return; }
+  mkdir -p "$BASE_DIR"
+  tar -xzf "$backup" -C "$BASE_DIR"
+  # Đồng bộ lại vào systemd và enable
+  for svc in "$BASE_DIR"/*.service; do
+    [[ -e "$svc" ]] || continue
+    local name
+    name="$(basename "$svc" .service)"
+    cp -f "$BASE_DIR/$name.service" "$SYSTEMD_DIR/$name.service"
+    cp -f "$BASE_DIR/$name.timer" "$SYSTEMD_DIR/$name.timer"
+    chmod 0644 "$SYSTEMD_DIR/$name.service" "$SYSTEMD_DIR/$name.timer"
+  done
+  systemctl daemon-reload || true
+  for t in "$BASE_DIR"/*.timer; do
+    [[ -e "$t" ]] || continue
+    systemctl enable --now "$(basename "$t")" || true
+  done
+  echo "========================================================================="
+  echo "Phục hồi xong từ: $(basename "$backup")"
+  echo "========================================================================="
+  pause
+}
+
+action_delete_backup() {
+  echo "========================================================================="
+  echo "Chọn file backup để xóa:"
+  echo "-------------------------------------------------------------------------"
+  mapfile -t backups < <(ls -1t "$BACKUP_DIR"/*.tar.gz 2>/dev/null || true)
+  if [[ ${#backups[@]} -eq 0 ]]; then
+    echo "(Không tìm thấy backup trong $BACKUP_DIR)"
+    echo "========================================================================="
+    pause
+    return
+  fi
+  local i=1
+  for f in "${backups[@]}"; do
+    local ts
+    ts="$(date -r "$f" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || echo '-')"
+    printf " %2d) %s    [created: %s]\n" "$i" "$(basename "$f")" "$ts"
+    ((i++)) || true
+  done
+  echo "-------------------------------------------------------------------------"
+  local idx
+  while :; do
+    read -r -p "Chọn số thứ tự [0 - Thoát]: " idx
+    [[ -z "$idx" ]] && continue
+    if [[ "$idx" == "0" ]]; then
+      echo "========================================================================="
+      pause
+      return
+    fi
+    if [[ "$idx" =~ ^[0-9]+$ ]] && (( idx>=1 && idx<=${#backups[@]} )); then
+      break
+    fi
+    echo "Lựa chọn không hợp lệ."
+  done
+  local target
+  target="${backups[$((idx-1))]}"
+  echo "-------------------------------------------------------------------------"
+  echo "Bạn đã chọn: $(basename "$target")"
+  echo "-------------------------------------------------------------------------"
+  read -r -p "Xác nhận xóa file backup này? (y/N): " confirm
+  [[ ! "$confirm" =~ ^[Yy]$ ]] && { echo "Hủy bỏ."; echo "========================================================================="; pause; return; }
+  rm -f "$target"
+  echo "========================================================================="
+  echo "Đã xóa: $(basename "$target")"
+  echo "========================================================================="
+  pause
+}
+
+action_list_running() {
+  echo "========================================================================="
+  echo "Danh sách Micro Cronjob và trạng thái:"
+  echo "========================================================================="
+  if ! compgen -G "$BASE_DIR/*.timer" >/dev/null; then
+    echo "Hiện không có Micro Cronjob trong VPS."
+    echo "========================================================================="
+    return
+  fi
+  printf "%-28s %-9s %-7s %s\n" "Micro Cronjob" "Status" "Mỗi" "Chạy Lần Cuối"
+  printf "%-28s %-8s %-5s %s\n" "---------------------" "--------" "-----" "---------------------------"
+  while IFS= read -r timer_path; do
+    local unit name state last interval
+    unit="$(basename "$timer_path")"
+    name="${unit%.timer}"
+    state="$(systemctl is-active "$unit" 2>/dev/null || true)"
+    last="$(systemctl show -p LastTriggerUSec "$unit" 2>/dev/null | cut -d= -f2)"
+    interval="$(grep -E '^OnUnitActiveSec=' "$BASE_DIR/$unit" 2>/dev/null | head -n1 | cut -d= -f2)"
+    [[ -z "$interval" ]] && interval="N/A"
+    printf "%-28s %-8s %-5s %s\n" "$name" "$state" "$interval" "${last:-N/A}"
+  done < <(ls -1 "$BASE_DIR"/*.timer | sort)
+  echo "========================================================================="
+}
+
+main_menu() {
+  ensure_env
+  while :; do
+    clear
+    banner
+    echo "                       Micro Cronjob đang chạy: $(count_running)"
+    echo "========================================================================="
+    echo "Hướng dẫn sử dụng: http://go.dsnvps/5623"
+    echo "========================================================================="
+    printf "%-37s %-35s\n" "1) Thêm Cronjob" "5) Sao lưu tất cả Cronjob"
+    printf "%-37s %-35s\n" "2) Xóa 1 Cronjob" "6) Phục hồi Cronjob"
+    printf "%-38s %-35s\n" "3) Kiểm tra Cronjob" "7) Xóa bản sao lưu"
+    echo   "4) Liệt kê Cronjob đang chạy"
+    echo "========================================================================="
+    read -r -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    case "$choice" in
+      1) action_add;;
+      2) action_delete_one;;
+      3) action_check_job;;
+      4) action_list_running; pause;;
+      5) action_backup_all;;
+      6) action_restore_from_file;;
+      7) action_delete_backup;;
+0) clear; exit 0;;
+      *) echo "Lựa chọn không hợp lệ."; sleep 2;;
+    esac
+  done
+}
+
+main_menu
+
+

@@ -1,0 +1,550 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+clear
+echo "========================================================================="
+echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Nginx: "
+echo "-------------------------------------------------------------------------"
+nginx -t
+exit 0
+fi
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+
+echo "========================================================================="
+echo "Dung chuc nang nay config Vhost de su dung Plugin Cache. Hoac thay doi"
+echo "-------------------------------------------------------------------------"
+echo "sang plugin cache khac ( Vi du: muon chuyen tu W3 Total cache sang Redis) "  
+echo "-------------------------------------------------------------------------"
+echo "Khi do chuc nang nay se config lai Vhost tuong thich voi plugin cache moi"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1109"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Cac doan ma xac nhan phia duoi se tiep tuc chay
+if [ "$(grep "include /etc/nginx/conf/w3total.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da xoa 1 trong 3 dong: AAA, CCC, DDD trong Vhost cua $website"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS khong the thuc hien yeu cau cua ban"
+exit 0
+  exit
+  fi
+   if [ "$(grep "include /etc/nginx/conf/supercache.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da xoa 1 trong 3 dong: AAA, CCC, DDD trong Vhost cua $website"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS khong the thuc hien yeu cau cua ban"
+exit 0
+  exit
+  fi
+    if [ "$(grep "include /etc/nginx/conf/all.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da xoa 1 trong 3 dong: AAA, CCC, DDD trong Vhost cua $website"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS khong the thuc hien yeu cau cua ban"
+exit 0
+  exit
+  fi
+echo "-------------------------------------------------------------------------"
+echo "Tim thay $website dang su dung wordpress code tren he thong"
+####################################################################
+##Check Ban Pro
+####################################################################
+###################################################################
+###################################################################
+printf "=========================================================================\n"
+#prompt="Nhập lựa chọn của bạn: "
+prompt="Lua chon cua ban (O-Thoat): "
+options=( "WP Optimize" "WP Super Cache" "W3 Total Cache" "WP-Rocket" "WP Fastest Cache")
+printf "LUA CHON CACH CAU HINH VHOST SU DUNG PLUGIN CACHE\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) reconfigvhost="wpoptimize"; break;;
+    2) reconfigvhost="supercache"; break;;
+    3) reconfigvhost="w3total"; break;;
+    4) reconfigvhost="wprocket"; break;;
+    5) reconfigvhost="fastestcache"; break;;
+    0) reconfigvhost="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#rediscache
+###################################
+if [ "$reconfigvhost" = "wpoptimize" ]; then
+
+conf_file="/etc/nginx/conf.d/$website.conf"
+check_line='include /etc/nginx/conf/wp-optimize-cache.conf;'
+insert_after='include /etc/nginx/conf/block.conf;'
+insert_line='#include /etc/nginx/conf/wp-optimize-cache.conf;'
+
+# Nếu dòng chưa tồn tại, thì chèn vào dưới dòng block.conf
+if ! grep -qF "$check_line" "$conf_file"; then
+    if grep -qF "$insert_after" "$conf_file"; then
+        sed -i "/$(printf '%s' "$insert_after" | sed 's/[\/&]/\\&/g')/a $(printf '%s' "$insert_line" | sed 's/[\/&]/\\&/g')" "$conf_file"
+    fi
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+  if [ "$(grep "include /etc/nginx/conf/wp-optimize-cache.conf;" /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/wp-optimize-cache.conf;" ]; then
+clear
+echo "========================================================================="
+echo "$website dang duoc config su dung WP Optimize"
+exit 0
+  exit
+  fi
+  if [ "$(grep "include /etc/nginx/conf/wp-optimize-cache.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da thay doi file cau hinh Vhost cua DSNVPS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+exit 0
+  exit
+  fi
+cat > "/etc/dsnvps/.tmp/re-config-vhost.sh" <<END
+#!/bin/bash
+sed -i 's/.*all.conf.*/#include \/etc\/nginx\/conf\/all.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*supercache.conf.*/#include \/etc\/nginx\/conf\/supercache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*w3total.conf.*/#include \/etc\/nginx\/conf\/w3total.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wprocket.conf.*/#include \/etc\/nginx\/conf\/wprocket.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-fastest-cache.conf.*/#include \/etc\/nginx\/conf\/wp-fastest-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-optimize-cache.conf.*/include \/etc\/nginx\/conf\/wp-optimize-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/re-config-vhost.sh
+#### Backup Vhost I
+rm -rf /etc/dsnvps/.tmp/$website.conf_check
+cp /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf_check
+#############################
+/etc/dsnvps/.tmp/re-config-vhost.sh
+rm -f /etc/dsnvps/.tmp/re-config-vhost.sh
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/nginx/conf.d/$website.conf
+mv /etc/dsnvps/.tmp/$website.conf_check /etc/nginx/conf.d/$website.conf
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Vhost loi voi config moi. DSNVPS không thể thực hiện chức năng này."
+exit 0
+fi
+fi
+################################################
+##Restart Nginx service
+/etc/dsnvps/menu/inc/re-start-nginx-service
+##
+clear
+echo "========================================================================="
+echo "Cau hinh Vhost cua $website cho WP Optimize thanh cong"
+exit 0
+
+
+
+
+#supercache
+###################################
+elif [ "$reconfigvhost" = "supercache" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+  if [ "$(grep "include /etc/nginx/conf/supercache.conf;" /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/supercache.conf;" ]; then
+clear
+echo "========================================================================="
+echo "$website dang duoc config su dung WP Super Cache"
+exit 0
+  exit
+  fi
+  if [ "$(grep "include /etc/nginx/conf/supercache.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da thay doi file cau hinh Vhost cua DSNVPS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+exit 0
+  exit
+  fi
+cat > "/etc/dsnvps/.tmp/re-config-vhost.sh" <<END
+#!/bin/bash
+sed -i 's/.*all.conf.*/#include \/etc\/nginx\/conf\/all.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*supercache.conf.*/include \/etc\/nginx\/conf\/supercache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*w3total.conf.*/#include \/etc\/nginx\/conf\/w3total.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wprocket.conf.*/#include \/etc\/nginx\/conf\/wprocket.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-fastest-cache.conf.*/#include \/etc\/nginx\/conf\/wp-fastest-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-optimize-cache.conf.*/#include \/etc\/nginx\/conf\/wp-optimize-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/re-config-vhost.sh
+#### Backup Vhost I
+rm -rf /etc/dsnvps/.tmp/$website.conf_check
+cp /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf_check
+#############################
+/etc/dsnvps/.tmp/re-config-vhost.sh
+rm -f /etc/dsnvps/.tmp/re-config-vhost.sh
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/nginx/conf.d/$website.conf
+mv /etc/dsnvps/.tmp/$website.conf_check /etc/nginx/conf.d/$website.conf
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Vhost loi voi config moi. DSNVPS không thể thực hiện chức năng này."
+exit 0
+fi
+fi
+################################################
+##Restart Nginx service
+/etc/dsnvps/menu/inc/re-start-nginx-service
+##
+clear
+echo "========================================================================="
+echo "Cau hinh Vhost cua $website cho WP Super Cache thanh cong"
+exit 0
+
+
+####################
+#wp-rocket
+##################
+elif [ "$reconfigvhost" = "wprocket" ]; then
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+  if [ "$(grep "include /etc/nginx/conf/wprocket.conf;" /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/wprocket.conf;" ]; then
+clear
+echo "========================================================================="
+echo "$website dang duoc config su dung WP-Rocket"
+exit 0
+  exit
+  fi
+
+ if [ "$(grep "include /etc/nginx/conf/w3total.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da thay doi file cau hinh Vhost cua DSNVPS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+exit 0
+  exit
+  fi
+  
+  if [ "$(grep "include /etc/nginx/conf/wprocket.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+rm -rf /etc/dsnvps/.tmp/wprocketconfig.sh
+
+  cat > "/etc/dsnvps/.tmp/wprocketconfig.sh" <<END
+#!/bin/bash
+	sed -i "/.*w3total.conf*./a#Rule\ cho\ wordpress\ +\ WP-Rocket.\ Neu\ ban\ su\ dung\ wordpress\ va\ WP-RocketPlugin,\ uncomment\ dong\ duoi\ va\ comment\ dong\ AAA\ phia\ tren.\ (EEE)" /etc/nginx/conf.d/$website.conf
+	sed -i "/.*wordpress\ +\ WP-Rocket*./a#include \/etc\/nginx\/conf\/wprocket.conf;" /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/wprocketconfig.sh
+/etc/dsnvps/.tmp/wprocketconfig.sh
+rm -f /etc/dsnvps/.tmp/wprocketconfig.sh
+sed -i "s/.*wordpress\ +\ WP-Rocket*./\n&/" /etc/nginx/conf.d/$website.conf
+  fi
+
+  
+cat > "/etc/dsnvps/.tmp/re-config-vhost.sh" <<END
+#!/bin/bash
+sed -i 's/.*all.conf.*/#include \/etc\/nginx\/conf\/all.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*supercache.conf.*/#include \/etc\/nginx\/conf\/supercache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*w3total.conf.*/#include \/etc\/nginx\/conf\/w3total.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wprocket.conf.*/include \/etc\/nginx\/conf\/wprocket.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-fastest-cache.conf.*/#include \/etc\/nginx\/conf\/wp-fastest-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-optimize-cache.conf.*/#include \/etc\/nginx\/conf\/wp-optimize-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/re-config-vhost.sh
+#### Backup Vhost I
+rm -rf /etc/dsnvps/.tmp/$website.conf_check
+cp /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf_check
+############################# 
+/etc/dsnvps/.tmp/re-config-vhost.sh
+rm -f /etc/dsnvps/.tmp/re-config-vhost.sh
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/nginx/conf.d/$website.conf
+mv /etc/dsnvps/.tmp/$website.conf_check /etc/nginx/conf.d/$website.conf
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Vhost loi voi config moi. DSNVPS không thể thực hiện chức năng này."
+exit 0
+fi
+fi
+################################################
+##Restart Nginx service
+/etc/dsnvps/menu/inc/re-start-nginx-service
+##
+clear
+echo "========================================================================="
+echo "Cau hinh Vhost cua $website cho WP-Rocket thanh cong"
+exit 0
+
+####################
+# WP Fastest Cache
+##################
+elif [ "$reconfigvhost" = "fastestcache" ]; then
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+  if [ "$(grep "include /etc/nginx/conf/wp-fastest-cache.conf;" /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/wp-fastest-cache.conf;" ]; then
+clear
+echo "========================================================================="
+echo "$website dang duoc config su dung WP Fastest Cache"
+exit 0
+  exit
+  fi
+
+ if [ "$(grep "include /etc/nginx/conf/w3total.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da thay doi file cau hinh Vhost cua DSNVPS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+exit 0
+  exit
+  fi
+  
+  if [ "$(grep "include /etc/nginx/conf/wp-fastest-cache.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+rm -rf /etc/dsnvps/.tmp/fastestcache.sh
+
+  cat > "/etc/dsnvps/.tmp/fastestcache.sh" <<END
+#!/bin/bash
+	sed -i "/.*w3total.conf*./a#Rule\ cho\ wordpress\ +\ WP-Fastest-cache.\ Neu\ ban\ su\ dung\ wordpress\ va\ WP-Fastest-Cache-Plugin,\ uncomment\ dong\ duoi\ va\ comment\ dong\ AAA\ phia\ tren.\ (FFF)" /etc/nginx/conf.d/$website.conf
+	sed -i "/.*WP-Fastest-Cache-Plugin*./a#include \/etc\/nginx\/conf\/wp-fastest-cache.conf;" /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/fastestcache.sh
+sh /etc/dsnvps/.tmp/fastestcache.sh
+rm -f /etc/dsnvps/.tmp/fastestcache.sh
+sed -i "s/.*WP-Fastest-cache*./\n&/" /etc/nginx/conf.d/$website.conf
+  fi
+
+  
+cat > "/etc/dsnvps/.tmp/re-config-vhost.sh" <<END
+#!/bin/bash
+sed -i 's/.*all.conf.*/#include \/etc\/nginx\/conf\/all.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*supercache.conf.*/#include \/etc\/nginx\/conf\/supercache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*w3total.conf.*/#include \/etc\/nginx\/conf\/w3total.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wprocket.conf.*/#include \/etc\/nginx\/conf\/wprocket.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-fastest-cache.conf.*/include \/etc\/nginx\/conf\/wp-fastest-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-optimize-cache.conf.*/#include \/etc\/nginx\/conf\/wp-optimize-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/re-config-vhost.sh
+#### Backup Vhost I
+rm -rf /etc/dsnvps/.tmp/$website.conf_check
+cp /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf_check
+############################# 
+/etc/dsnvps/.tmp/re-config-vhost.sh
+rm -f /etc/dsnvps/.tmp/re-config-vhost.sh
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/nginx/conf.d/$website.conf
+mv /etc/dsnvps/.tmp/$website.conf_check /etc/nginx/conf.d/$website.conf
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Vhost loi voi config moi. DSNVPS không thể thực hiện chức năng này."
+exit 0
+fi
+fi
+################################################
+##Restart Nginx service
+/etc/dsnvps/menu/inc/re-start-nginx-service
+##
+clear
+echo "========================================================================="
+echo "Cau hinh Vhost cua $website cho WP Fastest Cache thanh cong"
+exit 0
+
+
+####################
+#w3total
+##################
+elif [ "$reconfigvhost" = "w3total" ]; then
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+  if [ "$(grep "include /etc/nginx/conf/w3total.conf;" /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/w3total.conf;" ]; then
+clear
+echo "========================================================================="
+echo "$website dang duoc config su dung W3 Total Cache"
+exit 0
+  exit
+  fi
+    if [ "$(grep "include /etc/nginx/conf/w3total.conf;" /etc/nginx/conf.d/$website.conf)" == "" ]; then
+clear
+echo "========================================================================="
+echo "Ban da thay doi file cau hinh Vhost cua DSNVPS"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+exit 0
+  exit
+  fi
+cat > "/etc/dsnvps/.tmp/re-config-vhost.sh" <<END
+#!/bin/bash
+sed -i 's/.*all.conf.*/#include \/etc\/nginx\/conf\/all.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*supercache.conf.*/#include \/etc\/nginx\/conf\/supercache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*w3total.conf.*/include \/etc\/nginx\/conf\/w3total.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wprocket.conf.*/#include \/etc\/nginx\/conf\/wprocket.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-fastest-cache.conf.*/#include \/etc\/nginx\/conf\/wp-fastest-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+sed -i 's/.*wp-optimize-cache.conf.*/#include \/etc\/nginx\/conf\/wp-optimize-cache.conf;/g' /etc/nginx/conf.d/$website.conf
+END
+chmod +x /etc/dsnvps/.tmp/re-config-vhost.sh
+#### Backup Vhost I
+rm -rf /etc/dsnvps/.tmp/$website.conf_check
+cp /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf_check
+############################# 
+/etc/dsnvps/.tmp/re-config-vhost.sh
+rm -f /etc/dsnvps/.tmp/re-config-vhost.sh
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/nginx/conf.d/$website.conf
+mv /etc/dsnvps/.tmp/$website.conf_check /etc/nginx/conf.d/$website.conf
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Vhost loi voi config moi. DSNVPS không thể thực hiện chức năng này."
+exit 0
+fi
+fi
+################################################
+##Restart Nginx service
+/etc/dsnvps/menu/inc/re-start-nginx-service
+##
+clear
+echo "========================================================================="
+echo "Cau hinh Vhost cua $website cho W3 Total Cache thanh cong"
+exit 0
+###################################
+#Huỷ bỏ 
+###################################
+else
+clear
+exit 0
+fi
+

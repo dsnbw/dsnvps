@@ -1,0 +1,45 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+
+
+if systemctl is-active --quiet memcached; then
+clear
+/etc/dsnvps/menu/memcache/dsnvps-tat-memcache
+else
+
+# Lấy thông tin RAM hệ thống (không bao gồm swap)
+ram_total=$(free -m | grep Mem: | awk '{print $2}')
+
+# Kiểm tra nếu RAM dưới 600MB
+if [ "$ram_total" -lt 600 ]; then
+clear
+echo "========================================================================="
+echo "Với Server RAM 512 MB, Memcache không nên BẬT vì nó sẽ làm giảm hiệu"
+echo "-------------------------------------------------------------------------"
+echo "suất Server."
+echo "-------------------------------------------------------------------------"
+echo "Server sẽ còn quá ít RAM cho các dịch vụ Nginx - PHP - MySQL."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+exit 1
+fi
+
+
+clear
+/etc/dsnvps/menu/memcache/dsnvps-bat-memcache
+fi
+
+clear
+echo "========================================================================="
+echo "Xin lỗi, DSNVPS không thể tìm thấy Memcached trên hệ thống của bạn!"
+dsnvps
+exit

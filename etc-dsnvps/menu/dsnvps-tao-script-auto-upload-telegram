@@ -1,0 +1,308 @@
+#!/bin/bash
+# shellcheck source=/dev/null
+. /root/dsnvps.conf
+
+# Lấy thông tin server (các biến được load từ /root/dsnvps.conf)
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    # shellcheck disable=SC2154
+    serverip_priport=$domainquanly
+else
+    # shellcheck disable=SC2154,SC2034
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace để tránh xung đột
+# Anti-debug removed
+
+re='^[0-9]+$'
+
+# Kiểm tra python3 và pip3
+if ! command -v python3 >/dev/null 2>&1 || ! command -v pip3 >/dev/null 2>&1; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang cài đặt python3 và pip3..."
+    if ! apt-get install -y -qq python3 python3-pip >/dev/null 2>&1; then
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không thể cài đặt python3 và pip3. Vui lòng kiểm tra quyền hoặc kết nối mạng."
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+        exit
+    fi
+fi
+
+# Kiểm tra và cài đặt telethon
+if ! python3 -c "import telethon" >/dev/null 2>&1; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang cài đặt thư viện telethon..."
+    if ! sudo pip3 install telethon 2>&1 | sudo tee /tmp/telethon_install.log >/dev/null; then
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không thể cài đặt telethon. Chi tiết lỗi:"
+        cat /tmp/telethon_install.log
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn có thể thử tiếp tục cấu hình Telegram hoặc kiểm tra quyền/mạng."
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Cài đặt telethon thành công."
+    fi
+fi
+
+# Kiểm tra file cấu hình Telegram
+if [ ! -f /etc/dsnvps/telegram_group.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối server với Telegram trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra group_id
+rm -rf /etc/dsnvps/.tmp/checktelegram
+awk '/^\[Telegram\]/ {print}' /etc/dsnvps/telegram_group.conf > /etc/dsnvps/.tmp/checktelegram
+wc -l < /etc/dsnvps/.tmp/checktelegram > /etc/dsnvps/.tmp/checktelegramline
+checkb=$(cat /etc/dsnvps/.tmp/checktelegramline)
+
+if [ "$checkb" -lt "1" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối server với Telegram trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+if [ "$checkb" -gt "1" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Hiện tại DSNVPS chỉ hỗ trợ backup VPS với 1 config Telegram. Hãy chạy "
+    echo "-------------------------------------------------------------------------"
+    echo "chức năng [Xóa Tất Cả Cấu Hình], sau đó chạy lại chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/chckshxn0
+grep -B 1 "group_id=" /etc/dsnvps/telegram_group.conf | awk 'NR==1' | sed 's/\[//' | sed 's/\]//' > /etc/dsnvps/.tmp/chckshxn0
+uservue=$(cat /etc/dsnvps/.tmp/chckshxn0)
+if [ -z "$uservue" ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng kiểm tra lại."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra script Python upload
+if [ ! -f /etc/dsnvps/menu/dsnvps-upload-telegram.py ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file /etc/dsnvps/menu/dsnvps-upload-telegram.py"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại cấu hình DSNVPS."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra nếu đã có cấu hình
+if [ -f /etc/dsnvps/backup.telegram.conf ] && [ -f /etc/cron.d/dsnvps.telegram.backup.cron ]; then
+    sobanbackup=$(grep '^sobanbackup=' /etc/dsnvps/backup.telegram.conf | cut -d'=' -f2)
+    cron_line=$(cat /etc/cron.d/dsnvps.telegram.backup.cron | awk 'NR==2')
+    gio=$(echo "$cron_line" | awk '{print $2}')
+    ngay=$(echo "$cron_line" | awk '{print $3}')
+    if [ "$ngay" = "*" ]; then
+        tan_suat_hien_thi="Hàng Ngày"
+    elif [[ "$ngay" =~ ^\*/([0-9]+)$ ]]; then
+        frequency_num=$(echo "$ngay" | sed 's/^\*\///')
+        if [[ "$frequency_num" =~ ^[2-7]$ ]]; then
+            tan_suat_hien_thi="$frequency_num ngày 1 lần"
+        else
+            tan_suat_hien_thi="$frequency_num ngày 1 lần"
+        fi
+    else
+        tan_suat_hien_thi="Không xác định"
+    fi
+    echo "========================================================================="
+    echo "Bạn đã hoàn tất config backup dùng Telegram."
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian auto backup: $gio:00 $tan_suat_hien_thi"
+    echo "-------------------------------------------------------------------------"
+    echo "Số bản backup lưu trữ: $sobanbackup bản"
+    echo "========================================================================="
+    read -r -p "Bạn muốn cấu hình lại chức năng này? [y/N] " reconfig
+    if [[ ! $reconfig =~ ^(y|Y|yes|Yes)$ ]]; then
+        clear
+        echo "========================================================================="
+        echo "Không thay đổi cấu hình."
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+        exit
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Đang xóa cấu hình cũ..."; sleep 2
+    rm -rf /etc/dsnvps/backup.telegram.conf /etc/cron.d/dsnvps.telegram.backup.cron
+fi
+
+# Menu chọn tần suất
+echo "========================================================================="
+echo "LỰA CHỌN TẦN SUẤT SAO LƯU"
+echo "========================================================================="
+echo "1) Hàng ngày             5) 5 ngày 1 lần"
+echo "2) 2 ngày 1 lần          6) 6 ngày 1 lần"
+echo "3) 3 ngày 1 lần          7) 7 ngày 1 lần"
+echo "4) 4 ngày 1 lần"
+echo "-------------------------------------------------------------------------"
+read -r -p "Nhập lựa chọn của bạn [0 -Thoát]: " tansuat
+case $tansuat in
+0) clear; exit 0;;
+    1) khoangcachngay=1; tan_suat_hien_thi="Hàng Ngày" ;;
+    2) khoangcachngay=2; tan_suat_hien_thi="2 ngày 1 lần" ;;
+    3) khoangcachngay=3; tan_suat_hien_thi="3 ngày 1 lần" ;;
+    4) khoangcachngay=4; tan_suat_hien_thi="4 ngày 1 lần" ;;
+    5) khoangcachngay=5; tan_suat_hien_thi="5 ngày 1 lần" ;;
+    6) khoangcachngay=6; tan_suat_hien_thi="6 ngày 1 lần" ;;
+    7) khoangcachngay=7; tan_suat_hien_thi="7 ngày 1 lần" ;;
+    *) echo "Bạn nhập sai, vui lòng chọn số từ 0-7!"; sleep 3; tput cuu 10; for ((i=0; i<10; i++)); do tput el; tput cud1; done; tput cuu 10; ;;
+esac
+
+# Nhập giờ chạy
+while true; do
+    echo "-------------------------------------------------------------------------"
+    read -r -p "Nhập giờ chạy backup (0-23): " gio
+    if [[ ! $gio =~ $re || $gio -lt 0 || $gio -gt 23 ]]; then
+        echo "Vui lòng nhập số từ 0 đến 23!"
+        continue
+    fi
+    break
+done
+gio=$(printf "%02d" "$gio")
+
+# Menu chọn số bản backup
+echo "========================================================================="
+echo "Để không lãng phí dung lượng lưu trữ, chọn số bản backup DSNVPS sẽ giữ"
+echo "-------------------------------------------------------------------------"
+echo "trên Telegram cho mỗi website/database (xóa bản cũ nhất khi vượt quá):"
+echo "========================================================================="
+echo "1) 3 Bản"
+echo "2) 5 Bản"
+echo "3) 7 Bản"
+echo "4) 14 Bản"
+echo "5) 21 Bản"
+echo "6) 30 Bản"
+echo "-------------------------------------------------------------------------"
+read -r -p "Nhập lựa chọn của bạn [0 -Thoát]: " soban
+case $soban in
+0) clear; exit 0;;
+    1) sobanbackup=3 ;;
+    2) sobanbackup=5 ;;
+    3) sobanbackup=7 ;;
+    4) sobanbackup=14 ;;
+    5) sobanbackup=21 ;;
+    6) sobanbackup=30 ;;
+    *) echo "Bạn nhập sai, vui lòng chọn số từ 0-6!"; sleep 3; tput cuu 10; for ((i=0; i<10; i++)); do tput el; tput cud1; done; tput cuu 10; ;;
+esac
+
+# Chọn giữ/xóa file backup
+prompt="Nhập lựa chọn của bạn: "
+options=("Giữ Các File Backup Trên VPS Sau Khi Upload Lên Telegram (<= Nên Chọn)" "Xóa File Backup sau khi upload lên Telegram")
+echo "========================================================================="
+echo "Lựa chọn xử lý backup file trên VPS sau khi upload lên Telegram."
+echo "-------------------------------------------------------------------------"
+echo "GIỮ FILE BACKUP: File backup sẽ xóa theo cấu hình thiết lập trong phần "
+echo "-------------------------------------------------------------------------"
+echo "[Tự động sao lưu Website] & [Tự động sao lưu Database]."
+echo "-------------------------------------------------------------------------"
+echo "XÓA FILE BACKUP: File backup sẽ bị xóa ngay sau khi upload lên Telegram"
+echo "========================================================================="
+PS3="$prompt"
+select _ in "${options[@]}"; do
+    case "$REPLY" in
+    1) luachonxoafile="giunguyen"; break;;
+    2) luachonxoafile="xoafile"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách."; continue;;
+    esac
+done
+if [ "$luachonxoafile" = "xoafile" ]; then
+    luachon=xoa
+    cauhinh=move
+else
+    luachon=giunguyen
+    cauhinh=copy
+fi
+sleep 3 && tput cuu 14 && tput ed
+
+# Hiển thị xác nhận
+if [ "$luachon" = "giunguyen" ]; then
+    echo "========================================================================="
+    echo "=> Bạn chọn: Giữ Các File Backup Trên VPS Sau Khi Upload Lên Telegram."
+else
+    echo "========================================================================="
+    echo "=> Bạn chọn: Xóa File Backup sau khi upload lên Telegram."
+fi
+echo "========================================================================="
+echo "Vào $gio:00 $tan_suat_hien_thi, Backup file sẽ upload lên Telegram."
+echo "-------------------------------------------------------------------------"
+echo "Để đảm bảo Telegram không lãng phí Disc, DSNVPS sẽ giữ $sobanbackup bản "
+echo "-------------------------------------------------------------------------"
+echo "backup mới nhất cho mỗi website/database và tự động xóa bản cũ nhất."
+echo "-------------------------------------------------------------------------"
+# Lấy tên Group Telegram từ file config
+group_name=$(grep "group_name=" /etc/dsnvps/telegram_group.conf | cut -d'=' -f2- | sed 's/^[[:space:]]*//' | sed 's/^"//' | sed 's/"$//')
+echo "Group Telegram: $group_name"
+echo "========================================================================="
+read -r -p "Bạn đồng ý với cấu hình này? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "OK, Vui lòng chờ ...."; sleep 3
+    if [ ! -f /usr/bin/gxred ]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+    fi
+    # Lấy group_id từ telegram_group.conf
+    group_id=$(grep '^group_id=' /etc/dsnvps/telegram_group.conf | cut -d'=' -f2)
+    if [ -z "$group_id" ]; then
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không tìm thấy group_id trong /etc/dsnvps/telegram_group.conf"
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+        exit
+    fi
+    cat <<END > "/etc/dsnvps/backup.telegram.conf"
+sobanbackup=$sobanbackup
+action=$cauhinh
+group_id=$group_id
+END
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.telegram.backup.cron
+    echo "0 $gio */$khoangcachngay * * root /etc/dsnvps/menu/backup-telegram-run-now >/dev/null 2>&1" >> /etc/cron.d/dsnvps.telegram.backup.cron
+    systemctl restart crond >/dev/null 2>&1
+    clear
+    echo "========================================================================="
+    echo "Cấu hình auto backup các file backup lên Telegram thành công."
+    echo "-------------------------------------------------------------------------"
+    echo "Các file backup sẽ tự động gửi lên Telegram vào $gio:00 $tan_suat_hien_thi."
+    echo "-------------------------------------------------------------------------"
+    echo "Số bản backup giữ lại: $sobanbackup bản cho mỗi website/database"
+    echo "-------------------------------------------------------------------------"
+    # Lấy tên Group Telegram từ file config
+    group_name=$(grep "group_name=" /etc/dsnvps/telegram_group.conf | cut -d'=' -f2- | sed 's/^[[:space:]]*//' | sed 's/^"//' | sed 's/"$//')
+    echo "Group Telegram: $group_name"
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi

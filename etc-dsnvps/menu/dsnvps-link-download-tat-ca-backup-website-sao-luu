@@ -1,0 +1,122 @@
+#!/bin/bash
+. /root/dsnvps.conf
+rm -rf /home/dsnvps.demo/private_html/lBU*.txt
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+mkdir -p /etc/dsnvps/.tmp/danhsachwebsitebackuphostingaz
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+acction1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r checksite
+    do
+if [ -f /home/$mainsite/private_html/backup/$checksite/*.zip ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+ done < "$acction1"
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy các bản backup trên server"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+sowebsitecobackup=$(cat /etc/dsnvps/.tmp/checksite-list | wc -l)
+code=-`date |md5sum |cut -c '1-15'`
+listwebsitebackup=$(cat /etc/dsnvps/.tmp/checksite-list)
+
+getlink ()
+{
+find /home/$mainsite/private_html/backup/$website/ -name '*.zip' -type f -exec basename {} \;  > /etc/dsnvps/.tmp/linkbackup
+filename=`cat /etc/dsnvps/.tmp/linkbackup`
+find /home/$mainsite/private_html/backup/$website/ -type f -exec basename {} \;  > /etc/dsnvps/.tmp/linkbackupall
+backupall=$(cat /etc/dsnvps/.tmp/linkbackupall)
+if [ "$(cat /etc/dsnvps/.tmp/linkbackupall | wc -l)" -gt 1 ]; then
+showinfo=`echo "File backup gan nhat (Thoi gian backup $(date -r /home/$mainsite/private_html/backup/$website/$filename +%H:%M/%F)):"`
+else
+showinfo=`echo "File backup (Thoi gian backup $(date -r /home/$mainsite/private_html/backup/$website/$filename +%H:%M/%F)): "`
+fi
+
+echo "========================================================================="
+echo "$website: "
+echo "-------------------------------------------------------------------------"
+sleep 0.5
+echo "http://$serverip_priport/backup/$website/$filename"
+echo "" >> /home/$mainsite/private_html/lBU$code.txt
+echo "========================================================================================================================" >> /home/$mainsite/private_html/lBU$code.txt
+echo "Link Download Backup Cua $website: " >> /home/$mainsite/private_html/lBU$code.txt
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/lBU$code.txt
+echo "$showinfo" >> /home/$mainsite/private_html/lBU$code.txt
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html//lBU$code.txt
+echo "http://$serverip_priport/backup/$website/$filename" >> /home/$mainsite/private_html/lBU$code.txt
+#####################
+if [ "$(cat /etc/dsnvps/.tmp/linkbackupall | wc -l)" -gt 1 ]; then
+echo "------------------------------------------------------------------------------------------------------------------------"  >> /home/$mainsite/private_html/lBU$code.txt
+echo "Tat Ca Cac File Back Up :" >> /home/$mainsite/private_html/lBU$code.txt
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/lBU$code.txt
+for backupfile in $backupall
+do
+echo "http://$serverip_priport/backup/$website/$backupfile" >> /home/$mainsite/private_html/lBU$code.txt
+done
+fi
+#########################
+rm -rf /etc/dsnvps/.tmp/linkbackupall
+rm -rf /etc/dsnvps/.tmp/linkbackup
+touch /etc/dsnvps/.tmp/danhsachwebsitebackuphostingaz/$website
+}
+
+echo "========================================================================="
+echo "Dùng chức năng này để lấy link tải các bản sao lưu của website"
+echo "=========================================================================" 
+read -r -p "Bạn muốn lấy các link tải? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "========================================================================="
+rm -rf /home/$mainsite/private_html/listbackup*
+echo "========================================================================================================================" > /home/$mainsite/private_html/lBU$code.txt
+echo "         Link Download All Backup Files - Created by DSNVPS" >> /home/$mainsite/private_html/lBU$code.txt
+echo "========================================================================================================================" >> /home/$mainsite/private_html/lBU$code.txt
+echo "" >> /home/$mainsite/private_html/lBU$code.txt
+echo "========================================================================="
+for website in $listwebsitebackup 
+do
+getlink
+done
+echo "==> Danh sách toàn bộ các bản sao lưu (gần nhất & cũ hơn) & link tải:"
+echo "========================================================================="
+echo "http://$serverip_priport/lBU$code.txt"
+echo "========================================================================="
+read -r -p "Nhấn Enter để tiếp tục..." response
+clear
+echo "========================================================================="
+echo "Danh sách các website có sao lưu (backup):"
+echo "-------------------------------------------------------------------------"
+ls /etc/dsnvps/.tmp/danhsachwebsitebackuphostingaz | pr -2 -t
+echo "-------------------------------------------------------------------------"
+echo "Link tải tất cả các bản sao lưu:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/lBU$code.txt"
+echo "" >> /home/$mainsite/private_html/lBU$code.txt
+echo "===================================================The End==============================================================" >> /home/$mainsite/private_html/lBU$code.txt
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+/etc/dsnvps/menu/dsnvps-sao-luu
+   ;;
+    *)
+    clear
+        echo "========================================================================= "
+        echo "Hủy bỏ"
+        /etc/dsnvps/menu/dsnvps-sao-luu
+        rm -rf /etc/dsnvps/.tmp/*hostingaz*
+        ;;
+esac
+

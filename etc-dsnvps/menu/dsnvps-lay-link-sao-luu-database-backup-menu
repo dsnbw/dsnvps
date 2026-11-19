@@ -1,0 +1,74 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|sys|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/checkalldatabase
+if [ "$(cat /etc/dsnvps/.tmp/checkalldatabase | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa tạo database trên server !"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/checkalldatabase
+find /home/$mainsite/private_html/backup/ -name "*.tar.gz*" > /etc/dsnvps/.tmp/dsnvps_check_backup_database_size
+find /home/$mainsite/private_html/backup/ -name "*.sql.gz*" >> /etc/dsnvps/.tmp/dsnvps_check_backup_database_size
+numberfiles=$(cat /etc/dsnvps/.tmp/dsnvps_check_backup_database_size | wc -l)
+if [ "$numberfiles" == "0" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps*
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy file backup của database trên server!"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps*
+echo "========================================================================="
+echo "Dùng chức năng này lấy link tải các bản sao lưu của database trên server."
+echo "------------------------------------------------------------------------"
+echo "Vì một database có nhiều bản sao lưu cho nên:"
+echo "------------------------------------------------------------------------"
+echo "=> Link tải bản backup gần nhất sẽ hiển thị ngay trên màn hình Terminal."
+echo "-------------------------------------------------------------------------"
+echo "=> Link tải tất cả các bản sao lưu sẽ ở trong file text phía dưới cùng."
+echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/linkbackupdata"
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "1 Database" "Tất Cả Database")
+printf "=========================================================================\n"
+printf "LẤY LINK TẢI BACKUP 1 DATABASE HAY TẤT CẢ DATABASE\n" 
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) laylink="1database"; break;;
+    2) laylink="tatca"; break;;
+    0) laylink="cancle"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#
+###################################
+if [ "$laylink" = "1database" ]; then
+/etc/dsnvps/menu/dsnvps-link-database-sao-luu
+###################################
+#
+###################################
+elif [ "$laylink" = "tatca" ]; then
+/etc/dsnvps/menu/dsnvps-link-download-tat-ca-backup-database-sao-luu
+###################################
+#
+###################################
+else
+clear
+exit 0
+fi

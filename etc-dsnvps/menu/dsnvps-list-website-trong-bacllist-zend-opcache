@@ -1,0 +1,68 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/php.d/opcache.ini ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache đang TẮT"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật Zend Opcache lên để sử dụng chức năng này"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+fi
+rm -rf /etc/dsnvps/.tmp/check*
+rm -rf /etc/dsnvps/.tmp/showzndopcache
+rm -rf /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+cat /etc/dsnvps/opcache.blacklist > /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+sed -i '/wp-content/d' /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+sed -i '/private_html/d' /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+sed -i '/dsnvps.demo/d' /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+cat > "/etc/dsnvps/.tmp/showzndopcache" <<END	
+sed -i 's/\/home\///g' //etc/dsnvps/.tmp/zendopcacheblasklist.txt
+sed -i 's/\///g' /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+END
+chmod +x /etc/dsnvps/.tmp/showzndopcache
+/etc/dsnvps/.tmp/showzndopcache
+rm -rf /etc/dsnvps/.tmp/showzndopcache
+if [ "$(cat /etc/dsnvps/.tmp/zendopcacheblasklist.txt | wc -l)" -lt 1 ]; then
+rm -rf /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+clear
+echo "========================================================================="
+echo "Không có website nào trong Zend Opcache blacklist."
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+fi
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "            Danh Sách Website Trong Zend Opcache Blacklist \n"
+echo "========================================================================="
+mapfile -t file_list < /etc/dsnvps/.tmp/zendopcacheblasklist.txt
+################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+rm -rf /etc/dsnvps/.tmp/viewzendcacheblacklist
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+fi
+

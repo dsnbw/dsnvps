@@ -1,0 +1,28 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if pgrep redis-server > /dev/null
+then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..." 
+sleep 2
+( echo "flushall" ) | redis-cli
+clear
+echo "========================================================================="
+echo "Clear Redis Cache thành công"
+/etc/dsnvps/menu/dsnvps-redis-menu
+exit
+else
+clear
+echo "========================================================================="
+echo "Redis đang dừng"
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải bật Redis trước khi thực hiện chức năng này."
+/etc/dsnvps/menu/dsnvps-redis-menu
+exit
+fi

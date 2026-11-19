@@ -1,0 +1,2381 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Source file check API để có thể sử dụng các function
+if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+    source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+fi
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra cấu hình nginx
+if ! nginx -t >/dev/null 2>&1; then
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi cấu hình Nginx..."; sleep 2
+    clear
+    echo "========================================================================="
+    echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi Nginx:"
+    echo "-------------------------------------------------------------------------"
+    nginx -t
+    echo "========================================================================="
+    echo "Vui lòng sửa lỗi cấu hình Nginx trước khi tiếp tục."
+    echo "========================================================================="
+  /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit 1
+fi
+
+# Anti-debug removed
+if [ ! -d /etc/nginx/paidssl ]; then
+    mkdir -p /etc/nginx/paidssl
+fi
+if [ ! -d /home/$mainsite/private_html/paidssl ]; then
+    mkdir -p /home/$mainsite/private_html/paidssl
+fi
+rm -rf /etc/dsnvps/.tmp/klaoxcy
+rm -rf /etc/dsnvps/.tmp/klaoxcypark
+rm -rf /etc/dsnvps/.tmp/kl0zx
+rm -rf /etc/dsnvps/.tmp/$website.conf_HTTPS
+######################################################
+#lay Danh Sách Website Trên Server####################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+# Xóa file cũ nếu tồn tại
+true > "$output_file"
+# Duyệt qua tất cả các file .conf trong thư mục cấu hình Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+    # Kiểm tra nếu domain có thư mục public_html trong /home và vhost trong /etc/nginx/conf.d/
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+# Thu thập subsite WordPress Multisite
+# - Mục đích: Liệt kê subsite WordPress Multisite, thêm ** nếu có SSL Cloudflare
+# - Cách hoạt động: Tìm domain có wp-config.php, kiểm tra multisite.conf.d, thêm subsite nếu không là sub-domain và chưa có trong klaixx.txt
+# - Kết quả: File klaixx.txt chứa subsite hợp lệ, không lặp
+klaixx_file="/etc/dsnvps/.tmp/klaixx.txt"
+true > "$klaixx_file"
+for vhost in /etc/nginx/conf.d/*.conf; do
+    [[ -f "$vhost" ]] || continue
+    domain=$(basename "$vhost" .conf)
+    domain_home="/home/$domain/public_html"
+    if [[ -f "$domain_home/wp-config.php" ]]; then
+        multisite_folder="/home/$domain/multisite.conf.d"
+        if [[ -d "$multisite_folder" && $(ls -A "$multisite_folder"/*.conf 2>/dev/null) ]]; then
+            for subsite_vhost in "$multisite_folder"/*.conf; do
+                [[ -f "$subsite_vhost" ]] || continue
+                subsite=$(basename "$subsite_vhost" .conf)
+                # Chỉ thêm subsite nếu không có Vhost tại /etc/nginx/conf.d/<subsite>.conf và chưa có trong klaixx.txt
+                if [[ ! -f "/etc/nginx/conf.d/$subsite.conf" && ! $(grep -Fx "$subsite" "$klaixx_file" 2>/dev/null) ]]; then
+                    if [[ -f "/etc/nginx/paidssl/$subsite/$subsite.crt" ]] && grep -q "/etc/nginx/paidssl/$subsite/$subsite.crt" "$subsite_vhost"; then
+                        echo "${subsite}**" >> "$klaixx_file"
+                    else
+                        echo "$subsite" >> "$klaixx_file"
+                    fi
+                fi
+            done
+        fi
+    fi
+done
+# Gộp subsite vào danh sách chính
+if [[ -s "$klaixx_file" ]]; then
+    cat "$klaixx_file" >> "$output_file"
+fi
+# Kiểm tra nếu không có domain nào được tìm thấy
+if [[ ! -s "$output_file" ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS đang kiểm tra ......"; sleep 2
+    clear
+    echo "========================================================================= "
+    echo "Không tìm thấy website trên server"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn cần thêm Website vào Server trước khi chạy chức năng này."; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+########################################################
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+nginx_conf_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+# Xóa file kết quả cũ nếu tồn tại
+true > "$output_file"
+if [[ -s "$klaoxcy_file" ]]; then
+    while IFS= read -r domain; do
+        domain_conf_folder="$nginx_conf_folder/$domain/conf.d"
+        if [[ "$domain" != "$mainsite" && -d "$domain_conf_folder" ]]; then
+            # Kiểm tra nếu thư mục có file .conf
+            if compgen -G "$domain_conf_folder"/*.conf > /dev/null; then
+                for vhost in "$domain_conf_folder"/*.conf; do
+                    subdomain=$(basename "$vhost" .conf)
+                    # Kiểm tra nếu subdomain không phải domain chính
+                    if [[ "$subdomain" != "$domain" ]]; then
+                        # Kiểm tra độ dài file vhost
+                        vhost_length=$(wc -c < "$vhost")
+                        if (( vhost_length > 200 )); then
+                            echo "$subdomain**" >> "$output_file"
+                        fi
+                    fi
+                done
+            fi
+        fi
+    done < "$klaoxcy_file"
+fi
+# Kiểm tra và thông báo kết quả
+if [[ -s "$output_file" ]]; then
+    cat /etc/dsnvps/.tmp/klaoxcypark >> /etc/dsnvps/.tmp/klaoxcy
+fi
+if [[ ! -z "$domainquanly" ]]; then
+    # Thêm (DQL) domainquanly vào file /etc/dsnvps/.tmp/klaoxcy
+    echo "$domainquanly (QL)" >> /etc/dsnvps/.tmp/klaoxcy
+fi
+echo "========================================================================= "
+echo "Sử dụng chức năng này để cài đặt Free SSL Cloudflare cho website. Thời "
+echo "-------------------------------------------------------------------------"
+echo "hạn chứng chỉ là 15 năm."
+echo "-------------------------------------------------------------------------"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1948"
+
+if [ ! -f /etc/dsnvps/ssl-cloudflare-api-global.conf ]; then
+echo "========================================================================= "
+    echo "      -> DSNVPS chưa được cấu hình sử dụng Cloudflare API nên bạn phải  "
+    echo "-------------------------------------------------------------------------"
+    echo "         cài chứng chỉ SSL thủ công. Hãy cấu hình Cloudflare API để cài  "
+    echo "-------------------------------------------------------------------------"
+    echo "         đặt chứng chỉ hoàn toàn tự động."
+echo "========================================================================= "
+fi
+echo "========================================================================= "
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/klaoxcy
+echo "Danh sách các website & Park domains trên server:  | ** : Park Domains"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+    left_db="${danh_sach_website[i]:- }"                    
+    if (( right_index <= total )); then           
+        right_db="${danh_sach_website[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=$(echo "${danh_sach_website[lua_chon-1]}" | sed 's/**$//' | sed 's/ (QL)$//')
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Function để nhập chứng chỉ thủ công
+manual_certificate_input() {
+echo "========================================================================="
+echo "Vui lòng Copy-Paste nội dung Origin Certificate từ Cloudflare Origin SSL."
+echo "-------------------------------------------------------------------------"
+echo "1. Dán toàn bộ nội dung CRT bắt đầu từ: -----BEGIN CERTIFICATE-----"
+echo "-------------------------------------------------------------------------"
+echo "2. Dán xong => 3. Nhấn Enter để tiếp tục."
+echo "========================================================================="
+read -rp "Paste chứng chỉ Origin SSL [0 -Thoát]: " first_line
+
+# Tạo file tạm trong /tmp để lưu nội dung CRT
+TEMP_CRT_FILE="/tmp/$website.crt"
+true > "$TEMP_CRT_FILE"
+
+# Nếu người dùng nhập 0 ngay từ đầu thì thoát
+if [ "$first_line" = "0" ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn đã chọn thoát."
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra nếu dòng đầu tiên không phải là certificate hợp lệ
+if [[ "$first_line" != "-----BEGIN CERTIFICATE-----" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Nội dung không phải là Origin Certificate hợp lệ!"
+    echo "-------------------------------------------------------------------------"
+    echo "Certificate phải bắt đầu bằng: -----BEGIN CERTIFICATE-----"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại."
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Ghi dòng đầu tiên vào nội dung chứng chỉ
+CRT_CONTENT="$first_line\n"
+
+# Đọc tiếp nội dung chứng chỉ
+while IFS= read -r line; do
+    # Nếu dòng trống thì kết thúc nhập
+    if [ -z "$line" ]; then
+        break
+    fi
+    CRT_CONTENT+="$line\n"
+done
+
+# Kiểm tra nếu không có nội dung nào được nhập
+if [ -z "$CRT_CONTENT" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không có nội dung Origin Certificate nào được nhập."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại."
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Loại bỏ ký tự xuống dòng Windows (\r) và dòng trống thừa
+CRT_CONTENT=$(echo -e "$CRT_CONTENT" | tr -d '\r' | sed '/^$/d')
+
+# Ghi nội dung CRT vào file tạm
+echo -e "$CRT_CONTENT" > "$TEMP_CRT_FILE"
+
+# Loại bỏ khoảng trắng ở đầu và cuối mỗi dòng
+sed -i 's/^[[:space:]]*//;s/[[:space:]]*$//' "$TEMP_CRT_FILE"
+
+# Kiểm tra xem file CRT có rỗng hay không
+if [ ! -s "$TEMP_CRT_FILE" ]; then
+    clear
+    echo "========================================================================="
+    echo "Nội dung chứng chỉ SSL rỗng hoặc không hợp lệ."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại."
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Nhập private key
+echo "========================================================================="
+echo "Vui lòng Copy-Paste nội dung Private Key từ Cloudflare Origin SSL."
+echo "-------------------------------------------------------------------------"
+echo "1. Dán toàn bộ nội dung key bắt đầu từ: -----BEGIN PRIVATE KEY----- "
+echo "-------------------------------------------------------------------------"
+echo "2. Dán xong => 3. Nhấn Enter để tiếp tục."
+echo "========================================================================="
+read -rp "Paste Private Key [0 -Thoát]: " first_line_key
+
+# Tạo file tạm trong /tmp để lưu nội dung key
+TEMP_KEY_FILE="/tmp/$website.key"
+true > "$TEMP_KEY_FILE"
+
+# Nếu người dùng nhập 0 ngay từ đầu thì thoát
+if [ "$first_line_key" = "0" ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn đã chọn thoát."
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra nếu dòng đầu tiên không phải là private key hợp lệ
+if [[ "$first_line_key" != "-----BEGIN PRIVATE KEY-----" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Nội dung không phải là Private Key hợp lệ!"
+    echo "-------------------------------------------------------------------------"
+    echo "Private Key phải bắt đầu bằng: -----BEGIN PRIVATE KEY-----"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại."
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Ghi dòng đầu tiên vào nội dung key
+KEY_CONTENT="$first_line_key\n"
+
+# Đọc tiếp nội dung key
+while IFS= read -r line; do
+    # Nếu dòng trống thì kết thúc nhập
+    if [ -z "$line" ]; then
+        break
+    fi
+    KEY_CONTENT+="$line\n"
+done
+
+# Kiểm tra nếu không có nội dung nào được nhập
+if [ -z "$KEY_CONTENT" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không có nội dung private key nào được nhập."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại."
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Loại bỏ ký tự xuống dòng Windows (\r) và dòng trống thừa
+KEY_CONTENT=$(echo -e "$KEY_CONTENT" | tr -d '\r' | sed '/^$/d')
+
+# Ghi nội dung key vào file tạm
+echo -e "$KEY_CONTENT" > "$TEMP_KEY_FILE"
+
+# Loại bỏ khoảng trắng ở đầu và cuối mỗi dòng
+sed -i 's/^[[:space:]]*//;s/[[:space:]]*$//' "$TEMP_KEY_FILE"
+
+# Kiểm tra xem file key có rỗng hay không
+if [ ! -s "$TEMP_KEY_FILE" ]; then
+    clear
+    echo "========================================================================="
+    echo "Nội dung private key rỗng hoặc không hợp lệ."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại."
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Đã nhận nội dung Origin Certificate và Private Key. Đang kiểm tra..."; sleep 8
+
+# Kiểm tra file certificate
+
+# Kiểm tra chứng chỉ hợp lệ
+CERT_ERROR=$(openssl x509 -in "$TEMP_CRT_FILE" -noout 2>&1)
+if [ $? -ne 0 ]; then
+    echo "========================================================================="
+    echo "Chứng chỉ Origin Certificate bạn cung cấp cho $website không hợp lệ."
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi: $CERT_ERROR"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại!"
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra private key hợp lệ
+KEY_CHECK_ERROR=$(openssl pkey -in "$TEMP_KEY_FILE" -noout -check 2>&1)
+if [ $? -ne 0 ]; then
+    echo "========================================================================="
+    echo "Private Key bạn cung cấp cho $website không hợp lệ."
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi: $KEY_CHECK_ERROR"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại!"
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra xem public key từ chứng chỉ và key có khớp không
+PUBLIC_CRT_MD5=$(openssl x509 -pubkey -noout -in "$TEMP_CRT_FILE" | openssl md5 | awk '{print $2}')
+PUBLIC_KEY_MD5=$(openssl pkey -pubout -in "$TEMP_KEY_FILE" | openssl md5 | awk '{print $2}')
+
+if [ "$PUBLIC_CRT_MD5" != "$PUBLIC_KEY_MD5" ]; then
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ và khóa riêng không khớp, có thể chứng chỉ thuộc domain khác."
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết public md5: CRT: $PUBLIC_CRT_MD5, Key: $PUBLIC_KEY_MD5"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại Origin Certificate và Private Key!"
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra thời gian hiệu lực
+CURRENT_DATE=$(date +%s)
+EXPIRY_DATE=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -enddate | cut -d= -f2)
+EXPIRY_EPOCH=$(date -d "$EXPIRY_DATE" +%s 2>/dev/null)
+
+    if ! openssl x509 -in "$TEMP_CRT_FILE" -noout -dates 2>/dev/null | grep -q "notAfter" || [ -z "$EXPIRY_EPOCH" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không thể xác định ngày hết hạn của chứng chỉ."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại!"
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+if [ "$CURRENT_DATE" -ge "$EXPIRY_EPOCH" ]; then
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ Origin Certificate SSL đã hết hạn."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng lấy chứng chỉ mới từ Cloudflare!"
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Kiểm tra chứng chỉ có phải của Cloudflare hay không
+ISSUER=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -issuer | grep -io "Cloud[Ff]lare, Inc\.")
+if [ -z "$ISSUER" ]; then
+    clear
+    echo "========================================================================="
+    echo "Chứng chỉ không phải do Cloudflare cấp."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng sử dụng chứng chỉ Origin từ Cloudflare!"
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Lấy Common Name (CN) và danh sách SAN từ chứng chỉ
+#echo "🔍 Đang parse certificate..."
+
+# Parse CN
+CN=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -subject 2>/dev/null | grep -o "CN=[^,]*" | sed 's/CN=//')
+if [ -z "$CN" ]; then
+    CN=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -subject 2>/dev/null | grep -o "CN = [^,]*" | sed 's/CN = //')
+fi
+
+# Parse SAN - sử dụng cách đơn giản hơn
+SAN=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -text 2>/dev/null | grep -A10 "Subject Alternative Name" | grep "DNS:" | sed 's/DNS://g' | tr ',' '\n' | grep -v "^$" | tr -d ' ' | tr '\n' ' ')
+if [ -z "$SAN" ]; then
+    SAN=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -text 2>/dev/null | grep -A10 "Subject Alternative Name" | grep "DNS: " | sed 's/DNS: //g' | tr ',' '\n' | grep -v "^$" | tr -d ' ' | tr '\n' ' ')
+fi
+
+# Bỏ qua phần xử lý SAN cũ vì nó làm hỏng SAN đã parse đúng
+
+# Nếu vẫn không parse được, thử cách khác
+if [ -z "$CN" ] && [ -z "$SAN" ]; then
+    # Thử lấy tất cả DNS names từ certificate (không sử dụng)
+    # ALL_DNS=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -text 2>/dev/null | grep -E "DNS:|Subject:" | sed 's/DNS://g' | sed 's/Subject:.*CN=//g' | tr ',' '\n' | grep -v "^$" | tr -d ' ')
+    
+    # Lấy CN từ subject
+    CN=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -subject 2>/dev/null | sed 's/.*CN=\([^,]*\).*/\1/')
+    
+    # Lấy SAN từ text - sửa lại để parse đúng wildcard
+    SAN=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -text 2>/dev/null | grep -A10 "Subject Alternative Name" | grep "DNS:" | sed 's/DNS://g' | tr ',' '\n' | grep -v "^$" | tr -d ' ')
+    
+    # Nếu vẫn không có wildcard, thử cách khác
+    if ! echo "$SAN" | grep -q "\*"; then
+        SAN_WILDCARD=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -text 2>/dev/null | grep -A10 "Subject Alternative Name" | grep -o "\*\.[^, ]*" | tr -d ' ')
+        if [ -n "$SAN_WILDCARD" ]; then
+            SAN="$SAN $SAN_WILDCARD"
+        fi
+    fi
+fi
+
+# Thêm cách parse SAN mạnh mẽ hơn để xử lý các trường hợp đặc biệt
+SAN_ROBUST=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -text 2>/dev/null | grep -A20 "Subject Alternative Name" | grep -oE "DNS:[^,]*" | sed 's/DNS://g' | tr ',' '\n' | grep -v "^$" | tr -d ' ' | tr '\n' ' ')
+
+# Thử cách parse SAN khác nữa - sử dụng openssl x509 -noout -ext subjectAltName
+SAN_EXT=$(openssl x509 -in "$TEMP_CRT_FILE" -noout -ext subjectAltName 2>/dev/null | grep -oE "DNS:[^,]*" | sed 's/DNS://g' | tr ',' '\n' | grep -v "^$" | tr -d ' ' | tr '\n' ' ')
+
+# Sử dụng SAN tốt nhất
+if [ -n "$SAN_EXT" ]; then
+    SAN="$SAN_EXT"
+elif [ -n "$SAN_ROBUST" ]; then
+    SAN="$SAN_ROBUST"
+fi
+
+# Hiển thị thông tin certificate
+echo "-------------------------------------------------------------------------"
+echo "Thông tin certificate"
+echo "Website: $website"
+echo "CN (Common Name): $CN"
+echo "SAN (Subject Alternative Names): $SAN"
+echo "-------------------------------------------------------------------------"
+
+echo "-------------------------------------------------------------------------"
+
+# Kiểm tra xem domain có khớp với CN, SAN, hoặc thuộc wildcard
+is_valid_domain=false
+
+# Kiểm tra khớp chính xác với CN
+if [ "$website" == "$CN" ]; then
+    echo "==> Khớp với CN: $CN"
+    is_valid_domain=true
+fi
+
+# Kiểm tra khớp chính xác với SAN
+if echo "$SAN" | grep -qw "$website"; then
+    echo "==> Khớp với SAN: $website"
+    is_valid_domain=true
+fi
+
+# Kiểm tra wildcard - nếu subdomain thuộc *.domain.com thì bỏ qua check
+echo "Bắt đầu kiểm tra wildcard..."
+
+# Kiểm tra wildcard certificate đơn giản
+if echo "$CN $SAN" | grep -q "\*\."; then
+    echo "==> Tìm thấy wildcard certificate"
+    
+    # Lấy domain chính từ CN hoặc SAN wildcard
+    wildcard_domain=""
+    
+    # Kiểm tra CN wildcard trước
+    if [[ "$CN" == "*."* ]]; then
+        wildcard_domain="${CN#*.}"
+    fi
+    
+    # Nếu CN không có wildcard, kiểm tra SAN
+    if [ -z "$wildcard_domain" ]; then
+        read -ra SAN_ARRAY <<< "$SAN"
+        for entry in "${SAN_ARRAY[@]}"; do
+            if [[ "$entry" == "*."* ]]; then
+                wildcard_domain="${entry#*.}"
+                break
+            fi
+        done
+    fi
+    
+    # Kiểm tra website có thuộc wildcard domain không
+    if [ -n "$wildcard_domain" ]; then
+        if [[ "$website" == "$wildcard_domain" ]] || [[ "$website" == *."$wildcard_domain" ]]; then
+            echo "==> Website $website thuộc wildcard *.${wildcard_domain}"
+            is_valid_domain=true
+        else
+            echo "==> Website $website KHÔNG thuộc wildcard *.${wildcard_domain}"
+        fi
+    fi
+else
+    echo "==> Không tìm thấy wildcard certificate"
+fi
+
+
+if [ "$is_valid_domain" = true ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Chứng chỉ SSL hợp lệ."
+else
+    echo "========================================================================="
+    echo "Chứng chỉ SSL không khớp với domain $website."
+    echo "========================================================================="
+    echo "Vui lòng kiểm tra lại certificate!"
+    echo "========================================================================="
+    echo "Nhấn [Enter] để thoát..."
+    read -r
+    rm -f "$TEMP_KEY_FILE"
+    rm -f "$TEMP_CRT_FILE"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+# Nếu chứng chỉ hợp lệ, sao chép vào đường dẫn yêu cầu
+mkdir -p "/etc/nginx/paidssl/$website"
+cp -r "$TEMP_KEY_FILE" "/etc/nginx/paidssl/$website/$website.key"
+cp -r "$TEMP_CRT_FILE" "/etc/nginx/paidssl/$website/$website.crt"
+# Xóa file tạm
+rm -f "$TEMP_KEY_FILE"
+rm -f "$TEMP_CRT_FILE"
+echo "-------------------------------------------------------------------------"
+echo "Đã kiểm tra xong..."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ cài đặt SSL cho Website !"; sleep 8
+}
+
+# Function để gọi manual_certificate_input
+call_manual_certificate_input() {
+    manual_certificate_input
+}
+
+# Function để kiểm tra và xử lý domain/subdomain trong Cloudflare
+check_and_handle_domain_in_cloudflare() {
+    local website="$1"
+    local global_ssl_api_email="$2"
+    local global_ssl_api_token="$3"
+    
+    
+    # Xác định domain chính và zone ID
+    # Nếu domain bắt đầu với www, tìm zone cho non-www version
+    # Nếu domain không bắt đầu với www, tìm zone cho chính nó
+    local main_domain
+    local zone_id
+    
+    
+    if [[ "$website" == www.* ]]; then
+        main_domain="${website#www.}"
+        zone_id=$(get_zone_id_for_ssl "$main_domain" "$global_ssl_api_email" "$global_ssl_api_token")
+    else
+        main_domain="$website"
+        zone_id=$(get_zone_id_for_ssl "$website" "$global_ssl_api_email" "$global_ssl_api_token")
+    fi
+    
+    
+    # Kiểm tra domain chính có tồn tại trong Cloudflare không
+    if [ -z "$zone_id" ]; then
+        return 0
+    fi
+    
+    # Kiểm tra domain/subdomain có tồn tại trong Cloudflare không bằng cách kiểm tra DNS record
+    if [ -n "$global_ssl_api_email" ]; then
+        # Global API Key
+        local dns_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${website}" \
+             -H "X-Auth-Email: $global_ssl_api_email" \
+             -H "X-Auth-Key: $global_ssl_api_token" \
+             -H "Content-Type: application/json")
+    else
+        # API Token
+        local dns_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${website}" \
+             -H "Authorization: Bearer $global_ssl_api_token" \
+             -H "Content-Type: application/json")
+    fi
+    
+    
+    # Kiểm tra xem có DNS record nào cho domain/subdomain này không
+    if echo "$dns_response" | grep -q '"success":true' && echo "$dns_response" | grep -q '"result":\[.*\]' && ! echo "$dns_response" | grep -q '"result":\[\]'; then
+        # Kiểm tra IP hiện tại của domain/subdomain
+        local current_ip=$(echo "$dns_response" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//;s/"//')
+        
+        if [ -n "$current_ip" ]; then
+            # Kiểm tra cả domain chính và domain còn lại của domain cấp 1
+            local need_update=false
+            local other_domain_current_ip=""
+            local other_domain=""
+            local current_proxied=""
+            local other_domain_proxied=""
+            
+            # Kiểm tra Cloudflare Proxy status của domain chính
+            current_proxied=$(echo "$dns_response" | grep -o '"proxied":[^,]*' | head -1 | sed 's/"proxied"://;s/"//g')
+            
+            # Xác định domain cần kiểm tra thêm cho domain cấp 1
+            if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                if should_create_www_subdomain "$website" "$global_ssl_api_email" "$global_ssl_api_token"; then
+                    if [[ "$website" == www.* ]]; then
+                        # Nếu domain là www.example.com → kiểm tra example.com
+                        other_domain="${website#www.}"
+                    else
+                        # Nếu domain là example.com → kiểm tra www.example.com
+                        other_domain="www.$website"
+                    fi
+                    
+                    # Lấy IP và Proxy status của domain còn lại
+                if [ -n "$global_ssl_api_email" ]; then
+                    # Global API Key
+                        local other_dns_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${other_domain}" \
+                         -H "X-Auth-Email: $global_ssl_api_email" \
+                         -H "X-Auth-Key: $global_ssl_api_token" \
+                         -H "Content-Type: application/json")
+                else
+                    # API Token
+                        local other_dns_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${other_domain}" \
+                         -H "Authorization: Bearer $global_ssl_api_token" \
+                         -H "Content-Type: application/json")
+                fi
+                
+                    if echo "$other_dns_response" | grep -q '"success":true' && echo "$other_dns_response" | grep -q '"result":\[.*\]' && ! echo "$other_dns_response" | grep -q '"result":\[\]'; then
+                        other_domain_current_ip=$(echo "$other_dns_response" | grep -o '"content":"[^"]*"' | head -1 | sed 's/"content":"//;s/"//')
+                        other_domain_proxied=$(echo "$other_dns_response" | grep -o '"proxied":[^,]*' | head -1 | sed 's/"proxied"://;s/"//g')
+                    fi
+                fi
+            fi
+            
+            # Kiểm tra xem có cần cập nhật không
+            # Nếu IP khác VPS IP → cần cập nhật
+            if [ "$current_ip" != "$serverip" ]; then
+                need_update=true
+            fi
+            
+            # Nếu Cloudflare Proxy chưa bật → cần cập nhật
+            if [ "$current_proxied" != "true" ]; then
+                need_update=true
+            fi
+            
+            # Nếu domain còn lại có IP khác VPS IP → cần cập nhật
+            if [ -n "$other_domain_current_ip" ] && [ "$other_domain_current_ip" != "$serverip" ]; then
+                need_update=true
+            fi
+            
+            # Nếu domain còn lại chưa bật Cloudflare Proxy → cần cập nhật
+            if [ -n "$other_domain_proxied" ] && [ "$other_domain_proxied" != "true" ]; then
+                need_update=true
+            fi
+            
+            # Hiển thị kết quả kiểm tra
+            
+            if [ "$need_update" = true ]; then
+                echo "========================================================================="
+                echo "==> CẢNH BÁO: Domain/subdomain cần cập nhật IP hoặc Cloudflare Proxy"
+                echo "-------------------------------------------------------------------------"
+                echo "Domain $website:"
+                echo "  IP hiện tại: $current_ip"
+                echo "  Cloudflare Proxy: $current_proxied"
+                if [ -n "$other_domain" ]; then
+                    echo "Domain $other_domain:"
+                    if [ -n "$other_domain_current_ip" ]; then
+                        echo "  IP hiện tại: $other_domain_current_ip"
+                    else
+                        echo "  IP hiện tại: Không tìm thấy DNS record"
+                    fi
+                    if [ -n "$other_domain_proxied" ]; then
+                        echo "  Cloudflare Proxy: $other_domain_proxied"
+                    else
+                        echo "  Cloudflare Proxy: Không tìm thấy DNS record"
+                    fi
+                fi
+                echo "IP VPS: $serverip"
+                echo "========================================================================="
+                echo "Bạn có muốn cập nhật domain/subdomain về IP VPS và bật Cloudflare Proxy không?"
+                echo "-------------------------------------------------------------------------"
+                echo "1. Có, cập nhật IP VPS và bật Proxy và Cài SSL"
+                echo "2. Không, giữ nguyên cấu hình hiện tại - Chỉ cài SSL"
+                echo "========================================================================="
+                
+                while true; do
+                    read -p "Lựa chọn của bạn [0 -Thoát]: " ip_choice
+                    
+                    case $ip_choice in
+                        1)
+                            echo "========================================================================="
+                            echo "ĐANG CẬP NHẬT DOMAIN/SUBDOMAIN TRONG CLOUDFLARE"
+                            echo "========================================================================="
+                            echo "Đang cập nhật domain/subdomain $website..."
+                            
+                            # Lấy record ID
+                            if [ -n "$global_ssl_api_email" ]; then
+                                # Global API Key
+                                local record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${website}" \
+                                     -H "X-Auth-Email: $global_ssl_api_email" \
+                                     -H "X-Auth-Key: $global_ssl_api_token" \
+                                     -H "Content-Type: application/json" | \
+                                     grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                            else
+                                # API Token
+                                local record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${website}" \
+                                     -H "Authorization: Bearer $global_ssl_api_token" \
+                                     -H "Content-Type: application/json" | \
+                                     grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                            fi
+                            
+                            if [ -n "$record_id" ]; then
+                                # Cập nhật DNS record cho domain chính
+                                if [ -n "$global_ssl_api_email" ]; then
+                                    # Global API Key
+                                    local update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id" \
+                                         -H "X-Auth-Email: $global_ssl_api_email" \
+                                         -H "X-Auth-Key: $global_ssl_api_token" \
+                                         -H "Content-Type: application/json" \
+                                         -d '{"type":"A","name":"'$website'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                else
+                                    # API Token
+                                    local update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id" \
+                                         -H "Authorization: Bearer $global_ssl_api_token" \
+                                         -H "Content-Type: application/json" \
+                                         -d '{"type":"A","name":"'$website'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                fi
+                                
+                                if echo "$update_response" | grep -q '"success":true'; then
+                                    echo "==> Đã cập nhật domain $website thành công";sleep 1
+                                    echo "-------------------------------------------------------------------------"
+                                    echo "==> Đã trỏ về IP VPS: $serverip";sleep 1
+                                    echo "-------------------------------------------------------------------------"
+                                    echo "==> Đã bật Cloudflare Proxy (orange cloud)";sleep 1
+                                    echo "-------------------------------------------------------------------------"
+                                    
+                                    # Cập nhật DNS record cho domain còn lại của domain cấp 1
+                                    if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                        source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                        if should_create_www_subdomain "$website" "$global_ssl_api_email" "$global_ssl_api_token"; then
+                                            # Xác định domain cần cập nhật thêm
+                                            if [[ "$website" == www.* ]]; then
+                                                # Nếu domain là www.example.com → cập nhật example.com
+                                                non_www_domain="${website#www.}"
+                                                echo "==> Đang cập nhật non-www domain: $non_www_domain";sleep 1
+                                                
+                                                # Lấy record ID cho non-www domain
+                                                if [ -n "$global_ssl_api_email" ]; then
+                                                    # Global API Key
+                                                    non_www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${non_www_domain}" \
+                                                         -H "X-Auth-Email: $global_ssl_api_email" \
+                                                         -H "X-Auth-Key: $global_ssl_api_token" \
+                                                         -H "Content-Type: application/json" | \
+                                                         grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                                else
+                                                    # API Token
+                                                    non_www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${non_www_domain}" \
+                                                         -H "Authorization: Bearer $global_ssl_api_token" \
+                                                         -H "Content-Type: application/json" | \
+                                                         grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                                fi
+                                                
+                                                if [ -n "$non_www_record_id" ]; then
+                                                    # Cập nhật non-www domain
+                                                    if [ -n "$global_ssl_api_email" ]; then
+                                                        # Global API Key
+                                                        non_www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$non_www_record_id" \
+                                                             -H "X-Auth-Email: $global_ssl_api_email" \
+                                                             -H "X-Auth-Key: $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    else
+                                                        # API Token
+                                                        non_www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$non_www_record_id" \
+                                                             -H "Authorization: Bearer $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    fi
+                                                    
+                                                    if echo "$non_www_update_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã cập nhật non-www domain $non_www_domain thành công";sleep 1
+                                                        echo "-------------------------------------------------------------------------"
+                                                    else
+                                                        echo "==> Không thể cập nhật non-www domain $non_www_domain";sleep 1
+                                                    fi
+                                                else
+                                                    echo "==> Không tìm thấy non-www domain $non_www_domain để cập nhật";sleep 1
+                                                fi
+                                            else
+                                                # Nếu domain là example.com → cập nhật www.example.com
+                                        www_domain="www.$website"
+                                                echo "==> Đang cập nhật www domain: $www_domain";sleep 1
+                                        
+                                                # Lấy record ID cho www domain
+                                        if [ -n "$global_ssl_api_email" ]; then
+                                            # Global API Key
+                                            www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${www_domain}" \
+                                                 -H "X-Auth-Email: $global_ssl_api_email" \
+                                                 -H "X-Auth-Key: $global_ssl_api_token" \
+                                                 -H "Content-Type: application/json" | \
+                                                 grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                        else
+                                            # API Token
+                                            www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${www_domain}" \
+                                                 -H "Authorization: Bearer $global_ssl_api_token" \
+                                                 -H "Content-Type: application/json" | \
+                                                 grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                        fi
+                                        
+                                        if [ -n "$www_record_id" ]; then
+                                                    # Cập nhật www domain
+                                            if [ -n "$global_ssl_api_email" ]; then
+                                                # Global API Key
+                                                www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$www_record_id" \
+                                                     -H "X-Auth-Email: $global_ssl_api_email" \
+                                                     -H "X-Auth-Key: $global_ssl_api_token" \
+                                                     -H "Content-Type: application/json" \
+                                                     -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                            else
+                                                # API Token
+                                                www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$www_record_id" \
+                                                     -H "Authorization: Bearer $global_ssl_api_token" \
+                                                     -H "Content-Type: application/json" \
+                                                     -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                            fi
+                                            
+                                            if echo "$www_update_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã cập nhật www domain $www_domain thành công";sleep 1
+                                                echo "-------------------------------------------------------------------------"
+                                            else
+                                                        echo "==> Không thể cập nhật www domain $www_domain";sleep 1
+                                            fi
+                                        else
+                                                    echo "==> Không tìm thấy www domain $www_domain để cập nhật";sleep 1
+                                                fi
+                                            fi
+                                        fi
+                                    fi
+                                    
+                                    # Xử lý www/non-www cho domain cấp 1 (luôn tạo cả www và non-www)
+                                    if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                        source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                        if should_create_www_subdomain "$website" "$global_ssl_api_email" "$global_ssl_api_token"; then
+                                            # Xác định domain cần tạo thêm
+                                            if [[ "$website" == www.* ]]; then
+                                                # Nếu domain là www.example.com → tạo example.com
+                                                non_www_domain="${website#www.}"
+                                                echo "==> Đang xử lý non-www domain: $non_www_domain";sleep 1
+                                                
+                                                # Kiểm tra xem non-www domain có tồn tại không
+                                                if [ -n "$global_ssl_api_email" ]; then
+                                                    # Global API Key
+                                                    non_www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${non_www_domain}" \
+                                                         -H "X-Auth-Email: $global_ssl_api_email" \
+                                                         -H "X-Auth-Key: $global_ssl_api_token" \
+                                                         -H "Content-Type: application/json" | \
+                                                         grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                                else
+                                                    # API Token
+                                                    non_www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${non_www_domain}" \
+                                                         -H "Authorization: Bearer $global_ssl_api_token" \
+                                                         -H "Content-Type: application/json" | \
+                                                         grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                                fi
+                                                
+                                                if [ -n "$non_www_record_id" ]; then
+                                                    # Cập nhật non-www domain
+                                                    if [ -n "$global_ssl_api_email" ]; then
+                                                        # Global API Key
+                                                        non_www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$non_www_record_id" \
+                                                             -H "X-Auth-Email: $global_ssl_api_email" \
+                                                             -H "X-Auth-Key: $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    else
+                                                        # API Token
+                                                        non_www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$non_www_record_id" \
+                                                             -H "Authorization: Bearer $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    fi
+                                                    
+                                                    if echo "$non_www_update_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã cập nhật non-www domain $non_www_domain thành công";sleep 1
+                                                        echo "-------------------------------------------------------------------------"
+                                                    else
+                                                        echo "==> Không thể cập nhật non-www domain $non_www_domain";sleep 1
+                                                    fi
+                                                else
+                                                    # Tạo non-www domain mới
+                                                    if [ -n "$global_ssl_api_email" ]; then
+                                                        # Global API Key
+                                                        non_www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                             -H "X-Auth-Email: $global_ssl_api_email" \
+                                                             -H "X-Auth-Key: $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    else
+                                                        # API Token
+                                                        non_www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                             -H "Authorization: Bearer $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    fi
+                                                    
+                                                    if echo "$non_www_create_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã tạo non-www domain $non_www_domain thành công";sleep 1
+                                                        echo "-------------------------------------------------------------------------"
+                                                    else
+                                                        echo "==> Không thể tạo non-www domain $non_www_domain";sleep 1
+                                                    fi
+                                                fi
+                                            else
+                                                # Nếu domain là example.com → tạo www.example.com
+                                                www_domain="www.$website"
+                                                echo "==> Đang xử lý www domain: $www_domain";sleep 1
+                                                
+                                                # Kiểm tra xem www domain có tồn tại không
+                                                if [ -n "$global_ssl_api_email" ]; then
+                                                    # Global API Key
+                                                    www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${www_domain}" \
+                                                         -H "X-Auth-Email: $global_ssl_api_email" \
+                                                         -H "X-Auth-Key: $global_ssl_api_token" \
+                                                         -H "Content-Type: application/json" | \
+                                                         grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                                else
+                                                    # API Token
+                                                    www_record_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=${www_domain}" \
+                                                         -H "Authorization: Bearer $global_ssl_api_token" \
+                                                         -H "Content-Type: application/json" | \
+                                                         grep -o '"id":"[^"]*"' | head -1 | sed 's/"id":"//;s/"//')
+                                                fi
+                                                
+                                                if [ -n "$www_record_id" ]; then
+                                                    # Cập nhật www domain
+                                                    if [ -n "$global_ssl_api_email" ]; then
+                                                        # Global API Key
+                                                        www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$www_record_id" \
+                                                             -H "X-Auth-Email: $global_ssl_api_email" \
+                                                             -H "X-Auth-Key: $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    else
+                                                        # API Token
+                                                        www_update_response=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$www_record_id" \
+                                                             -H "Authorization: Bearer $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    fi
+                                                    
+                                                    if echo "$www_update_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã cập nhật www domain $www_domain thành công";sleep 1
+                                                        echo "-------------------------------------------------------------------------"
+                                                    else
+                                                        echo "==> Không thể cập nhật www domain $www_domain";sleep 1
+                                                    fi
+                                                else
+                                                    # Tạo www domain mới
+                                            if [ -n "$global_ssl_api_email" ]; then
+                                                # Global API Key
+                                                www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                     -H "X-Auth-Email: $global_ssl_api_email" \
+                                                     -H "X-Auth-Key: $global_ssl_api_token" \
+                                                     -H "Content-Type: application/json" \
+                                                     -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                            else
+                                                # API Token
+                                                www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                     -H "Authorization: Bearer $global_ssl_api_token" \
+                                                     -H "Content-Type: application/json" \
+                                                     -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                            fi
+                                            
+                                            if echo "$www_create_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã tạo www domain $www_domain thành công";sleep 1
+                                                echo "-------------------------------------------------------------------------"
+                                            else
+                                                        echo "==> Không thể tạo www domain $www_domain";sleep 1
+                                            fi
+                                        fi
+                                            fi
+                                        fi
+                                    else
+                                        echo "==> Không thể kiểm tra subdomain - bỏ qua tạo www/non-www domain";sleep 1
+                                    fi
+                                    
+                                    # Cấu hình SSL/TLS encryption về Full (Strict) cho domain cấp 1 (cả www và non-www)
+                                    if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                        source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                        # Kiểm tra xem có phải domain chính không (không phải subdomain) sử dụng PSL
+                                        if ! is_subdomain_accurate "$website"; then
+                                            # Chỉ cấu hình SSL/TLS encryption cho domain chính (non-www)
+                                            configure_ssl_for_main_domain "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+                                        fi
+                                    fi
+                            
+                                else
+                                    echo "==> Không thể cập nhật domain/subdomain $website";sleep 1
+                                    echo "-------------------------------------------------------------------------"
+                                    echo "Chi tiết lỗi: $update_response"
+                                fi
+                            else
+                                echo "Không thể lấy record ID cho domain/subdomain $website"
+                            fi
+                            break
+                            ;;
+                        2)
+                        echo "Giữ nguyên cấu hình hiện tại: $current_ip"
+                            break
+                            ;;
+0) clear; exit 0;;
+                        *)
+                            echo "Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 0"
+                            ;;
+                    esac
+                done
+            else
+                echo "==> Domain $website đã cấu hình đúng (IP và Proxy)";sleep 1
+                
+                # Kiểm tra và cấu hình SSL/TLS encryption về Full (Strict) cho domain đã trỏ đúng
+                if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                    source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                    # Kiểm tra xem có phải domain chính không (không phải subdomain) sử dụng PSL
+                    if ! is_subdomain_accurate "$website"; then
+                        # Cấu hình SSL/TLS encryption cho domain chính (non-www)
+                        configure_ssl_for_main_domain "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+                    fi
+                fi
+            fi
+        else
+            echo "==> Không thể lấy IP hiện tại của $website"
+        fi
+    else
+        echo "========================================================================="
+        echo "Subdomain $website chưa tồn tại trong tài khoản Cloudflare";sleep 1
+        echo "-------------------------------------------------------------------------"
+        echo "Domain chính $main_domain tồn tại trong Cloudflare";sleep 1
+        
+        echo "========================================================================="
+        echo "Bạn có muốn tạo subdomain $website trong Cloudflare không?"
+        echo "-------------------------------------------------------------------------"
+        echo "1. Có, tạo subdomain và trỏ về IP VPS - $serverip"
+        echo "2. Không, chỉ cài SSL mà không tạo subdomain"
+        echo "========================================================================="
+        
+        while true; do
+            read -p "Lựa chọn của bạn [0 -Thoát]: " create_choice
+            
+            case $create_choice in
+                1)
+                    echo "========================================================================="
+                    echo "TẠO SUBDOMAIN TRONG CLOUDFLARE"
+                    echo "========================================================================="
+                    echo "Đang tạo subdomain $website...";sleep 1
+                    
+                    if [ -n "$zone_id" ]; then
+                        # Tạo DNS record cho domain/subdomain với Cloudflare Proxy bật và trỏ về server IP
+                        if [ -n "$global_ssl_api_email" ]; then
+                            # Global API Key
+                            local create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                 -H "X-Auth-Email: $global_ssl_api_email" \
+                                 -H "X-Auth-Key: $global_ssl_api_token" \
+                                 -H "Content-Type: application/json" \
+                                 -d '{"type":"A","name":"'$website'","content":"'$serverip'","ttl":1,"proxied":true}')
+                        else
+                            # API Token
+                            local create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                 -H "Authorization: Bearer $global_ssl_api_token" \
+                                 -H "Content-Type: application/json" \
+                                 -d '{"type":"A","name":"'$website'","content":"'$serverip'","ttl":1,"proxied":true}')
+                        fi
+                        
+                        if echo "$create_response" | grep -q '"success":true'; then
+                            echo "==> Đã tạo subdomain $website thành công";sleep 1
+                            echo "-------------------------------------------------------------------------"
+                            echo "==> Đã bật Cloudflare Proxy cho subdomain";sleep 1
+                            echo "-------------------------------------------------------------------------"
+                            echo "==> Đã trỏ subdomain về IP VPS: $serverip";sleep 1
+                            
+                            # Xử lý www/non-www cho domain cấp 1 (luôn tạo cả www và non-www)
+                            if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                if should_create_www_subdomain "$website" "$global_ssl_api_email" "$global_ssl_api_token"; then
+                                    # Xác định domain cần tạo thêm
+                                    if [[ "$website" == www.* ]]; then
+                                        # Nếu domain là www.example.com → tạo example.com
+                                        non_www_domain="${website#www.}"
+                                        echo "==> Đang tạo non-www domain: $non_www_domain";sleep 1
+                                        
+                                        # Tạo non-www domain
+                                        if [ -n "$global_ssl_api_email" ]; then
+                                            # Global API Key
+                                            non_www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                 -H "X-Auth-Email: $global_ssl_api_email" \
+                                                 -H "X-Auth-Key: $global_ssl_api_token" \
+                                                 -H "Content-Type: application/json" \
+                                                 -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                        else
+                                            # API Token
+                                            non_www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                 -H "Authorization: Bearer $global_ssl_api_token" \
+                                                 -H "Content-Type: application/json" \
+                                                 -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                        fi
+                                        
+                                        if echo "$non_www_create_response" | grep -q '"success":true'; then
+                                            echo "==> Đã tạo non-www domain $non_www_domain thành công";sleep 1
+                                            echo "-------------------------------------------------------------------------"
+                                        else
+                                            echo "==> Không thể tạo non-www domain $non_www_domain";sleep 1
+                                        fi
+                                    else
+                                        # Nếu domain là example.com → tạo www.example.com
+                                www_domain="www.$website"
+                                        echo "==> Đang tạo www domain: $www_domain";sleep 1
+                                
+                                        # Tạo www domain
+                                if [ -n "$global_ssl_api_email" ]; then
+                                    # Global API Key
+                                    www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                         -H "X-Auth-Email: $global_ssl_api_email" \
+                                         -H "X-Auth-Key: $global_ssl_api_token" \
+                                         -H "Content-Type: application/json" \
+                                         -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                else
+                                    # API Token
+                                    www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                         -H "Authorization: Bearer $global_ssl_api_token" \
+                                         -H "Content-Type: application/json" \
+                                         -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                fi
+                                
+                                if echo "$www_create_response" | grep -q '"success":true'; then
+                                            echo "==> Đã tạo www domain $www_domain thành công";sleep 1
+                                    echo "-------------------------------------------------------------------------"
+                                else
+                                            echo "==> Không thể tạo www domain $www_domain";sleep 1
+                                        fi
+                                    fi
+                                fi
+                                fi
+                            fi
+                            
+                            # Cấu hình SSL/TLS encryption về Full (Strict) cho domain chính (chỉ non-www)
+                            if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                # Kiểm tra xem có phải domain chính không (không phải subdomain) sử dụng PSL
+                                if ! is_subdomain_accurate "$website"; then
+                                    # Chỉ cấu hình SSL/TLS encryption cho domain chính (non-www)
+                                    configure_ssl_for_main_domain "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+                                fi
+                            fi
+                        else
+                            echo "==> Không thể tạo subdomain $website"
+                            echo "-------------------------------------------------------------------------"
+                            echo "Chi tiết lỗi: $create_response"
+                    fi
+                    break
+                    ;;
+                2)
+                    echo "==> Cài SSL mà không tạo subdomain"
+                    break
+                    ;;
+0) clear; exit 0;;
+                *)
+                    echo "==> Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 0"
+                    ;;
+            esac
+        done
+    fi
+    
+}
+
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] ; then
+    sed -i 's/\*\*$//' /etc/dsnvps/.tmp/klaoxcypark
+fi
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaoxcypark; then   # Tim Main Domain
+    home_folder="/home"
+    for domain in "$home_folder"/*; do
+        domain_name=$(basename "$domain")
+        park_vhost="$domain/conf.d/$website.conf"
+        if [[ -f "$park_vhost" ]]; then
+            echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+            break
+        fi
+    done
+    mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+fi
+if [ -f /home/$mainwebsite/conf.d/$website.conf ]; then
+if [ -f /etc/nginx/paidssl/$website/$website.crt ] && grep -q "/etc/nginx/paidssl/$website/$website.crt" /home/$mainwebsite/conf.d/$website.conf; then
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS đang kiểm tra ......"; sleep 2
+    clear
+    echo "========================================================================="
+    echo "$website là Park Domain của $mainwebsite"
+    echo "-------------------------------------------------------------------------"
+    echo "$website đã cài thành công Paid / Free SSL Cloudflare."; sleep 2
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+fi
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+    if [ -f /etc/nginx/paidssl/$website/$website.crt ] && grep -q "/etc/nginx/paidssl/$website/$website.crt" /etc/nginx/conf.d/$website.conf; then
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS đang kiểm tra ......"; sleep 2
+        clear
+        echo "========================================================================="
+        echo "$website đã cài thành công Paid / Free SSL Cloudflare."; sleep 2
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    fi
+fi
+# Kiểm tra SSL cho WordPress Multisite Subsite
+domain_goc_website=$(echo "$website" | awk -F '.' '{print $(NF-1)"."$NF}')
+if [[ -f "/home/$domain_goc_website/multisite.conf.d/$website.conf" ]]; then
+    if [ -f /etc/nginx/paidssl/$website/$website.crt ] && grep -q "/etc/nginx/paidssl/$website/$website.crt" /home/$domain_goc_website/multisite.conf.d/$website.conf; then
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS đang kiểm tra ......"; sleep 2
+        clear
+        echo "========================================================================="
+        echo "$website là Subsite của WordPress Multisite ($domain_goc_website)"
+        echo "-------------------------------------------------------------------------"
+        echo "$website đã cài thành công Paid / Free SSL Cloudflare."; sleep 2
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    fi
+fi
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    if [ -f /etc/nginx/paidssl/$website/$website.crt ] && grep -q "/etc/nginx/paidssl/$website/$website.crt" /etc/dsnvps/domainquanly/domainquanly.conf; then
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS đang kiểm tra ......"; sleep 2
+        clear
+        echo "========================================================================="
+        echo "$website đã cài thành công Free SSL Cloudflare."; sleep 2
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    fi
+fi
+
+################################################################################################################################################
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaoxcypark; then   # Tim Main Domain
+#################################################################################################################################################
+    home_folder="/home"
+    for domain in "$home_folder"/*; do
+        domain_name=$(basename "$domain")
+        park_vhost="$domain/conf.d/$website.conf"
+        if [[ -f "$park_vhost" ]]; then
+            echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+            break
+        fi
+    done
+    mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+elif [[ -s "/etc/dsnvps/.tmp/klaixx.txt" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaixx.txt 2>/dev/null; then  # Tim Main Domain cho Multisite Subsite
+    domain_goc_website=$(echo "$website" | awk -F '.' '{print $(NF-1)"."$NF}')
+    if [[ -f "/home/$domain_goc_website/multisite.conf.d/$website.conf" ]]; then
+        mainwebsite="$domain_goc_website"
+    else
+        mainwebsite=$website
+    fi
+else
+    mainwebsite=$website
+fi
+####################################################################################
+# Kiểm tra API Global SSL
+if [ -f /etc/dsnvps/ssl-cloudflare-api-global.conf ]; then
+    source /etc/dsnvps/ssl-cloudflare-api-global.conf
+    if [ -n "$global_ssl_api_token" ]; then
+        echo "========================================================================="
+        if [ -n "$global_ssl_api_email" ]; then
+            echo "=> DSNVPS đã được cấu hình sử dụng Cloudflare Global API Key"
+        else
+            echo "=> DSNVPS đã được cấu hình sử dụng Cloudflare API Token"
+        fi
+        echo "========================================================================="
+        echo "LỰA CHỌN CÁCH CÀI ĐẶT SSL"
+        echo "-------------------------------------------------------------------------"
+        echo "1. Cài đặt tự động (Nên dùng)"
+        echo "2. Cài đặt thủ công"
+        echo "========================================================================="
+        
+        while true; do
+            read -p "Lựa chọn của bạn [0 -Thoát]: " ssl_choice
+            
+            case $ssl_choice in
+                1)
+                    echo "========================================================================="
+                    echo "CÀI ĐẶT TỰ ĐỘNG CHỨNG CHỈ SSL"
+                    echo "========================================================================="
+                    
+                    # Source file check API
+                    if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                        source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                    else
+                        echo "==> Không tìm thấy file dsnvps-ssl-cloudflare-check-api-global"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Chuyển sang chế độ thủ công"
+                        echo "-------------------------------------------------------------------------"
+                        call_manual_certificate_input
+                        # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                        #echo "Tiếp tục với cài đặt SSL..."
+                    fi
+                    break  # Thoát khỏi vòng lặp để tiếp tục với phần cài đặt SSL
+                    ;;
+                2)
+                    echo "========================================================================="
+                    echo "CÀI ĐẶT SSL THỦ CÔNG"
+                    echo "========================================================================="
+                    call_manual_certificate_input
+                    # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                    #echo "Tiếp tục với cài đặt SSL..."
+                    # Thoát khỏi toàn bộ khối API để tiếp tục với phần cài đặt SSL thủ công
+                    goto_ssl_installation=true
+                    break  # Thoát khỏi vòng lặp để tiếp tục với phần cài đặt SSL
+                    ;;
+0) clear; exit 0;;
+                *)
+                    echo "==> Lựa chọn không hợp lệ. Vui lòng chọn 1 hoặc 2"
+                    ;;
+            esac
+        done
+        
+        # Kiểm tra xem có cần chuyển sang cài đặt SSL thủ công không
+        if [ "$goto_ssl_installation" = "true" ]; then
+            # Thoát khỏi khối API để tiếp tục với phần cài đặt SSL thủ công
+            goto_ssl_installation=false
+            # Tiếp tục với phần cài đặt SSL thủ công
+        else
+            # Kiểm tra domain có trong Cloudflare không
+            if check_domain_exists_for_ssl "$website" "$global_ssl_api_email" "$global_ssl_api_token" 2>/dev/null; then
+                # Xác định domain để hiển thị - nếu là subdomain thì hiển thị domain chính
+                if is_subdomain "$website"; then
+                    main_domain=$(get_main_domain "$website")
+                    echo "==> Domain $main_domain tồn tại trong tài khoản Cloudflare của bạn"
+                else
+                    echo "==> Domain $website tồn tại trong tài khoản Cloudflare của bạn"
+                fi
+            
+            # Xử lý subdomain
+            if is_subdomain "$website"; then
+                handle_subdomain_ssl "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+            else
+                handle_main_domain_ssl "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+            fi
+            
+            # Kiểm tra certificate đã được tạo thành công
+            if [ ! -f "/etc/nginx/paidssl/$website/$website.crt" ] || [ ! -f "/etc/nginx/paidssl/$website/$website.key" ]; then
+                echo "==> Tạo certificate thất bại, chuyển sang chế độ thủ công"
+                call_manual_certificate_input
+                # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                #echo "Tiếp tục với cài đặt SSL..."
+            fi
+        else
+            # Kiểm tra nếu là subdomain và domain chính có tồn tại
+            if is_subdomain "$website"; then
+                main_domain=$(get_main_domain "$website")
+                if check_domain_exists_for_ssl "$main_domain" "$global_ssl_api_email" "$global_ssl_api_token" 2>/dev/null; then
+                    echo "========================================================================="
+                    echo "Bạn có muốn tạo subdomain $website trong Cloudflare không?"
+                    echo "-------------------------------------------------------------------------"
+                    echo "1. Tạo subdomain $website và cài SSL tự động (Nên dùng)"
+                    echo "2. Cài đặt SSL thủ công (và không tạo subdomain trong Cloudflare)"
+                    echo "========================================================================="
+                    
+                    while true; do
+                        read -p "Lựa chọn của bạn [0 -Thoát]: " subdomain_choice
+                        
+                        case $subdomain_choice in
+                            1)
+                                echo "========================================================================="
+                                echo "TẠO SUBDOMAIN VÀ CÀI SSL TỰ ĐỘNG"
+                                echo "========================================================================="
+                                echo "Đang tạo subdomain $website..."
+                                
+                                # Tạo subdomain trong Cloudflare
+                                zone_id=$(get_zone_id_for_ssl "$main_domain" "$global_ssl_api_email" "$global_ssl_api_token" 2>/dev/null)
+                                if [ -n "$zone_id" ]; then
+                                    # Tạo DNS record cho subdomain với Cloudflare Proxy bật và trỏ về server IP
+                                    if [ -n "$global_ssl_api_email" ]; then
+                                        # Global API Key
+                                        create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                             -H "X-Auth-Email: $global_ssl_api_email" \
+                                             -H "X-Auth-Key: $global_ssl_api_token" \
+                                             -H "Content-Type: application/json" \
+                                             -d '{"type":"A","name":"'$website'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                    else
+                                        # API Token
+                                        create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                             -H "Authorization: Bearer $global_ssl_api_token" \
+                                             -H "Content-Type: application/json" \
+                                             -d '{"type":"A","name":"'$website'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                    fi
+                                    
+                                    if echo "$create_response" | grep -q '"success":true'; then
+                                        echo "==> Đã tạo subdomain $website thành công";sleep 1
+                                        echo "-------------------------------------------------------------------------"
+                                        echo "==> Đã bật Cloudflare Proxy cho subdomain";sleep 1
+                                        echo "-------------------------------------------------------------------------"
+                                        echo "==> Đã trỏ subdomain về IP VPS: $serverip";sleep 1
+                                        echo "-------------------------------------------------------------------------"
+                                        
+                                        # Xử lý www/non-www cho domain cấp 1 (luôn tạo cả www và non-www)
+                                        if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                            source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                            if should_create_www_subdomain "$website" "$global_ssl_api_email" "$global_ssl_api_token"; then
+                                                # Xác định domain cần tạo thêm
+                                                if [[ "$website" == www.* ]]; then
+                                                    # Nếu domain là www.example.com → tạo example.com
+                                                    non_www_domain="${website#www.}"
+                                                    echo "==> Đang tạo non-www domain: $non_www_domain";sleep 1
+                                                    
+                                                    # Tạo non-www domain
+                                                    if [ -n "$global_ssl_api_email" ]; then
+                                                        # Global API Key
+                                                        non_www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                             -H "X-Auth-Email: $global_ssl_api_email" \
+                                                             -H "X-Auth-Key: $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    else
+                                                        # API Token
+                                                        non_www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                             -H "Authorization: Bearer $global_ssl_api_token" \
+                                                             -H "Content-Type: application/json" \
+                                                             -d '{"type":"A","name":"'$non_www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                                    fi
+                                                    
+                                                    if echo "$non_www_create_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã tạo non-www domain $non_www_domain thành công";sleep 1
+                                                        echo "-------------------------------------------------------------------------"
+                                                    else
+                                                        echo "==> Không thể tạo non-www domain $non_www_domain";sleep 1
+                                                    fi
+                                                else
+                                                    # Nếu domain là example.com → tạo www.example.com
+                                            www_domain="www.$website"
+                                                    echo "==> Đang tạo www domain: $www_domain";sleep 1
+                                            
+                                                    # Tạo www domain
+                                            if [ -n "$global_ssl_api_email" ]; then
+                                                # Global API Key
+                                                www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                     -H "X-Auth-Email: $global_ssl_api_email" \
+                                                     -H "X-Auth-Key: $global_ssl_api_token" \
+                                                     -H "Content-Type: application/json" \
+                                                     -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                            else
+                                                # API Token
+                                                www_create_response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records" \
+                                                     -H "Authorization: Bearer $global_ssl_api_token" \
+                                                     -H "Content-Type: application/json" \
+                                                     -d '{"type":"A","name":"'$www_domain'","content":"'$serverip'","ttl":1,"proxied":true}')
+                                            fi
+                                            
+                                            if echo "$www_create_response" | grep -q '"success":true'; then
+                                                        echo "==> Đã tạo www domain $www_domain thành công";sleep 1
+                                                echo "-------------------------------------------------------------------------"
+                                            else
+                                                        echo "==> Không thể tạo www domain $www_domain";sleep 1
+                                                    fi
+                                                fi
+                                            fi
+                                        fi
+                                    fi
+                                        
+                                        # Cấu hình SSL/TLS encryption về Full (Strict) cho domain chính (chỉ non-www)
+                                        if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+                                            source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+                                            # Kiểm tra xem có phải domain chính không (không phải subdomain) sử dụng PSL
+                                            if ! is_subdomain_accurate "$website"; then
+                                                # Chỉ cấu hình SSL/TLS encryption cho domain chính (non-www)
+                                                configure_ssl_for_main_domain "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+                                            fi
+                                        fi
+                                        
+                                        echo "==> Đang cài đặt SSL cho subdomain...";sleep 1
+                                        
+                                        # Cài SSL cho subdomain (luôn cài SSL bình thường)
+                                        handle_subdomain_ssl "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+                                        
+                                        # Kiểm tra certificate đã được tạo thành công
+                                        if [ -f "/etc/nginx/paidssl/$website/$website.crt" ] && [ -f "/etc/nginx/paidssl/$website/$website.key" ]; then
+                                            echo "==> Certificate đã được tạo thành công cho subdomain $website";sleep 1
+                                            
+                                        else
+                                            echo "==> Tạo certificate thất bại cho subdomain, chuyển sang chế độ thủ công";sleep 1
+                                            call_manual_certificate_input
+                                            # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                                            #echo "Tiếp tục với cài đặt SSL..."
+                                        fi
+                                    else
+                                        echo "==> Không thể tạo subdomain $website"
+                                        echo "==> Chuyển sang chế độ thủ công";sleep 1
+                                        call_manual_certificate_input
+                                        # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                                        #echo "Tiếp tục với cài đặt SSL..."
+                                    fi
+                                    echo "==> Không thể lấy zone ID cho domain chính $main_domain"
+                                    echo "-------------------------------------------------------------------------"
+                                    echo "Chuyển sang chế độ thủ công"
+                                    call_manual_certificate_input
+                                    # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                                    #echo "Tiếp tục với cài đặt SSL..."
+                                break  # Thoát khỏi vòng lặp để tiếp tục với phần cài đặt SSL
+                                ;;
+                            2)
+                                echo "========================================================================="
+                                echo "CÀI ĐẶT SSL THỦ CÔNG"
+                                echo "========================================================================="
+                                call_manual_certificate_input
+                                # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+                                #echo "Tiếp tục với cài đặt SSL..."
+                                break  # Thoát khỏi vòng lặp để tiếp tục với phần cài đặt SSL
+                                ;;
+0) clear; exit 0;;
+                            *)
+                                echo "==> Lựa chọn không hợp lệ. Vui lòng chọn 1, 2 hoặc 0"
+                                ;;
+                        esac
+                    done
+                else
+                    echo "-------------------------------------------------------------------------"
+                    echo "==> Domain $website không thuộc tài khoản Cloudflare API đã cấu hình"
+                    echo "==> Tự động chuyển sang cài đặt SSL thủ công";sleep 1
+                    echo "-------------------------------------------------------------------------"
+                    call_manual_certificate_input
+                fi
+            else
+                echo "-------------------------------------------------------------------------"
+                echo "==> Domain $website không thuộc tài khoản Cloudflare API đã cấu hình"
+                echo "-------------------------------------------------------------------------"
+                echo "==> Tự động chuyển sang cài đặt SSL thủ công";sleep 1
+                echo "-------------------------------------------------------------------------"
+                call_manual_certificate_input
+            fi
+        fi
+        fi  # Đóng khối else của goto_ssl_installation
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "==> API Token không hợp lệ, chuyển sang chế độ thủ công"
+        call_manual_certificate_input
+        # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+        #echo "Tiếp tục với cài đặt SSL..."
+    fi
+else
+    echo "-------------------------------------------------------------------------"
+    echo "==> Không có API Global SSL, chuyển sang chế độ thủ công"
+    call_manual_certificate_input
+    # Tiếp tục với phần cài đặt SSL sau khi nhập certificate thủ công
+    #echo "Tiếp tục với cài đặt SSL..."
+fi
+
+
+# Phần cài đặt SSL
+
+# Kiểm tra và xử lý domain/subdomain trong Cloudflare trước khi cài SSL
+if [ -f /etc/dsnvps/ssl-cloudflare-api-global.conf ]; then
+    source /etc/dsnvps/ssl-cloudflare-api-global.conf
+    if [ -n "$global_ssl_api_token" ]; then
+        check_and_handle_domain_in_cloudflare "$website" "$global_ssl_api_email" "$global_ssl_api_token"
+    fi
+fi
+
+# Kiểm tra xem website có vhost hay không
+if [ -f "/etc/nginx/conf.d/$website.conf" ]; then
+    true  # Non-Park Domain
+elif find /home -name "$website.conf" -path "*/conf.d/*" 2>/dev/null | grep -q .; then
+    true  # Park Domain
+elif find /home -name "$website.conf" -path "*/multisite.conf.d/*" 2>/dev/null | grep -q .; then
+    true  # WordPress Multisite Subsite
+elif [ -f "/etc/dsnvps/domainquanly/domainquanly.conf" ] && [ "$domainquanly" = "$website" ]; then
+    true  # Domain Quản Lý
+else
+    echo "========================================================================="
+    echo "==> LỖI: Không tìm thấy vhost cho website $website"
+    echo "========================================================================="
+    echo "==> Website $website chưa được tạo vhost trên VPS."
+    echo "==> Vui lòng tạo vhost cho website trước khi cài đặt SSL."
+    echo "========================================================================="
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit 1
+fi
+
+# Download file CA nếu chưa có
+if [ ! -f /etc/nginx/paidssl/$website/$website.ca ]; then
+    wget -O /etc/nginx/paidssl/$website/$website.ca https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem
+fi
+
+##########
+# Cài SSL Domain Quan Ly
+#####
+#
+#
+########
+##########################
+# Domain Quản Lý
+domain_vhost_path="/etc/dsnvps/domainquanly/domainquanly.conf"
+domain_vhost_backup="/etc/dsnvps/.tmp/domainquanly.conf.bak"
+
+if [ -f "$domain_vhost_path" ]; then
+    if [ "$domainquanly" = "$website" ]; then
+
+        # Xóa file backup cũ nếu tồn tại
+        [ -f "$domain_vhost_backup" ] && rm -f "$domain_vhost_backup"
+
+        # Tạo thư mục backup nếu chưa có
+        if [ ! -d "/etc/dsnvps/domainquanly/backup.vhost" ]; then
+            mkdir -p /etc/dsnvps/domainquanly/backup.vhost
+        fi
+
+        # Sao lưu file vhost
+        cp -f "$domain_vhost_path" "$domain_vhost_backup"
+        cp -f "$domain_vhost_path" "/etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTP"
+
+        # Xóa vhost cũ và copy vhost mẫu
+        rm -f "$domain_vhost_path"
+        cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.quanlySSL.conf "$domain_vhost_path"
+        sed -i "s/domain.quanly/${website}/g" "$domain_vhost_path"
+        
+        # Backup vhost SSL
+        cp -f "$domain_vhost_path" "/etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTPS"
+
+        # Kiểm tra nginx config
+        if nginx -t; then
+            systemctl reload nginx
+            clear
+            echo "========================================================================="
+            echo "==> Domain Quản Lý đã được cài đặt thành công Free SSL Cloudflare"
+            echo "========================================================================="
+            echo "Backup Vhost: /etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTP"
+            echo "Backup SSL Vhost: /etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTPS"
+            echo "========================================================================="
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        else
+            # Phục hồi lại vhost cũ nếu lỗi
+            echo "========================================================================="
+            echo "==> Cài đặt SSL thất bại - Đang phục hồi vhost cũ..."
+            echo "========================================================================="
+            cp -f "$domain_vhost_backup" "$domain_vhost_path"
+            systemctl reload nginx
+            sleep 2
+            clear
+            echo "========================================================================="
+            echo "==> Đã phục hồi vhost cũ thành công. Vui lòng kiểm tra lại!"
+            echo "========================================================================="
+            echo "Backup Vhost: /etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTP"
+            echo "Backup SSL Vhost (failed): /etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTPS"
+            echo "========================================================================="
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        fi
+    fi
+fi   
+################################################################################################################
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaoxcypark; then   # Park Domains
+##########################################################################################################################
+        home_folder="/home"
+        for domain in "$home_folder"/*; do
+            domain_name=$(basename "$domain")
+            park_vhost="$domain/conf.d/$website.conf"
+            if [[ -f "$park_vhost" ]]; then
+                echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+                break
+            fi
+        done
+        mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+        rm -rf /etc/dsnvps/.tmp/servername
+        grep "server_name\ $website" /home/$mainwebsite/conf.d/$website.conf > /etc/dsnvps/.tmp/servername
+        servername=$(cat /etc/dsnvps/.tmp/servername)
+        if [ ! -f /etc/dsnvps/.tmp/servername ]; then
+            clear
+            echo "========================================================================="
+            echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS không thể chạy chức năng này."
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+            exit
+        fi
+        if [ "`grep "block.conf;" /home/$mainwebsite/conf.d/$website.conf`" = "" ]; then
+            clear
+            echo "========================================================================="
+            echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS không thể chạy chức năng này"
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+            exit
+        fi
+        rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+        cp -r /home/$mainwebsite/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf.txt
+        # replace from 1 to server_name
+        sed -i "1,/${servername}/d" /etc/dsnvps/.tmp/$website.conf.txt
+        # Tao vhost ssl
+        rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+        ################### Lay WWW hoac Non_WWW
+        if [[ "$website" == www.* ]]; then
+            # Nếu $website bắt đầu bằng "www."
+            website_redirect="${website#www.}"
+        else
+            # Nếu $website không bắt đầu bằng "www."
+            website_redirect="www.$website"
+        fi
+        #################################
+        #################################
+        # Kiểm tra xem $website có phải subdomain không sử dụng PSL
+        if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+            source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+            if is_subdomain_accurate "$website"; then
+                # Là subdomain → không tạo khối redirect
+                redirect_block=""
+            else
+                # Là domain chính → tạo redirect block
+                redirect_block="server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+server_name  $website_redirect;
+return       301 https://$website\$request_uri;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+}"
+            fi
+        else
+            # Fallback về logic cũ nếu không có file PSL
+        if echo "$website" | grep -E '^[a-z0-9-]+\.[a-z0-9-]+\.[a-z]+$' >/dev/null && [[ "$website" != www.* ]] ||
+           echo "$website" | grep -E '^[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+\.[a-z]+$' >/dev/null; then
+            # Là subdomain (sub.domain.com, sub.sub.domain.com) → không tạo khối redirect
+            redirect_block=""
+        else
+            # Là domain chính (domain.com, www.domain.com, domain.com.vn, www.domain.com.vn)
+            redirect_block="server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+server_name  $website_redirect;
+return       301 https://$website\$request_uri;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+}"
+            fi
+        fi
+        #################################
+        vhost_path="/home/$mainwebsite/conf.d/$website.conf"
+        root_dir=$(grep -E '^[[:space:]]*root[[:space:]]' "$vhost_path" | awk '{print $2}' | sed 's/;$//' | head -1)
+        [[ -z "$root_dir" || ! -d "$root_dir" ]] && root_dir="/home/$mainwebsite/public_html"
+        
+        
+        cat > "/etc/dsnvps/.tmp/SSL-$website.conf.txt" <<END
+server {
+listen 80;
+listen [::]:80;
+server_name $website $website_redirect;
+return       301 https://$website\$request_uri;
+}
+$redirect_block
+server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+
+ssl_session_timeout 4h;
+ssl_session_tickets off; 
+ 
+ssl_prefer_server_ciphers on;
+include /etc/nginx/conf/ssl-protocol-cipherV2.conf;
+ssl_ecdh_curve X25519:P-256:P-384:P-224:P-521;
+ssl_buffer_size 1400;
+
+access_log off;
+#access_log   /home/$website/logs/access_log;
+
+#ssl_stapling on;
+#ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 10s;
+
+# Headers cho HTTP/3
+add_header Alt-Svc 'h3=":443"'; # Hoặc h3-29/h3-23 tùy trình duyệt
+add_header QUIC-Status "OK";
+add_header Strict-Transport-Security "max-age=31536000; preload" always;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+
+root $root_dir;
+include /etc/nginx/conf/ddos2.conf;
+index index.php index.html index.htm;
+$servername
+END
+        cd /etc/dsnvps/.tmp/ || exit 1
+        cat SSL-$website.conf.txt $website.conf.txt > $website.conf_HTTPS
+        
+        
+        rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+        rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+        cd "$HOME" || exit 1
+        if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+            mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+        fi
+        mkdir -p /etc/dsnvps/Backup.Vhost.SSL/$website
+        if [ ! -d /home/$mainwebsite/Backup.Vhost ]; then
+            mkdir -p /home/$mainwebsite/Backup.Vhost 
+        fi
+        ######### KIỂM TRA CERTIFICATE TRƯỚC KHI TẠO VHOST ##############
+        echo "========================================================================="
+        echo "Kiểm tra certificate trước khi tạo vhost SSL..."
+        # Kiểm tra certificate có tồn tại và hợp lệ không
+        if [ -f "/etc/nginx/paidssl/$website/$website.crt" ]; then
+            echo "OpenSSL validation:"
+            openssl x509 -in "/etc/nginx/paidssl/$website/$website.crt" -noout 2>&1
+        fi
+        
+        if [ ! -f "/etc/nginx/paidssl/$website/$website.crt" ] || ! openssl x509 -in "/etc/nginx/paidssl/$website/$website.crt" -noout >/dev/null 2>&1; then
+            echo "========================================================================="
+            echo "==> LỖI: File certificate không tồn tại hoặc không hợp lệ!"
+            echo "========================================================================="
+            echo "Certificate path: /etc/nginx/paidssl/$website/$website.crt"
+            echo "========================================================================="
+            echo "Kiểm tra thư mục certificate:"
+            ls -la /etc/nginx/paidssl/$website/ 2>/dev/null || echo "Thư mục không tồn tại"
+            echo "========================================================================="
+            echo "==> KHÔNG THỂ TIẾP TỤC CÀI ĐẶT SSL!"
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng kiểm tra và sửa lỗi certificate trước khi tiếp tục."
+            echo "========================================================================="
+            echo "Nhấn [Enter] để thoát..."
+            read -r
+            exit 1
+        else
+            echo "==> File certificate tồn tại và hợp lệ"
+        fi
+        echo "========================================================================="
+        
+        #Backup Vhost.Conf
+        cp -rf /home/$mainwebsite/conf.d/$website.conf /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf
+        cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf_HTTPS
+        cp -rf /home/$mainwebsite/conf.d/$website.conf /home/$mainwebsite/Backup.Vhost/$website.conf_HTTP
+        cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$mainwebsite/Backup.Vhost/$website.conf_HTTPS
+        cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$mainwebsite/conf.d/$website.conf
+        echo "========================================================================="
+        
+        ######### CHECK CAI DAT THANH CONG HAY KHONG ##############
+        echo "========================================================================="
+        nginx -t
+        echo "========================================================================="
+        
+        if ! nginx -t &>/dev/null; then
+            echo "========================================================================="
+            echo "==> LỖI NGINX CONFIG - PHỤC HỒI VHOST CŨ"
+            echo "========================================================================="
+            echo "Website: $website"
+            echo "Main website: $mainwebsite"
+            echo "Vhost path: /home/$mainwebsite/conf.d/$website.conf"
+            echo "========================================================================="
+            echo "Chi tiết lỗi nginx:"
+            nginx -t
+            echo "========================================================================="
+            echo "Đang phục hồi vhost cũ..."
+            # Phục hồi vhost cũ
+            cp -rf /home/$mainwebsite/Backup.Vhost/$website.conf_HTTP /home/$mainwebsite/conf.d/$website.conf
+            echo "==> Đã phục hồi vhost cũ"
+            echo "========================================================================="
+            echo "==> CÀI ĐẶT SSL THẤT BẠI!"
+            echo "Vhost đã được phục hồi về trạng thái ban đầu."
+            echo "Vui lòng kiểm tra và sửa lỗi certificate trước khi thử lại."
+            echo "========================================================================="
+            echo "Nhấn [Enter] để thoát..."
+            read -r
+            exit 1
+            exit
+        else
+            /etc/dsnvps/menu/inc/re-start-nginx-service
+            clear
+            echo "========================================================================="
+            echo "Cài đặt Free SSL Cloudflare cho $website thành công."
+            echo "-------------------------------------------------------------------------"
+            echo "Truy cập $website trên trình duyệt để kiểm tra."
+            echo "-------------------------------------------------------------------------"
+            echo "Backup Vhost: /home/$mainwebsite/Backup.Vhost/$website.conf_HTTP"
+            echo "-------------------------------------------------------------------------"
+            echo "Backup SSL Vhost: /home/$mainwebsite/Backup.Vhost/$website.conf_HTTPS"; sleep 1
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        fi
+    ##########################################################################################################################
+    # WordPress Multisite Subsites
+    ##########################################################################################################################
+    elif [[ -s "/etc/dsnvps/.tmp/klaixx.txt" ]] && grep -Fxq "$website" /etc/dsnvps/.tmp/klaixx.txt 2>/dev/null; then
+        domain_goc_website=$(echo "$website" | awk -F '.' '{print $(NF-1)"."$NF}')
+        multisite_vhost_path="/home/$domain_goc_website/multisite.conf.d/$website.conf"
+        if [[ -f "$multisite_vhost_path" && -d "/home/$domain_goc_website/public_html" ]]; then
+            mainwebsite="$domain_goc_website"
+            rm -rf /etc/dsnvps/.tmp/servername
+            grep "server_name\ $website" "$multisite_vhost_path" > /etc/dsnvps/.tmp/servername
+            servername=$(cat /etc/dsnvps/.tmp/servername)
+            if [ ! -f /etc/dsnvps/.tmp/servername ]; then
+                clear
+                echo "========================================================================="
+                echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+                echo "-------------------------------------------------------------------------"
+                echo "DSNVPS không thể chạy chức năng này."
+                /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+                exit
+            fi
+            if [ "`grep "block.conf;" "$multisite_vhost_path"`" = "" ]; then
+                clear
+                echo "========================================================================="
+                echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+                echo "-------------------------------------------------------------------------"
+                echo "DSNVPS không thể chạy chức năng này"
+                /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+                exit
+            fi
+            rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+            cp -r "$multisite_vhost_path" /etc/dsnvps/.tmp/$website.conf.txt
+            # replace from 1 to server_name
+            sed -i "1,/${servername}/d" /etc/dsnvps/.tmp/$website.conf.txt
+            # Tao vhost ssl
+            rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+            ################### Lay WWW hoac Non_WWW
+            if [[ "$website" == www.* ]]; then
+                website_redirect="${website#www.}"
+            else
+                website_redirect="www.$website"
+            fi
+            #################################
+            # Multisite subsite luôn là subdomain → không tạo khối redirect
+            redirect_block=""
+            #################################
+            vhost_path="$multisite_vhost_path"
+            root_dir=$(grep -E '^[[:space:]]*root[[:space:]]' "$vhost_path" | awk '{print $2}' | sed 's/;$//' | head -1)
+            [[ -z "$root_dir" || ! -d "$root_dir" ]] && root_dir="/home/$domain_goc_website/public_html"
+            
+            
+            cat > "/etc/dsnvps/.tmp/SSL-$website.conf.txt" <<END
+server {
+listen 80;
+listen [::]:80;
+server_name $website;
+return       301 https://\$host\$request_uri;
+}
+$redirect_block
+server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+
+ssl_session_timeout 4h;
+ssl_session_tickets off; 
+ 
+ssl_prefer_server_ciphers on;
+include /etc/nginx/conf/ssl-protocol-cipherV2.conf;
+ssl_ecdh_curve X25519:P-256:P-384:P-224:P-521;
+ssl_buffer_size 1400;
+
+access_log off;
+#access_log   /home/$domain_goc_website/logs/access_log;
+
+#ssl_stapling on;
+#ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 10s;
+
+# Headers cho HTTP/3
+add_header Alt-Svc 'h3=":443"'; # Hoặc h3-29/h3-23 tùy trình duyệt
+add_header QUIC-Status "OK";
+add_header Strict-Transport-Security "max-age=31536000; preload" always;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+
+root $root_dir;
+include /etc/nginx/conf/ddos2.conf;
+index index.php index.html index.htm;
+$servername
+END
+            cd /etc/dsnvps/.tmp/ || exit 1
+            cat SSL-$website.conf.txt $website.conf.txt > $website.conf_HTTPS
+            
+            
+            rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+            rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+            cd "$HOME" || exit 1
+            if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+                mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+            fi
+            mkdir -p /etc/dsnvps/Backup.Vhost.SSL/$website
+            if [ ! -d /home/$domain_goc_website/Backup.Vhost ]; then
+                mkdir -p /home/$domain_goc_website/Backup.Vhost 
+            fi
+            ######### KIỂM TRA CERTIFICATE TRƯỚC KHI TẠO VHOST ##############
+            echo "========================================================================="
+            echo "Kiểm tra certificate trước khi tạo vhost SSL (Multisite Subsite)..."
+            echo "========================================================================="
+            # Kiểm tra certificate có tồn tại và hợp lệ không
+            if [ -f "/etc/nginx/paidssl/$website/$website.crt" ]; then
+                echo "OpenSSL validation:";sleep 1
+                echo "-------------------------------------------------------------------------"
+                openssl x509 -in "/etc/nginx/paidssl/$website/$website.crt" -noout 2>&1
+            fi
+            
+            if [ ! -f "/etc/nginx/paidssl/$website/$website.crt" ] || ! openssl x509 -in "/etc/nginx/paidssl/$website/$website.crt" -noout >/dev/null 2>&1; then
+                echo "========================================================================="
+                echo "==> LỖI: File certificate không tồn tại hoặc không hợp lệ!"
+                echo "========================================================================="
+                echo "Certificate path: /etc/nginx/paidssl/$website/$website.crt"
+                echo "========================================================================="
+                echo "Kiểm tra thư mục certificate:";sleep 1
+                echo "-------------------------------------------------------------------------"
+                ls -la /etc/nginx/paidssl/$website/ 2>/dev/null || echo "Thư mục không tồn tại"
+                echo "========================================================================="
+                echo "==> KHÔNG THỂ TIẾP TỤC CÀI ĐẶT SSL!"
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng kiểm tra và sửa lỗi certificate trước khi tiếp tục."
+                echo "========================================================================="
+                echo "Nhấn [Enter] để thoát..."
+                read -r
+                exit 1
+            else
+                echo "==> File certificate tồn tại và hợp lệ"
+            fi
+            echo "========================================================================="
+            
+            #Backup Vhost.Conf
+            cp -rf "$multisite_vhost_path" /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf
+            cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf_HTTPS
+            cp -rf "$multisite_vhost_path" /home/$domain_goc_website/Backup.Vhost/$website.conf_HTTP
+            cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$domain_goc_website/Backup.Vhost/$website.conf_HTTPS
+            cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS "$multisite_vhost_path"
+            echo "========================================================================="
+            
+            ######### CHECK CAI DAT THANH CONG HAY KHONG ##############
+            echo "========================================================================="
+            nginx -t
+            echo "========================================================================="
+            
+            if ! nginx -t &>/dev/null; then
+                echo "========================================================================="
+                echo "==> LỖI NGINX CONFIG - PHỤC HỒI VHOST CŨ (Multisite Subsite)"
+                echo "========================================================================="
+                echo "Website: $website"
+                echo "Main website (Multisite): $domain_goc_website"
+                echo "Vhost path: $multisite_vhost_path"
+                echo "========================================================================="
+                echo "Chi tiết lỗi nginx:";sleep 1
+                echo "-------------------------------------------------------------------------"
+                nginx -t
+                echo "========================================================================="
+                echo "Đang phục hồi vhost cũ..."
+                # Phục hồi vhost cũ
+                cp -rf /home/$domain_goc_website/Backup.Vhost/$website.conf_HTTP "$multisite_vhost_path"
+                echo "==> Đã phục hồi vhost cũ"
+                echo "========================================================================="
+                echo "==> CÀI ĐẶT SSL THẤT BẠI!"
+                echo "-------------------------------------------------------------------------"
+                echo "Vhost đã được phục hồi về trạng thái ban đầu."
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng kiểm tra và sửa lỗi certificate trước khi thử lại."
+                echo "========================================================================="
+                echo "Nhấn [Enter] để thoát..."
+                read -r
+                exit 1
+            else
+                /etc/dsnvps/menu/inc/re-start-nginx-service
+                clear
+                echo "========================================================================="
+                echo "Cài đặt Free SSL Cloudflare cho $website thành công."
+                echo "-------------------------------------------------------------------------"
+                echo "$website là Subsite của WordPress Multisite ($domain_goc_website)"
+                echo "-------------------------------------------------------------------------"
+                echo "Truy cập $website trên trình duyệt để kiểm tra."
+                echo "-------------------------------------------------------------------------"
+                echo "Backup Vhost: /home/$domain_goc_website/Backup.Vhost/$website.conf_HTTP"
+                echo "-------------------------------------------------------------------------"
+                echo "Backup SSL Vhost: /home/$domain_goc_website/Backup.Vhost/$website.conf_HTTPS"; sleep 1
+                /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+            fi
+        fi
+    else  # Non-Park Domains
+        rm -rf /etc/dsnvps/.tmp/servername
+        grep "server_name\ $website" /etc/nginx/conf.d/$website.conf > /etc/dsnvps/.tmp/servername
+        servername=$(cat /etc/dsnvps/.tmp/servername)
+        if [ ! -f /etc/dsnvps/.tmp/servername ]; then
+            clear
+            echo "========================================================================="
+            echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu"
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS không thể chạy chức năng này."
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+            exit
+        fi
+        if [ "`grep "block.conf;" /etc/nginx/conf.d/$website.conf`" = "" ]; then
+            clear
+            echo "========================================================================="
+            echo "Bạn đã thay đổi cấu hình file Vhost không đúng với config DSNVPS yêu cầu."
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS không thể chạy chức năng này"
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+            exit
+        fi
+        rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+        cp -r /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/$website.conf.txt
+        # replace from 1 to server_name
+        sed -i "1,/${servername}/d" /etc/dsnvps/.tmp/$website.conf.txt
+        # Tao vhost ssl
+        rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+        ################### Lay WWW hoac Non_WWW
+        if [[ "$website" == www.* ]]; then
+            # Nếu $website bắt đầu bằng "www."
+            website_redirect="${website#www.}"
+        else
+            # Nếu $website không bắt đầu bằng "www."
+            website_redirect="www.$website"
+        fi
+######
+#################################
+        # Kiểm tra xem $website có phải subdomain không sử dụng PSL
+        if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+            source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+            if is_subdomain_accurate "$website"; then
+                # Là subdomain → không tạo khối redirect
+                redirect_block=""
+            else
+                # Là domain chính → tạo redirect block
+                redirect_block="server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+server_name  $website_redirect;
+return       301 https://$website\$request_uri;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+}"
+            fi
+        else
+            # Fallback về logic cũ nếu không có file PSL
+        if echo "$website" | grep -E '^[a-z0-9-]+\.[a-z0-9-]+\.[a-z]+$' >/dev/null && [[ "$website" != www.* ]] ||
+           echo "$website" | grep -E '^[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+\.[a-z]+$' >/dev/null; then
+            # Là subdomain (sub.domain.com, sub.sub.domain.com) → không tạo khối redirect
+            redirect_block=""
+        else
+            # Là domain chính (domain.com, www.domain.com, domain.com.vn, www.domain.com.vn)
+            redirect_block="server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+server_name  $website_redirect;
+return       301 https://$website\$request_uri;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+}"
+            fi
+        fi
+        #################################
+        vhost_path="/etc/nginx/conf.d/$website.conf"
+        root_dir=$(grep -E '^[[:space:]]*root[[:space:]]' "$vhost_path" | awk '{print $2}' | sed 's/;$//' | head -1)
+        [[ -z "$root_dir" || ! -d "$root_dir" ]] && root_dir="/home/$website/public_html"
+        
+        
+        cat > "/etc/dsnvps/.tmp/SSL-$website.conf.txt" <<END
+server {
+listen 80;
+listen [::]:80;
+server_name $website $website_redirect;
+return       301 https://$website\$request_uri;
+}
+ $redirect_block
+server {
+listen 443 ssl;
+listen [::]:443 ssl;
+http2 on;
+http3 on;
+ssl_certificate /etc/nginx/paidssl/$website/$website.crt;
+ssl_certificate_key /etc/nginx/paidssl/$website/$website.key;
+ssl_trusted_certificate /etc/nginx/paidssl/$website/$website.ca;
+
+ssl_session_timeout 4h;
+ssl_session_tickets off; 
+ 
+ssl_prefer_server_ciphers on;
+include /etc/nginx/conf/ssl-protocol-cipherV2.conf;
+ssl_ecdh_curve X25519:P-256:P-384:P-224:P-521;
+ssl_buffer_size 1400;
+
+access_log off;
+#access_log   /home/$website/logs/access_log;
+
+#ssl_stapling on;
+#ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 10s;
+
+# Headers cho HTTP/3
+add_header Alt-Svc 'h3=":443"'; # Hoặc h3-29/h3-23 tùy trình duyệt
+add_header QUIC-Status "OK";
+add_header Strict-Transport-Security "max-age=31536000; preload" always;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+
+root $root_dir;
+include /etc/nginx/conf/ddos2.conf;
+index index.php index.html index.htm;
+$servername
+END
+        cd /etc/dsnvps/.tmp/ || exit 1
+        cat SSL-$website.conf.txt $website.conf.txt > $website.conf_HTTPS
+        
+        
+        rm -rf /etc/dsnvps/.tmp/SSL-$website.conf.txt
+        rm -rf /etc/dsnvps/.tmp/$website.conf.txt
+        cd "$HOME" || exit 1
+        if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+            mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+        fi
+        mkdir -p /etc/dsnvps/Backup.Vhost.SSL/$website
+        if [ ! -d /home/$website/Backup.Vhost ]; then
+            mkdir -p /home/$website/Backup.Vhost 
+        fi
+        ######### KIỂM TRA CERTIFICATE TRƯỚC KHI TẠO VHOST ##############
+        echo "========================================================================="
+        echo "Kiểm tra certificate trước khi tạo vhost SSL (Non-Park Domain)..."
+        echo "========================================================================="
+        # Kiểm tra certificate có tồn tại và hợp lệ không
+        if [ -f "/etc/nginx/paidssl/$website/$website.crt" ]; then
+            echo "OpenSSL validation:";sleep 1
+            echo "-------------------------------------------------------------------------"
+            openssl x509 -in "/etc/nginx/paidssl/$website/$website.crt" -noout 2>&1
+        fi
+        
+        if [ ! -f "/etc/nginx/paidssl/$website/$website.crt" ] || ! openssl x509 -in "/etc/nginx/paidssl/$website/$website.crt" -noout >/dev/null 2>&1; then
+            echo "========================================================================="
+            echo "==> LỖI: File certificate không tồn tại hoặc không hợp lệ!"
+            echo "========================================================================="
+            echo "Certificate path: /etc/nginx/paidssl/$website/$website.crt"
+            echo "========================================================================="
+            echo "Kiểm tra thư mục certificate:";sleep 1
+            echo "-------------------------------------------------------------------------"
+            ls -la /etc/nginx/paidssl/$website/ 2>/dev/null || echo "Thư mục không tồn tại"
+            echo "========================================================================="
+            echo "==> KHÔNG THỂ TIẾP TỤC CÀI ĐẶT SSL!"
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng kiểm tra và sửa lỗi certificate trước khi tiếp tục."
+            echo "========================================================================="
+            echo "Nhấn [Enter] để thoát..."
+            read -r
+            exit 1
+        else
+            echo "==> File certificate tồn tại và hợp lệ"
+        fi
+        echo "========================================================================="
+        
+        #Backup Vhost.Conf
+        cp -rf /etc/nginx/conf.d/$website.conf /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf
+        cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf_HTTPS
+        cp -rf /etc/nginx/conf.d/$website.conf /home/$website/Backup.Vhost/$website.conf_HTTP
+        cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /home/$website/Backup.Vhost/$website.conf_HTTPS
+        cp -rf /etc/dsnvps/.tmp/$website.conf_HTTPS /etc/nginx/conf.d/$website.conf
+        echo "========================================================================="
+        
+        ######### CHECK CAI DAT THANH CONG HAY KHONG ##############
+        echo "========================================================================="
+        nginx -t
+        echo "========================================================================="
+        
+        if ! nginx -t &>/dev/null; then
+            echo "========================================================================="
+            echo "==> LỖI NGINX CONFIG - PHỤC HỒI VHOST CŨ (Non-Park Domain)"
+            echo "========================================================================="
+            echo "Website: $website"
+            echo "-------------------------------------------------------------------------"
+            echo "Vhost path: /etc/nginx/conf.d/$website.conf"
+            echo "========================================================================="
+            echo "Chi tiết lỗi nginx:";sleep 1
+            echo "-------------------------------------------------------------------------"
+            nginx -t
+            echo "========================================================================="
+            echo "Đang phục hồi vhost cũ..."
+            # Phục hồi vhost cũ
+            cp -rf /home/$website/Backup.Vhost/$website.conf_HTTP /etc/nginx/conf.d/$website.conf
+            echo "==> Đã phục hồi vhost cũ"
+            echo "========================================================================="
+            echo "==> CÀI ĐẶT SSL THẤT BẠI!"
+            echo "-------------------------------------------------------------------------"
+            echo "Vhost đã được phục hồi về trạng thái ban đầu."
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng kiểm tra và sửa lỗi certificate trước khi thử lại."
+            echo "========================================================================="
+            echo "Nhấn [Enter] để thoát..."
+            read -r
+            exit 1
+        else
+            /etc/dsnvps/menu/inc/re-start-nginx-service
+            clear
+            echo "========================================================================="
+            echo "Cài đặt Free SSL Cloudflare cho $website thành công."
+            echo "-------------------------------------------------------------------------"
+            echo "Truy cập $website trên trình duyệt để kiểm tra."
+            echo "-------------------------------------------------------------------------"
+            echo "Backup Vhost: /home/$website/Backup.Vhost/$website.conf_HTTP"
+            echo "-------------------------------------------------------------------------"
+            echo "Backup SSL Vhost: /home/$website/Backup.Vhost/$website.conf_HTTPS"; sleep 1
+            /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        fi
+    fi

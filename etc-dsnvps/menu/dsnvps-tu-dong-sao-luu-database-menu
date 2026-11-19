@@ -1,0 +1,58 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+code=`date |md5sum |cut -c '1-12'`
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/listdabasehostingaz
+checksize=$(du -sb /etc/dsnvps/.tmp/listdabasehostingaz | awk 'NR==1 {print $1}')
+   if [ "$checksize" == "0" ]; then
+   clear
+   echo "========================================================================="
+   echo "Không phát hiện thấy Database đang được sử dụng trên server."
+   /etc/dsnvps/menu/dsnvps-them-xoa-database
+   exit
+   fi
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz | wc -l)
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz)
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz
+rm -rf /etc/dsnvps/.tmp/*check*
+for database in $listdatabasetrenserver 
+do
+if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+rm -rf /etc/dsnvps/.tmp/*list*
+clear
+echo "========================================================================="
+echo "Không tìm thấy database có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+ echo "=========================================================================" 
+echo "Hướng dẫn sử dụng: http://go.dsnvps/autobackupdata"
+
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
+options=("Bật/Tắt Tự Động Backup Database" "Danh Sách Database Được Bật Tự Động Backup")
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1 ) /etc/dsnvps/menu/dsnvps-befor-chon-tat-bat-tu-dong-sao-luu-database;;
+    2 ) /etc/dsnvps/menu/dsnvps-danh-sach-data-tu-dong-sao-luu-database;;
+0) clear; exit 0;;
+    *) echo "Bản nhập sai ! Bạn vui lòng chọn số trong danh sách.";continue;;
+
+    esac
+done

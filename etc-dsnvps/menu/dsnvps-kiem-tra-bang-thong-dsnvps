@@ -1,0 +1,211 @@
+#!/bin/bash
+
+# Update 6.1.6 ######################
+if ! command -v vnstat &>/dev/null; then
+    apt-get install -y -qq vnstat
+    systemctl enable vnstat --now -q
+    interfaces=$(ip -o link show | awk -F': ' '/state UP/ {print $2}')
+    # Tạo cơ sở dữ liệu vnStat cho các interface
+    for iface in $interfaces; do
+        # Kiểm tra nếu interface chưa có trong vnStat thì mới thêm
+        if ! vnstat -i "$iface" &>/dev/null; then
+            vnstat --create -i "$iface"
+            systemctl restart vnstat
+        fi
+    done
+   
+clear
+echo "========================================================================="
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+
+fi
+
+if ! systemctl is-active --quiet vnstat; then
+ systemctl start vnstat
+fi
+if vnstat --json | grep -q '"rx":0,"tx":0'; then
+    clear
+    echo "========================================================================="
+    echo "Chức năng này chưa đủ dữ liệu để chạy."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy chạy lại chức năng này sau ít phút nữa !"
+    dsnvps
+    exit
+fi
+##################################
+#echo "========================================================================="
+#echo "Please wait ..."; sleep 0.5
+#tput cuu 3 && tput ed
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+echo "Check Băng Thông UP/Down | Hướng dẫn: http://go.dsnvps/8620|"
+echo "========================================================================="
+
+while true; do
+    printf "%-38s %s\n" "1) Xem Thống Kê Nhanh              |""5) Thống Kê Theo Tháng              |"  
+    printf "%-38s %s\n" "2) Thống Kê Theo Giờ               |""6) Thống Kê Theo Ngày               |"
+    printf "%-37s %s\n" "3) Thống Kê Theo Giờ (Đồ họa)      |""7) Ngày Băng Thông Nhiều Nhất       |"
+    printf "%-39s %s\n" "4) Thống Kê Theo Thời Gian Thực    |""------------------------------------|"
+    echo "========================================================================="
+    
+    # Lựa chọn của người dùng
+    read -p "Lựa chọn cấu hình [0 -Thoát]: " choice
+
+    # Kiểm tra đầu vào là số
+    if [[ ! "$choice" =~ ^[0-9]+$ ]]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 2
+        ########## XÓA 9 DÒNG PHÍA TRÊN ################
+        tput cuu 8   # Di chuyển con trỏ lên 9 dòng
+        for ((i=0; i<8; i++)); do
+            tput el   # Xóa dòng hiện tại
+            tput cud1 # Di chuyển con trỏ xuống 1 dòng
+        done
+        tput cuu 8   # Quay lại vị trí ban đầu (đầu tiên của 9 dòng)
+        ################################################
+        continue
+    fi
+
+    if [[ "$choice" -eq 0 ]]; then
+        clear
+        echo "========================================================================="
+        echo "Thoát !"
+        dsnvps
+        exit 0
+    fi
+
+    # Thực hiện hành động tương ứng với lựa chọn
+    case "$choice" in
+    
+    #################################################################
+        1) 
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+        echo "========================================================================="
+        echo "                        Check Băng Thông UP/Down"
+        echo "========================================================================="
+        echo
+       
+vnstat | grep -v "estimated" | sed 's/monthly/Tháng:/' | sed 's/since/- Ngày Bắt Đầu Thống Kê:/' | sed 's/Database updated:/   Dữ Liệu Cập Nhật:/'| sed 's/daily/ Ngày:/'| sed 's/hourly/Theo Giờ/' | sed 's/yesterday/  Hôm Qua/' | sed 's/    today/  Hôm Nay/'| sed 's/hour /Giờ/' | sed 's/total/Tổng /' | sed 's/ avg. rate/Trung Bình /'| sed 's/  rx/Down/' | sed 's/tx/UP/'
+                echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        ;;
+#################################################################
+#################################################################
+
+#################################################################
+        2) 
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+        echo "========================================================================="
+        echo "                        Check Băng Thông UP/Down"
+        echo "========================================================================="
+vnstat -h | grep -v "estimated" | sed 's/hourly/Theo Giờ/'| sed 's/hour /Giờ/' | sed 's/total/Tổng /' | sed 's/ avg. rate/Trung Bình /'| sed 's/rx/Down/' | sed 's/tx/UP/'
+                echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        ;;
+#################################################################
+#################################################################
+        3) 
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+        echo "========================================================================="
+        echo "                      Check Băng Thông UP/Down"
+        echo "========================================================================="
+        echo "RX: Down | TX: Up "
+        echo "========================================================================="
+vnstat -hg
+echo         
+echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại menu ..."
+clear
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        ;;
+#################################################################
+#################################################################
+        4) 
+
+clear  
+/etc/dsnvps/menu/dsnvps-menu-all-function                
+printf "=========================================================================\n"
+echo "                      Check Băng Thông UP/Down"
+echo "========================================================================="
+echo "Nhấn [ 0 ] để quay trở lại menu    | |     Nhấn [ CTRL -C ] để thoát !"
+echo "========================================================================="
+
+# Chạy vnstat -l trong nền và lưu PID
+vnstat -l &  
+VNSTAT_PID=$!
+
+while true; do
+    read -t 1 -n 1 key
+    if [[ $key == "0" ]]; then
+        kill $VNSTAT_PID  # Dừng vnstat
+        wait $VNSTAT_PID 2>/dev/null  # Đợi tiến trình kết thúc
+        clear
+        systemctl start vnstat
+        #dsnvps
+        /etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        exit
+    fi
+done
+        ;;
+#################################################################
+#################################################################
+        5) 
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+        echo "========================================================================="
+        echo "                       Check Băng Thông UP/Down"
+        echo "========================================================================="
+vnstat -m | grep -v "estimated"| sed 's/monthly/Theo Tháng/' | sed 's/ month /Tháng/' | sed 's/total/Tổng /' | sed 's/ avg. rate/Trung Bình /'| sed 's/rx/Down/' | sed 's/tx/UP/'
+echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại menu ..."
+clear
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        ;;
+#################################################################
+#################################################################
+        6) 
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+        echo "========================================================================="
+        echo "                       Check Băng Thông UP/Down"
+        echo "========================================================================="
+vnstat -d | grep -v "estimated" | sed 's/daily/Theo Ngày/' | sed 's/   day/Ngày/'| sed 's/total/Tổng /' | sed 's/ avg. rate/Trung Bình /'| sed 's/rx/Down/' | sed 's/tx/UP/'
+echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại menu ..."
+clear
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        ;;
+#################################################################
+#################################################################
+        7) 
+        
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+        echo "========================================================================="
+        echo "                      Check Băng Thông UP/Down"
+        echo "========================================================================="
+vnstat -t | sed 's/top/Số ngày băng thông nhiều nhất:/' | sed 's/   day/Ngày/'| sed 's/total/Tổng /' | sed 's/ avg. rate/Trung Bình /'| sed 's/rx/Down/' | sed 's/tx/UP/'
+echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại menu ..."
+clear
+#dsnvps
+/etc/dsnvps/menu/dsnvps-kiem-tra-bang-thong-dsnvps
+        ;;
+#################################################################
+        *) echo "Lựa chọn không hợp lệ, vui lòng thử lại!";;
+    esac
+done

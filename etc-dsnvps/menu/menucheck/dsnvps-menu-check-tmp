@@ -1,0 +1,15 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -d /etc/dsnvps/.tmp/phuchoiwebsite ]; then
+rm -rf /etc/dsnvps/.tmp/phuchoiwebsite
+fi
+
+if [ ! -d /etc/dsnvps/.tmp ]; then
+mkdir -p /etc/dsnvps/.tmp
+fi

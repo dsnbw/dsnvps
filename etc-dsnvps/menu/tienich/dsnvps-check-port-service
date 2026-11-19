@@ -1,0 +1,65 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+echo "========================================================================="
+echo -n "Nhập port bạn muốn kiểm tra [0 -Thoát]: "
+read portservice
+if [ "$portservice" = "0" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+    exit
+fi
+if [ "$portservice" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, hãy nhập chính xác."
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+
+if [[ ! ${portservice} =~ ^[0-9]+$ ]] ;then 
+clear
+echo "========================================================================="
+echo "Port bạn nhập: ${portservice} không phải là số tự nhiên."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!" 
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+if ! [[ $portservice -ge 1 && $portservice -le 65535  ]] ; then  
+clear
+echo "========================================================================="
+echo "$portservice không đúng!"
+echo "-------------------------------------------------------------------------"
+echo "Port phải là số tự nhiên nằm trong khoảng (1 - 65535)."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!" 
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi  
+
+test_port=$(lsof -i:$portservice | awk 'NR==1 {print $1}')
+if [ "$test_port" == "" ]; then
+clear
+echo "========================================================================= "
+echo "Không có dịch vụ nào sử dụng port $portservice"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+echo "Vui lòng chờ...."; sleep 2
+clear
+echo "========================================================================="
+echo "Dịch vụ đang sử dụng port $portservice: "
+echo "-------------------------------------------------------------------------"
+lsof -i:$portservice
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+exit
+fi
+fi

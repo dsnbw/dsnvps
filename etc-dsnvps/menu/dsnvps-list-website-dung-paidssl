@@ -1,0 +1,48 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+echo "" > /etc/dsnvps/.tmp/checksite-list-ssl
+rm -rf /etc/dsnvps/.tmp/paidsslsec*
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//' | sed 's/^www.//')" > /etc/dsnvps/.tmp/abc
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/abc)
+for website in $sowebsitetrenserver 
+do
+if [ -d /home/$website/public_html ]; then
+echo "check" > /home/$website/public_html/dsnvps.check
+checkurlsttSSL=$(curl -o /dev/null --silent --head --write-out '%{http_code}' "https://$website/dsnvps.check")
+grep ssl_certificate_key /etc/nginx/conf.d/$website.conf > /etc/dsnvps/.tmp/paidsslsec0
+rm -rf /home/$website/public_html/dsnvps.check
+if [  "$checkurlsttSSL" == "200" ] && [ `ls -l /etc/dsnvps/.tmp/paidsslsec0 | awk '{print $5}'` -gt 1 ]; then
+rm -rf /home/$domain/public_html/dsnvps.check
+echo | openssl s_client -servername $website -connect $website:443 2>/dev/null | openssl x509 -noout -issuer > /etc/dsnvps/.tmp/paidsslsec
+grep O=Let /etc/dsnvps/.tmp/paidsslsec > /etc/dsnvps/.tmp/paidsslsec2
+if [ `ls -l /etc/dsnvps/.tmp/paidsslsec2 | awk '{print $5}'` -eq 0 ]; then
+echo "$website" >> /etc/dsnvps/.tmp/checksite-list-ssl
+fi
+fi
+fi
+done
+
+if [ `ls -l /etc/dsnvps/.tmp/checksite-list-ssl | awk '{print $5}'` -lt 5 ]; then
+clear
+echo "========================================================================="
+echo "Trên Server không có domain nào sử dụng PaidSSL."
+rm -rf /etc/dsnvps/.tmp/checksite-list-ssl
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+else
+clear
+echo "========================================================================="
+echo "Danh sách website sử dụng PaidSSL:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/checksite-list-ssl | pr -2 -t 
+rm -rf /etc/dsnvps/.tmp/checksite-list-ssl
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi

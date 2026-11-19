@@ -1,0 +1,117 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+mkdir -p /etc/dsnvps/.tmp/danhsachdatabasebackuphostingaz
+listdatabases=$(ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|sys|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)")
+code=`date |md5sum |cut -c '1-12'`
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for dataname in $listdatabases 
+do
+if [ -f /home/$mainsite/private_html/backup/$dataname/*.sql.gz ]; then
+echo "$dataname" >> /etc/dsnvps/.tmp/checksite-list
+fi
+done
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+clear
+echo "========================================================================="
+echo "DSNVPS không tìm thấy file backup database trên server"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit
+fi
+sodatabasecobackup=$(cat /etc/dsnvps/.tmp/checksite-list | wc -l)
+listdatabasedasaoluu=$(cat /etc/dsnvps/.tmp/checksite-list)
+getlink ()
+{
+find /home/$mainsite/private_html/backup/$dataname/ -name '*.sql.gz' -type f -exec basename {} \;  > /etc/dsnvps/.tmp/linkdatabasename
+filename=`cat /etc/dsnvps/.tmp/linkdatabasename`
+find /home/$mainsite/private_html/backup/$dataname/ -type f -exec basename {} \;  > /etc/dsnvps/.tmp/linkbackupall
+backupall=$(cat /etc/dsnvps/.tmp/linkbackupall)
+if [ "$(cat /etc/dsnvps/.tmp/linkbackupall | wc -l)" -gt 1 ]; then
+showinfo=`echo "File backup gần nhất (Thời gian backup $(date -r /home/$mainsite/private_html/backup/$dataname/$filename +%H:%M/%F)):" `
+else
+showinfo=`echo "File backup (Thời gian backup $(date -r /home/$mainsite/private_html/backup/$dataname/$filename +%H:%M/%F)): "`
+fi
+if [ "$(cat /etc/dsnvps/.tmp/linkbackupall | wc -l)" -gt 1 ]; then
+showinfo2=`echo "File backup gan nhat (Thoi gian backup $(date -r /home/$mainsite/private_html/backup/$dataname/$filename +%H:%M/%F)):" `
+else
+showinfo2=`echo "File backup (Thoi gian backup $(date -r /home/$mainsite/private_html/backup/$dataname/$filename +%H:%M/%F)): "`
+fi
+echo "========================================================================="
+echo "Tìm thấy file backup của: $dataname"
+echo "-------------------------------------------------------------------------"
+sleep 2
+echo "http://$serverip_priport/backup/$dataname/$filename"
+cd
+echo "" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "========================================================================================================================" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "Database [ $dataname ]" >> /home/$mainsite/private_html/LADB2-$code.txt 
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "$showinfo2"  >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "http://$serverip_priport/backup/$dataname/$filename" >> /home/$mainsite/private_html/LADB2-$code.txt
+touch /etc/dsnvps/.tmp/danhsachdatabasebackuphostingaz/$dataname
+#####################
+
+if [ "$(cat /etc/dsnvps/.tmp/linkbackupall | wc -l)" -gt 1 ]; then
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "Tat ca cac file backup:" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "------------------------------------------------------------------------------------------------------------------------" >> /home/$mainsite/private_html/LADB2-$code.txt
+for backupfile in $backupall
+do
+echo "http://$serverip_priport/backup/$dataname/$backupfile" >> /home/$mainsite/private_html/LADB2-$code.txt
+done
+fi
+#########################
+rm -rf /etc/dsnvps/.tmp/linkbackupall
+}
+
+echo "========================================================================="
+read -r -p "Bạn muốn lấy danh sách này? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "========================================================================="
+echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /home/$mainsite/private_html/LADB2*.txt
+echo "========================================================================================================================" > /home/$mainsite/private_html/LADB2-$code.txt
+echo "                                Link Download All Backup Files - Created by DSNVPS" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "========================================================================================================================" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "" >> /home/$mainsite/private_html/LADB2-$code.txt
+
+for dataname in $listdatabasedasaoluu 
+do
+getlink
+done
+echo "========================================================================="
+read -p "Nhấn [ Enter ] để tiếp tục"
+clear
+echo "========================================================================="
+echo "Database có backup:"
+echo "-------------------------------------------------------------------------"
+ls /etc/dsnvps/.tmp/danhsachdatabasebackuphostingaz | pr -2 -t
+echo "-------------------------------------------------------------------------"
+echo "Link download tất cả backup:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/LADB2-$code.txt"
+echo "" >> /home/$mainsite/private_html/LADB2-$code.txt
+echo "===================================================The End==============================================================" >> /home/$mainsite/private_html/LADB2-$code.txt
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+   ;;
+    *)
+    clear
+        echo "========================================================================= "
+echo "Hủy bỏ"
+        /etc/dsnvps/menu/dsnvps-them-xoa-database
+        ;;
+esac
+

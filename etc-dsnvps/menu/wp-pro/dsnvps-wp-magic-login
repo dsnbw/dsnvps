@@ -1,0 +1,46 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="${1:-}"
+[[ -z "$dom" ]] && dom="$(dsnvps_pick_domain wp)" || true
+[[ -z "$dom" ]] && exit 0
+
+echo "1) Tạo Link Đăng Nhập Nhanh WP-Admin 1-Click (tự hủy sau 5 phút)"
+echo "2) Đổi Mật Khẩu User Admin WordPress Nhanh"
+read -r -p "Chọn [1-2]: " act
+if [[ "$act" == "2" ]]; then
+    dsnvps_wp "$dom" user list --role=administrator --fields=ID,user_login,user_email
+    read -r -p "Nhập user_login hoặc ID muốn đổi mật khẩu: " u
+    read -r -s -p "Nhập mật khẩu mới: " np; echo ""
+    [[ -n "$u" && -n "$np" ]] && dsnvps_wp "$dom" user update "$u" --user_pass="$np" && echo -e "${C_GREEN}✔ Đổi mật khẩu thành công!${C_RESET}"
+    exit 0
+fi
+
+wp_path="/home/${dom}/public_html"
+mu_dir="${wp_path}/wp-content/mu-plugins"
+mkdir -p "$mu_dir"
+token="$(openssl rand -hex 24)"
+exp=$(( $(date +%s) + 300 ))
+mu_file="${mu_dir}/dsnvps-magic-login.php"
+
+cat > "$mu_file" <<PHP
+<?php
+if (isset(\$_GET['dsnvps_magic']) && hash_equals('${token}', (string)\$_GET['dsnvps_magic'])) {
+    if (time() <= ${exp}) {
+        \$admins = get_users(['role' => 'administrator', 'number' => 1, 'orderby' => 'ID', 'order' => 'ASC']);
+        if (!empty(\$admins)) {
+            wp_set_current_user(\$admins[0]->ID);
+            wp_set_auth_cookie(\$admins[0]->ID, true);
+            @unlink(__FILE__);
+            wp_safe_redirect(admin_url());
+            exit;
+        }
+    }
+    @unlink(__FILE__);
+}
+if (time() > ${exp}) { @unlink(__FILE__); }
+PHP
+chown nginx:nginx "$mu_file"
+siteurl="$(dsnvps_wp "$dom" option get siteurl 2>/dev/null || echo "https://${dom}")"
+echo -e "${C_GREEN}✔ Link đăng nhập 1-Click (hiệu lực 5 phút, tự hủy sau khi dùng):${C_RESET}"
+echo -e "${C_YELLOW}${siteurl}/?dsnvps_magic=${token}${C_RESET}"

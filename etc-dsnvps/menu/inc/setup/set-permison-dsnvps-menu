@@ -1,0 +1,41 @@
+#!/bin/bash
+find /etc/dsnvps/menu -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/checkddos -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/crontab -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/CSF-Fiwall -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/downloadlog -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/memcache -type f -exec chmod 755 {} \;
+#find /etc/dsnvps/menu/nangcap-php -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/opcache -type f -exec chmod 755 {} \;
+#find /etc/dsnvps/menu/pagespeed -type f -exec chmod 755 {} \;
+#find /etc/dsnvps/menu/swap -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/tienich -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/inc -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/inc/setup -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/rslisync -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/menucheck -type f -exec chmod 755 {} \;
+find /etc/dsnvps/menu/childmenu -type f -exec chmod 755 {} \;
+mkdir -p /etc/dsnvps/.tmp
+################################################################
+#shortcut DSNVPS - DSNVPSSC
+# Kiểm tra và tạo file /bin/v nếu chưa tồn tại
+if [[ ! -f /bin/v ]]; then
+    echo '#!/bin/bash' > /bin/v
+    echo 'dsnvps "$@"' >> /bin/v
+    chmod +x /bin/v
+fi
+
+# Kiểm tra và tạo file /bin/vsc nếu chưa tồn tại
+if [[ ! -f /bin/vsc ]]; then
+    echo '#!/bin/bash' > /bin/vsc
+    echo 'exec /etc/dsnvps/menu/inc/dsnvps-dsnvpssc-shortcut "$@"' >> /bin/vsc
+    chmod +x /bin/vsc
+fi
+################################################################
+# Đặt DNS tĩnh Google Và Cloudflare:
+conn_name=$(nmcli -t -f NAME,DEVICE connection show --active 2>/dev/null | grep -v ":lo" | cut -d: -f1 | head -n1)
+if [ -n "$conn_name" ]; then
+  nmcli connection modify "$conn_name" ipv4.dns "1.1.1.1 8.8.8.8" >/dev/null 2>&1
+  nmcli connection modify "$conn_name" ipv4.ignore-auto-dns yes >/dev/null 2>&1
+  nmcli connection up "$conn_name" >/dev/null 2>&1
+fi

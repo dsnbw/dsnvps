@@ -1,0 +1,52 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f ~/.ssh/id_rsa ]; then
+ssh-keygen -f ~/.ssh/id_rsa -q -P ""
+cat ~/.ssh/id_rsa.pub >> ~/.ssh/authorized_keys
+fi
+if [ ! -f /usr/bin/sshpass ]; then
+apt-get install -y -qq sshpass
+fi
+if [ ! -f ~/.ssh/config ]; then
+echo "StrictHostKeyChecking no" >> ~/.ssh/config
+else
+	if [ "`grep StrictHostKeyChecking ~/.ssh/config`" == "" ]; then
+	echo "StrictHostKeyChecking no" >> ~/.ssh/config
+	fi
+fi
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                         Quản Lý VPS Backup \n"
+printf "=========================================================================\n"
+printf "\n"
+echo "========================================================================="
+echo "Chức năng này cài đặt sao lưu dữ liệu server sang VPS khác."
+echo "----------------------------------------------------------------------"
+echo "Những Gì Bạn Cần Chuẩn Bị Trước:"
+echo "  - VPS backup hỗ trợ OS như CentOS, AlmaLinux, RockyLinux,"
+echo "    Ubuntu, Debian, v.v."
+echo "  - DSNVPS khuyến nghị dùng AlmaLinux 9 để được hỗ trợ tốt."
+echo "----------------------------------------------------------------------"
+echo "Thiết Lập Để Server An Toàn:"
+echo "  - Luôn luôn bật chế độ sao lưu tự động tất cả database và"
+echo "    sao lưu tự động tất cả website."
+echo "  - Luôn lưu trữ backup ở nhiều hơn 1 nơi như"
+echo "    trên 1 VPS khác (VPS backup chẳng bạn)."
+echo "----------------------------------------------------------------------"
+echo "Thông Tin Quan Trọng:"
+echo "  - Dữ liệu trên VPS backup vẫn an toàn nếu server chính"
+echo "    gặp sự cố hoặc mất hết dữ liệu."
+echo "  - Bạn có thể dùng một VPS backup cho nhiều server chạy DSNVPS"
+echo "    nếu đủ dung lượng đĩa."
+echo "  - VPS đang chạy website cũng có thể làm VPS backup."
+echo "======================================================================"
+read -p "Nhấn [Enter] để tiếp tục..."
+clear
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu

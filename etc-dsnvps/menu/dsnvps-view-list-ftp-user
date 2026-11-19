@@ -1,0 +1,42 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /home/$mainsite/private_html/ListFTPUser*.txt
+random=$(date |md5sum |cut -c '1-4')
+if [ ! -f /etc/pure-ftpd/pure-ftpd.conf ]; then
+clear
+echo "========================================================================= "
+echo "Pure-FTPD server chua duoc cai dat tren server. "
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải cài đặt chức năng Setup FTP server trước"
+/etc/dsnvps/menu/dsnvps-ftpserver-menu
+exit
+fi
+pure-pw list > /etc/dsnvps/.tmp/checkuser.tmp
+if [ "$(cat /etc/dsnvps/.tmp/checkuser.tmp)" == "" ]; then
+rm -rf /etc/dsnvps/.tmp/listftpuser.tmp
+clear
+echo "========================================================================= "
+echo "Ban chua tao mot tai khoan FTP nao !"
+/etc/dsnvps/menu/dsnvps-ftpserver-menu
+else
+echo "========================================================================= " > /home/$mainsite/private_html/ListFTPUser-$random.txt
+echo " FTPUser      |      Domain   " >> /home/$mainsite/private_html/ListFTPUser-$random.txt
+echo "========================================================================= " >> /home/$mainsite/private_html/ListFTPUser-$random.txt
+echo " " >> /home/$mainsite/private_html/ListFTPUser-$random.txt
+echo "" >> /home/$mainsite/private_html/ListFTPUser-$random.txt
+pure-pw list >> /home/$mainsite/private_html/ListFTPUser-$random.txt
+sed -i 's/\/.\///g' /home/$mainsite/private_html/ListFTPUser-$random.txt
+sed -i 's/\/home\///g' /home/$mainsite/private_html/ListFTPUser-$random.txt
+clear
+echo "========================================================================= "
+echo "Link view List FTP User on $serverip:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/ListFTPUser-$random.txt"
+/etc/dsnvps/menu/dsnvps-ftpserver-menu
+fi 

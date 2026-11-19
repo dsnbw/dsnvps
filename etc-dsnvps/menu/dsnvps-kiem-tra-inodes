@@ -1,0 +1,16 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."; sleep 2
+clear
+echo "========================================================================="
+echo "Trạng thái Inodes của Server:"
+echo "-------------------------------------------------------------------------"
+df -ih
+/etc/dsnvps/menu/dsnvps-tien-ich

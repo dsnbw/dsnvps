@@ -1,0 +1,57 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Dùng chức năng này để xem thông tin địa chỉ IP & Nameserver của 1 website"
+echo "-------------------------------------------------------------------------"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1116 "
+echo "========================================================================="
+echo -n "Nhập tên domain: "
+read website
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,6}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website Co the khong dung dinh dang domain!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ....";sleep 2
+if [ "$(host -t a $website | awk 'NR==1 {print $3}')" == "address" ]; then
+clear
+echo "========================================================================="
+echo "Thông tin cho $website:"
+echo "-------------------------------------------------------------------------"
+echo "IP Address: $(host -t a $website | awk 'NR==1 {print $4}')"
+echo "-------------------------------------------------------------------------"
+echo "Nameserver:"
+echo "-------------------------------------------------------------------------"
+host -t ns $website
+/etc/dsnvps/menu/dsnvps-tien-ich
+else
+clear
+echo "========================================================================="
+echo "Có thể domain $website bạn nhập"
+echo "-------------------------------------------------------------------------"
+echo "Không trỏ tới bất kỳ IP nào hoặc chưa đăng ký."
+/etc/dsnvps/menu/dsnvps-tien-ich
+exit
+fi
+

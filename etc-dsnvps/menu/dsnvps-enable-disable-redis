@@ -1,0 +1,42 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/checkredis
+
+upredis=$(/bin/systemctl status redis-server.service | grep running | grep -v not | wc -l);
+
+if [ "$upredis" -lt 1 ]; then
+redis-cli ping 2> /etc/dsnvps/.tmp/checkredis
+else
+redis-cli ping > /etc/dsnvps/.tmp/checkredis
+fi
+redistt=`cat /etc/dsnvps/.tmp/checkredis`
+if [ -f /etc/dsnvps/.tmp/checkredis ] && [ "$redistt" = "PONG" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ...";sleep 2
+
+systemctl disable redis-server.service
+systemctl stop redis-server.service
+
+clear
+echo "========================================================================= "
+echo "Tắt Redis Cache thành công."
+/etc/dsnvps/menu/dsnvps-redis-menu
+
+else
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."; sleep 2
+
+systemctl enable redis-server.service
+systemctl start redis-server.service
+
+clear
+echo "========================================================================= "
+echo "Bật Redis Cache thành công."
+/etc/dsnvps/menu/dsnvps-redis-menu
+fi

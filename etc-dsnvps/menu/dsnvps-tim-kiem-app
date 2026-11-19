@@ -1,0 +1,469 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Khai báo hàm unset_api ngay đầu script
+unset_api() {
+    unset API_KEY >/dev/null 2>&1
+    unset API_URL >/dev/null 2>&1
+}
+
+#################
+# Neu khong có thì thoat ngay:
+if [ ! -f "/etc/dsnvps/.tmp/zzz01ckla" ]; then
+echo "1" >/dev/null 2>&1
+exit
+fi
+# Xóa file check Neu khong có thì thoat ngay:
+if [ -f "/etc/dsnvps/.tmp/zzz01ckla" ]; then
+rm -rf /etc/dsnvps/.tmp/zzz01ckla
+fi
+##########
+
+
+# Hàm parse JSON bằng Python hoặc sed
+parse_json() {
+    local json="$1" key="$2" value
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import json' 2>/dev/null; then
+        value=$(echo "$json" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"$key\", \"\"))" 2>/dev/null)
+        [ "$value" = "None" ] && value=""
+        echo "$value"
+    else
+        value=$(echo "$json" | sed -n "s/.*\"$key\":\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}.*/\\1/p" | head -1)
+        [ "$value" = "null" ] && value=""
+        echo "$value"
+    fi
+}
+
+# Hàm parse JSON cho số bằng Python hoặc sed
+parse_json_number() {
+    local json="$1" key="$2" value
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import json' 2>/dev/null; then
+        value=$(echo "$json" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"$key\", 0) or 0)" 2>/dev/null)
+        echo "$value"
+    else
+        value=$(echo "$json" | sed -n "s/.*\"$key\":\\([0-9]*\\).*/\\1/p" | head -1)
+        [ -z "$value" ] || [ "$value" = "null" ] && value="0"
+        echo "$value"
+    fi
+}
+
+# Kiểm tra domain quản lý
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+}
+
+# Hàm lấy IP hiện tại
+get_public_ip() {
+    local ip
+    ip=$(curl -4 -s --max-time 10 https://checkip.amazonaws.com || wget -4 -qO- http://ipecho.net/plain || curl -4 -s --max-time 10 https://ifconfig.me)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+    else
+        error_exit "Không thể lấy địa chỉ IP VPS."
+    fi
+}
+
+# Hàm lấy số lõi CPU
+get_cpu_cores() {
+    local cores
+    cores=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo || echo "Unknown")
+    echo "$cores"
+}
+
+# Hàm lấy dung lượng RAM (MB)
+get_ram_mb() {
+    local ram
+    ram=$(free -m | awk '/^Mem:/ {print $2}' || echo "Unknown")
+    echo "$ram"
+}
+
+# Hàm lấy địa chỉ MAC
+get_mac_address() {
+    local iface mac
+    for dev in /sys/class/net/*; do
+        iface=$(basename "$dev")
+        [[ "$iface" == "lo" ]] && continue
+        [[ -f "$dev/address" ]] || continue
+        mac=$(cat "$dev/address" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+        if [[ "$mac" != "00:00:00:00:00:00" && -n "$mac" ]]; then
+            echo "$mac"
+            return
+        fi
+    done
+
+    if command -v ip >/dev/null; then
+        mac=$(ip link show | awk '/ether/ {print $2; exit}' | tr '[:upper:]' '[:lower:]')
+        if [[ "$mac" =~ ^[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}:[0-9a-f]{2}$ && "$mac" != "00:00:00:00:00:00" && -n "$mac" ]]; then
+            echo "$mac"
+            return
+        fi
+    fi
+
+    echo ""
+    return 1
+}
+
+# Hàm kiểm tra và cài đặt dependencies
+install_dependencies() {
+    if ! command -v curl >/dev/null 2>&1; then
+        apt-get install -y -qq curl >/dev/null 2>&1
+    fi
+    if ! command -v bc >/dev/null 2>&1; then
+        apt-get install -y -qq bc >/dev/null 2>&1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        apt-get install -y -qq python3 >/dev/null 2>&1
+    fi
+    if ! command -v pip3 >/dev/null 2>&1; then
+        apt-get install -y -qq python3-pip >/dev/null 2>&1
+    fi
+    if ! python3 -c 'import requests' >/dev/null 2>&1; then
+        pip3 install requests --quiet >/dev/null 2>&1
+    fi
+}
+
+# Hàm kiểm tra phiên bản DSNVPS
+check_dsnvps_version() {
+    local local_version=$(cat "$DSNVPS_VERSION_FILE" 2>/dev/null)
+    local response remote_version update_time
+
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import requests' 2>/dev/null; then
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=get_latest_version" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{}" 2>/dev/null)
+        remote_version=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"version\", \"\"))" 2>/dev/null)
+        update_time=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"updated_at\", \"\"))" 2>/dev/null)
+        status=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"status\", \"\"))" 2>/dev/null)
+    else
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=get_latest_version" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{}" 2>/dev/null)
+        status=$(parse_json "$response" "status")
+        remote_version=$(parse_json "$response" "version")
+        update_time=$(parse_json "$response" "updated_at")
+    fi
+
+    if [ "$status" != "success" ] || [ -z "$remote_version" ]; then
+        error_exit "Lỗi khi kiểm tra phiên bản DSNVPS."
+    fi
+    if [ "$local_version" != "$remote_version" ]; then
+        if [ -f /etc/dsnvps/dsnvpsnewversion ]; then
+            rm -rf /etc/dsnvps/dsnvpsnewversion
+        fi
+        clear
+        echo "========================================================================="
+        echo "Phát hiện cập nhật DSNVPS ! Bạn phải cập nhật DSNVPS lên phiên bản mới "
+        echo "-------------------------------------------------------------------------"
+        echo "nhất trước khi chạy chức năng này."
+        echo "-------------------------------------------------------------------------"
+        echo "Phiên bản mới: $remote_version - Thời gian update: $update_time"
+        echo "-------------------------------------------------------------------------"
+        echo "Phiên bản đang sử dụng: $local_version"
+        echo "-------------------------------------------------------------------------"
+        echo "Hướng dẫn: DSNVPS menu => Cập nhật phiên bản mới"
+        unset_api
+        #if [ -f /etc/dsnvps/dsnvpsnewversion ]; then
+        #rf -rf /etc/dsnvps/dsnvpsnewversion
+        #fi
+        dsnvps
+        exit 1
+    fi
+}
+
+# Hàm kiểm tra key qua API
+check_key_status() {
+    local key="$1" response status message
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import requests' 2>/dev/null; then
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=check_key" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$key\"}" 2>/dev/null)
+        status=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"status\", \"\"))" 2>/dev/null)
+        message=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"message\", \"\"))" 2>/dev/null)
+    else
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=check_key" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$key\"}" 2>/dev/null)
+        status=$(parse_json "$response" "status")
+        message=$(parse_json "$response" "message")
+    fi
+    if [ -n "$status" ] && [[ "$status" =~ ^(valid|invalid|expired)$ ]]; then
+        echo "$status"
+    else
+        [ "$status" = "error" ] && error_exit "$message"
+        error_exit "Không nhận được phản hồi từ DSNVPS.VN khi kiểm tra key."
+    fi
+}
+
+# Hàm kiểm tra thông tin key
+check_key_info() {
+    local key="$1" response status
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import requests' 2>/dev/null; then
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=get_key_info" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$key\"}" 2>/dev/null)
+        status=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"status\", \"\"))" 2>/dev/null)
+        echo "$response" > /tmp/key_info_response.log
+    else
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=get_key_info" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$key\"}" 2>/dev/null)
+        status=$(parse_json "$response" "status")
+        echo "$response" > /tmp/key_info_response.log
+    fi
+    if [ -n "$response" ] && [[ "$status" =~ ^(success|available)$ ]]; then
+        echo "$response"
+    else
+        [ "$status" = "error" ] && error_exit "$(parse_json "$response" "message")"
+        error_exit "Không nhận được phản hồi từ DSNVPS.VN khi lấy thông tin key."
+    fi
+}
+
+# Hàm kích hoạt key
+activate_key() {
+    local key="$1" ip="$2" cpu="$3" ram="$4" mac="$5" response status message
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import requests' 2>/dev/null; then
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=activate_key" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$key\",\"ip\":\"$ip\",\"cpu\":\"$cpu\",\"ram\":\"$ram\",\"mac\":\"$mac\"}" 2>/dev/null)
+        status=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"status\", \"\"))" 2>/dev/null)
+        message=$(echo "$response" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"message\", \"\"))" 2>/dev/null)
+    else
+        response=$(curl -s --max-time 15 -X POST "$API_URL/?action=activate_key" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"$key\",\"ip\":\"$ip\",\"cpu\":\"$cpu\",\"ram\":\"$ram\",\"mac\":\"$mac\"}" 2>/dev/null)
+        status=$(parse_json "$response" "status")
+        message=$(parse_json "$response" "message")
+    fi
+    if [ "$status" = "activated" ]; then
+        return 0
+    else
+        [ "$status" = "error" ] && error_exit "$message"
+        error_exit "Lỗi khi kích hoạt key !"
+    fi
+}
+
+# Kiểm tra và cài đặt dependencies
+install_dependencies
+
+# Kiểm tra phiên bản DSNVPS
+check_dsnvps_version
+
+# Kiểm tra trạng thái Pro hiện tại
+if [ -f "$CONFIG_A_FILE" ]; then
+    if grep -q "Businesscode" "$CONFIG_FILE"; then
+        check_connectivity
+        current_key=$(grep "Businesscode" "$CONFIG_FILE" | cut -d'"' -f2)
+        key_status=$(check_key_status "$current_key")
+        if [ "$key_status" = "expired" ]; then
+            if [ -f "$CONFIG_A_FILE" ]; then
+                rm -f "$CONFIG_A_FILE"
+            fi
+            sed -i '/Businesscode/d' "$CONFIG_FILE"
+            error_exit "Key đã hết hạn. Vui lòng đăng ký mới tại http://go.dsnvps/6789"
+        fi
+        key_info=$(check_key_info "$current_key")
+        usage_count=$(parse_json_number "$key_info" "usage_count")
+        activation_time=$(parse_json "$key_info" "activation_time")
+        valid_for=$(parse_json_number "$key_info" "valid_for")
+        saved_ip=$(parse_json "$key_info" "ip_address")
+        saved_mac=$(parse_json "$key_info" "mac_address")
+
+        if [ -z "$saved_ip" ] && [ -z "$saved_mac" ]; then
+            if [ -f "$CONFIG_A_FILE" ]; then
+                rm -f "$CONFIG_A_FILE"
+            fi
+            sed -i '/Businesscode/d' "$CONFIG_FILE"
+        else
+            activation_epoch=$(date -d "$activation_time" +%s 2>/dev/null || echo "0")
+            if [ "$activation_epoch" = "0" ]; then
+                error_exit "Không thể phân tích thời gian kích hoạt."
+            fi
+            current_epoch=$(date +%s)
+            expiry_epoch=$((activation_epoch + valid_for * 86400))
+            days_remaining=$(( (expiry_epoch - current_epoch) / 86400 ))
+
+            if [ "$days_remaining" -le 0 ]; then
+                remaining_text="Key đã hết hạn."
+                if [ -f "$CONFIG_A_FILE" ]; then
+                    rm -f "$CONFIG_A_FILE"
+                fi
+                sed -i '/Businesscode/d' "$CONFIG_FILE"
+                error_exit "Key đã hết hạn. Vui lòng đăng ký mới tại http://go.dsnvps/6789"
+            else
+                remaining_text="$days_remaining ngày"
+            fi
+            echo "========================================================================="
+            echo "DSNVPS đã được kích hoạt phiên bản Pro!"
+            echo "-------------------------------------------------------------------------"
+            echo "Key đang sử dụng: $current_key"
+            echo "-------------------------------------------------------------------------"
+            echo "Số lượt kích hoạt: $usage_count"
+            echo "-------------------------------------------------------------------------"
+            echo "Thời gian kích hoạt: $activation_time"
+            echo "-------------------------------------------------------------------------"
+            echo "Thời gian còn lại: $remaining_text"
+            echo "-------------------------------------------------------------------------"
+            read -p "Bạn có muốn dùng key khác để kích hoạt Pro cho Server không? [y/N]: " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                clear
+            else
+                unset_api
+                sleep 0.5
+                tput cuu 2 && tput ed
+                dsnvps
+                exit 0
+            fi
+        fi
+    fi
+fi
+
+echo "========================================================================="
+echo "Nâng cấp DSNVPS lên phiên bản Pro - Không giới hạn"
+echo "========================================================================="
+echo "Hướng dẫn Reset Key:"
+echo "-------------------------------------------------------------------------"
+echo "https://go.dsnvps/3824"
+echo "========================================================================="
+echo "Đăng ký/Gia hạn VPro365 Key:"
+echo "-------------------------------------------------------------------------"
+echo "=> Thanh toán qua Ngân Hàng: http://go.dsnvps/6789"
+echo "=> Thanh toán qua Paypal: http://go.dsnvps/3456"
+echo "========================================================================="
+read -p "Nhập VPro365 Key [0 -Thoát]: " key
+
+if [ -z "$key" ] || [ "$key" = "0" ]; then
+    clear
+    unset_api
+    dsnvps
+    exit 0
+fi
+if [ ${#key} -ne 32 ] || ! [[ "$key" =~ ^[A-Za-z0-9]+$ ]]; then
+    error_exit "Key không hợp lệ."
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Đang kiểm tra key..."
+sleep 2
+check_connectivity
+
+current_ip=$(get_public_ip)
+cpu_cores=$(get_cpu_cores)
+ram_mb=$(get_ram_mb)
+mac_address=$(get_mac_address)
+
+key_status=$(check_key_status "$key")
+if [ -z "$key_status" ]; then
+    error_exit "Không thể xác định trạng thái key."
+fi
+case "$key_status" in
+    "valid")
+        key_info=$(check_key_info "$key")
+        status=$(parse_json "$key_info" "status")
+        if [ "$status" = "success" ]; then
+            saved_ip=$(parse_json "$key_info" "ip_address")
+            saved_mac=$(parse_json "$key_info" "mac_address")
+            valid_for=$(parse_json_number "$key_info" "valid_for")
+            [ -z "$valid_for" ] && valid_for="0"
+            activation_time=$(parse_json "$key_info" "activation_time")
+
+            activation_epoch=$(date -d "$activation_time" +%s 2>/dev/null || echo "0")
+            if [ "$activation_epoch" = "0" ]; then
+                error_exit "Không thể phân tích thời gian kích hoạt."
+            fi
+            current_epoch=$(date +%s)
+            expiry_epoch=$((activation_epoch + valid_for * 86400))
+            if [ "$current_epoch" -ge "$expiry_epoch" ]; then
+                error_exit "Key đã hết hạn. Vui lòng đăng ký key mới tại https://go.dsnvps/6789"
+            fi
+
+            if [ -n "$saved_ip" ] && [ "$current_ip" != "$saved_ip" ]; then
+                error_exit "Key đã sử dụng cho IP: $saved_ip. Hãy Reset Key rồi Nâng Cấp lại."
+            elif [ -n "$saved_mac" ] && [ "$saved_mac" != "00:00:00:00:00:00" ] && [ "$mac_address" != "$saved_mac" ]; then
+                error_exit "Key này đã sử dụng cho server khác. Hãy Reset Key rồi Nâng Cấp lại."
+            fi
+        fi
+        echo "-------------------------------------------------------------------------"
+        echo "Key hợp lệ. Đang kích hoạt bản quyền Pro..."
+        sleep 2
+        if activate_key "$key" "$current_ip" "$cpu_cores" "$ram_mb" "$mac_address"; then
+            key_info=$(check_key_info "$key")
+            usage_count=$(parse_json_number "$key_info" "usage_count")
+            [ -z "$usage_count" ] && usage_count="0"
+            activation_time=$(parse_json "$key_info" "activation_time")
+            valid_for=$(parse_json_number "$key_info" "valid_for")
+            [ -z "$valid_for" ] && valid_for="0"
+
+            activation_epoch=$(date -d "$activation_time" +%s 2>/dev/null || echo "0")
+            if [ "$activation_epoch" = "0" ]; then
+                error_exit "Không thể phân tích thời gian kích hoạt."
+            fi
+            current_epoch=$(date +%s)
+            expiry_epoch=$((activation_epoch + valid_for * 86400))
+            days_remaining=$(( (expiry_epoch - current_epoch) / 86400 ))
+
+            if [ "$days_remaining" -le 0 ]; then
+                remaining_text="Key đã hết hạn."
+            else
+                remaining_text="$days_remaining ngày"
+            fi
+
+            if grep -q "Businesscode" "$CONFIG_FILE"; then
+                sed -i '/Businesscode/d' "$CONFIG_FILE"
+            fi
+            echo "Businesscode=\"$key\"" >> "$CONFIG_FILE"
+            
+            if grep -q "TrialMode" "$CONFIG_FILE"; then
+                sed -i '/TrialMode/d' "$CONFIG_FILE"
+            fi
+
+            if [ ! -f "$CONFIG_A_FILE" ]; then
+                cp /etc/dsnvps/menu/dsnvps-cau-hinh-folder-tam "$CONFIG_A_FILE"
+                chmod +x "$CONFIG_A_FILE"
+            fi
+            if [ -n "$activation_time" ] && date -d "$activation_time" >/dev/null 2>&1; then
+                touch -d "$activation_time" "$CONFIG_A_FILE"
+            else
+                touch "$CONFIG_A_FILE"
+            fi
+            
+            rm -rf "$TMP_DIR"/lanxade
+            rm -rf "$TMP_DIR"/lanxadecheck
+            rm -rf "$TMP_DIR"/hethan.txt
+            rm -rf "$TMP_DIR"/htrai.txt
+            unset_api
+            clear
+            echo "========================================================================="
+            echo "Hoàn tất nâng cấp DSNVPS lên phiên bản Pro!"
+            echo "-------------------------------------------------------------------------"
+            echo "Key: $key"
+            echo "Số lượt sử dụng: $usage_count"
+            echo "-------------------------------------------------------------------------"
+            echo "Thời gian kích hoạt: $activation_time"
+            echo "Thời gian còn lại: $remaining_text"
+            sleep 0.5
+            dsnvps
+            exit 0
+        fi
+        ;;
+    "expired")
+        key_info=$(check_key_info "$key")
+        activation_time=$(parse_json "$key_info" "activation_time")
+        error_exit "Key đã hết hạn sử dụng. Thời gian kích hoạt: $activation_time."
+        ;;
+    "invalid")
+        error_exit "Key không tồn tại hoặc không hợp lệ."
+        ;;
+esac

@@ -1,0 +1,66 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Sử dụng chức năng này để TẮT Zend Opcache cho server"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn tắt Zend Opcache không? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ...."; sleep 2
+
+        # Backup nội dung gốc vào /tmp
+         yes | cp -f /etc/php.d/opcache.ini /tmp/opcache.ini.backup
+
+        # Thay đổi opcache.enable thành 0
+        sed -i 's/^opcache\.enable=.*$/opcache.enable=0/' /etc/php.d/opcache.ini
+
+        # Nếu không có dòng opcache.enable nào (hiếm), thêm vào cuối file
+        if ! grep -q '^opcache\.enable=' /etc/php.d/opcache.ini; then
+            echo "opcache.enable=0" >> /etc/php.d/opcache.ini
+        fi
+
+        # Restart PHP-FPM
+        /etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+        # Kiểm tra PHP-FPM có chạy không
+        if [ ! "$(systemctl is-active php-fpm.service)" = "active" ]; then
+            # Khôi phục từ backup
+             yes | cp -f /tmp/opcache.ini.backup /etc/php.d/opcache.ini
+
+            # Restart lại để áp dụng cấu hình cũ
+            /etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+            # Dọn backup
+            rm -f /tmp/opcache.ini.backup
+
+            clear
+            echo "========================================================================="
+            echo "PHP không thể khởi động!"
+            echo "-------------------------------------------------------------------------"
+            echo "Đã khôi phục cấu hình cũ để tránh lỗi."
+            /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+            exit
+        fi
+
+        # Dọn backup khi thành công
+        rm -f /tmp/opcache.ini.backup
+
+        clear
+        echo "========================================================================="
+        echo "TẮT Zend OPcache thành công!"
+        /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+        ;;
+    *)
+        clear
+        echo "========================================================================="
+        echo "Hủy thao tác"
+        /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+        ;;
+esac

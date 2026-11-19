@@ -1,0 +1,51 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+chmod -R 777 /home/$mainsite/logs
+if [ -f /home/$mainsite/logs/mysql.log ]; then
+chown -R mysql:mysql /home/$mainsite/logs/mysql.log
+else
+touch /home/$mainsite/logs/mysql.log
+chown -R mysql:mysql /home/$mainsite/logs/mysql.log
+fi
+if [ -f /home/$mainsite/logs/mysql-slow.log ]; then
+chown -R mysql:mysql /home/$mainsite/logs/mysql-slow.log
+else
+touch /home/$mainsite/logs/mysql-slow.log
+chown -R mysql:mysql /home/$mainsite/logs/mysql-slow.log
+fi
+if [ -f /var/log/mysqld.log ]; then
+chown -R mysql:mysql /var/log/mysqld.log
+else
+touch /var/log/mysqld.log
+chown -R mysql:mysql /var/log/mysqld.log
+fi
+
+
+service mysql start >/dev/null 2>&1
+UP1=$(systemctl status mysql | grep running | grep -v not | wc -l);
+if [ ! "$UP1" -ne 1 ];
+then
+rm -rf /var/lib/mysql/ib_logfile*
+systemctl start mariadb >/dev/null 2>&1
+fi
+UP2=$(systemctl status mysql | grep running | grep -v not | wc -l);
+if [ ! "$UP2" -ne 1 ];
+then
+systemctl start mariadb >/dev/null 2>&1
+fi
+UP3=$(systemctl status mysql | grep running | grep -v not | wc -l);
+if [ ! "$UP3" -ne 1 ];
+then
+systemctl start mariadb >/dev/null 2>&1
+fi
+UP4=$(systemctl status mysql | grep running | grep -v not | wc -l);
+if [ ! "$UP4" -ne 1 ];
+then
+systemctl start mariadb >/dev/null 2>&1
+fi
+UP5=$(systemctl status mysql | grep running | grep -v not | wc -l);
+if [ ! "$UP5" -ne 1 ];
+then
+systemctl start mariadb >/dev/null 2>&1
+fi

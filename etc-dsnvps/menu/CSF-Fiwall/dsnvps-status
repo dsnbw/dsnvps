@@ -1,0 +1,61 @@
+#!/bin/bash 
+if [ -f /etc/csf/csf.conf ]; then
+printf "=========================================================================\n"
+printf "CSF Firewall should be installed to protect VPS/Server!!\n"
+
+read -r -p "Bạn có chắc chắn muốn gỡ bỏ CSF Firewall không? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "Prepare to remove CSF Firewall... "
+sleep 2
+cd /etc/csf
+sh uninstall.sh
+cd
+clear
+clear
+echo "========================================================================= "
+echo "Gỡ bỏ CSF Firewall khỏi server thành công"
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Bạn đã hủy bỏ việc gỡ bỏ CSF FIREWALL"
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Bạn đã hủy bỏ việc gỡ bỏ CSF FIREWALL"
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+fi
+echo "========================================================================= "
+echo "CSF Firewall nên được cài đặt để bảo vệ VPS/Server!"
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall chưa được cài đặt!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn cài đặt CSF Firewall trên VPS này không? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình CSF Firewall thành công"
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Bạn đã hủy cài đặt CSF Firewall!"
+
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+
+
+

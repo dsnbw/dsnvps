@@ -1,0 +1,71 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ]; then
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+		else
+				clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ Nginx"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, nginx đã dừng. Vui lòng BẬT lại trước khi sử dụng chức năng này."
+	echo "------------------------------------------------------------------------"
+	nginx -t
+	/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+fi
+
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+options=( "Cai Dat SSL Domain (Version 1)" "Cai Dat SSL Domain (Version 2)")
+printf "=========================================================================\n"
+printf "Ban hay cai dat SSL cho domain bang Version 1.\n"
+echo "-------------------------------------------------------------------------"
+echo "Neu Version 1 khong cai dat duoc, ban co the thu Version 2."
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachonxz="version1"; break;;
+    2) luachonxz="version2"; break;;
+    0) luachonxz="thoat"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+###################################
+if [ "$luachonxz" = "version1" ]; then
+/etc/dsnvps/menu/dsnvps-cai-dat-ssl-letsencrypt
+elif [ "$luachonxz" = "version2" ]; then
+/etc/dsnvps/menu/dsnvps-cai-dat-ssl-letsencrypt-version-2
+else
+clear
+exit 0
+fi
+#############################################################################

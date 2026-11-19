@@ -1,0 +1,80 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+if [ -f /etc/csf/csf.conf ]; then
+clear
+echo "========================================================================="
+echo "Chức năng này sử dụng để cảnh báo khi server chưa cài đặt CSF Firewall"
+echo "-------------------------------------------------------------------------"
+echo "Server đã được cài đặt CSF Firewall"
+echo "========================================================================="
+echo "Cảnh báo đã tự động TẮT"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+
+if [ ! -f /etc/dsnvps/tatthongbao.csf ]; then
+echo "========================================================================="
+echo "BẠN NÊN CÀI ĐẶT CSF FIREWALL ĐỂ BẢO VỆ VPS/SERVER !!!!!"
+echo "========================================================================="
+echo "Khi CSF Firewall chưa cài, DSNVPS sẽ hiển thị cảnh báo trên DSNVPS Menu"
+echo "-------------------------------------------------------------------------"
+echo "Chức năng này dùng để BẬT hoặc TẮT cảnh báo đó."
+echo "========================================================================="
+echo "Cảnh báo [Chưa cài đặt CSF] trên DSNVPS Menu đang được BẬT!"
+echo "========================================================================="
+read -r -p "Bạn muốn TẮT cảnh báo này?  [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "------------------------------------------------------------------------"
+    echo "Vui lòng chờ....";sleep 2
+	touch /etc/dsnvps/tatthongbao.csf
+clear
+echo "========================================================================="
+echo "Tắt cảnh báo thành công!"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn chọn sai, vui lòng chọn lại !"
+#echo "You typed wrong, Please fill accurately"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+esac
+else
+echo "========================================================================="
+echo "BẠN NÊN CÀI ĐẶT CSF FIREWALL ĐỂ BẢO VỆ VPS/SERVER  !!!!!"
+echo "========================================================================="
+echo "Khi CSF Firewall chưa cài đặt, DSNVPS sẽ hiển cảnh báo trên DSNVPS Menu"
+echo "-------------------------------------------------------------------------"
+echo "Chức năng này sử dụng để BẬT hoặc TẮT cảnh báo đó."
+echo "========================================================================="
+echo "Cảnh báo [ Chưa cài đặt CSF ] trên DSNVPS Menu đang được TẮT!"
+echo "========================================================================="
+read -r -p "Bạn muốn BẬT cảnh báo này? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+	rm -rf /etc/dsnvps/tatthongbao.csf
+clear
+echo "========================================================================="
+echo "BẬT cảnh báo thành công!"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+    *)
+        clear
+echo "========================================================================="
+echo "Bạn chọn sai, vui lòng chọn lại !"
+#echo "You typed wrong, Please fill accurately"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+esac
+fi

@@ -1,0 +1,28 @@
+#!/bin/bash
+printf "=========================================================================\n"
+echo "Trong màn hình kiểm tra => Nhấn [ 0 ] để thoát !"
+
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để bắt đầu kiểm tra ..."
+
+clear  # Xóa màn hình một lần
+/etc/dsnvps/menu/dsnvps-menu-all-function                
+printf "=========================================================================\n"
+printf "                  DoS/DDoS, Flood, SQL Injection, XSS...\n"
+printf "=========================================================================\n"
+echo "Nhấn [ 0 ] để thoát !"
+printf "=========================================================================\n"
+
+# Start updating the content every 2 seconds
+while true; do
+    echo -ne "\033[10;0H"  # Move the cursor to line 10, column 0 (can be adjusted)
+    netstat -an | grep -E ':80|:443' | awk '{print $5}' | cut -d":" -f1 | sort | uniq -c | sort -rn
+    
+    # Check if the user pressed 'Q' to quit or clean screen and run DDOS check
+    read -t 2 -n 1 key  # Wait for 2 seconds for input, only 1 character
+    if [[ $key == "0" || $key == "o" || $key == "O" ]]; then
+        clear
+         /etc/dsnvps/menu/dsnvps-kiem-tra-ddos  # Run the DDOS check script
+        exit
+    fi
+done

@@ -1,0 +1,316 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+####################################################
+########## Check File check ban quyen. Khong hop le thi out
+rm -rf /etc/dsnvps/.tmp/sllokie
+mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+if [ ! /etc/dsnvps/.tmp/sllokie ]; then
+clear
+echo "========================================================================="
+echo "Vui lòng cập nhật DSNVPS lên phiên bản Pro để sử dụng chức năng này !"
+dsnvps
+fi
+rm -rf /etc/dsnvps/.tmp/sllokie
+############################################
+################################################
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để tạo (thêm) database mới trên server"
+echo "-------------------------------------------------------------------------"
+echo "Tên database và mật khẩu: Tối thiểu 6 và tối đa 32 ký tự."
+echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Nhập tên database [0 -Thoát]: "
+    read dataname
+    dataname=$(echo "$dataname" | tr '[A-Z]' '[a-z]')
+
+    if [ "$dataname" = "0" ]; then
+        clear
+        dsnvps
+        exit
+    fi
+
+    if [ -z "$dataname" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue
+    fi
+
+    if [[ "$dataname" =~ ^[0-9]+$ ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn không thể sử dụng toàn chữ số để đặt tên database."
+        sleep 3;tput cuu 3; tput ed
+        continue
+    fi
+
+    if [ ${#dataname} -gt 31 ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Tên database phải dưới 32 ký tự."
+        sleep 3;tput cuu 3; tput ed
+        continue
+    fi
+
+    kiemtradata="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$dataname" =~ $kiemtradata ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn chỉ được dùng số, chữ cái và ký tự: _. Vui lòng thử lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue
+    fi
+
+    if [ ${#dataname} -lt 7 ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Tạo $dataname thất bại! Tên database phải trên 6 ký tự."
+        sleep 3;tput cuu 3; tput ed
+        continue
+    fi
+
+    if [ -f /var/lib/mysql/"$dataname"/db.opt ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Database $dataname đã tồn tại trên server."
+        sleep 3;tput cuu 3; tput ed
+        continue
+    fi
+
+    # Nếu vượt qua tất cả kiểm tra, thoát vòng lặp để tiếp tục xử lý
+    break
+done
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE $dataname CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+END
+
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+if [ ! -f /var/lib/mysql/$dataname/db.opt ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tạo Data $dataname thất bại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại dịch vụ MySQL"; sleep 3
+clear
+echo "========================================================================="
+echo "Tạo Data $dataname thất bại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại dịch vụ MySQL"
+dsnvps
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Tạo data $dataname thành công !"
+echo "-------------------------------------------------------------------------"
+echo "Default Charset is utf8mb4_unicode_520_ci !"
+echo "========================================================================="
+read -r -p "Bạn muốn tạo user mới cho $dataname ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    # Kiểm tra username
+  echo "-------------------------------------------------------------------------"
+    while true; do
+        echo -n "Nhập username [0 -Thoát]: "
+        read username
+        username=$(echo "$username" | tr '[A-Z]' '[a-z]')
+
+        if [ "$username" = "0" ]; then
+            clear
+            dsnvps
+            exit
+        fi
+
+        if [ -z "$username" ]; then
+            username="$dataname"
+            echo "-------------------------------------------------------------------------"
+            echo "Bạn nhập sai, chúng tôi sẽ sử dụng username là: $username"
+            break
+        fi
+
+        if [[ "$username" =~ ^[0-9]+$ ]]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Bạn không thể sử dụng toàn chữ số để đặt tên username."
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        if [ ${#username} -gt 32 ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Username tối đa là 32 ký tự."
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        kiemtrauser="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+        if [[ ! "$username" =~ $kiemtrauser ]]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Bạn chỉ được dùng số, chữ cái và ký tự: _. Vui lòng thử lại!"
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        if [ ${#username} -lt 6 ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Username tối thiểu phải có 6 ký tự."
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        break
+    done
+echo "-------------------------------------------------------------------------"
+    # Kiểm tra password
+    while true; do
+        echo -n "Nhập password [0 -Thoát]: "
+        read password
+
+        if [ "$password" = "0" ]; then
+            clear
+            dsnvps
+            exit
+        fi
+
+        if [ -z "$password" ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Bạn nhập sai, vui lòng nhập lại!"
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        if [[ "$password" =~ ^[0-9]+$ ]]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Bạn không thể sử dụng toàn chữ số để đặt password."
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        if [ ${#password} -gt 32 ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Password tối đa là 32 ký tự."
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        kiemtrapass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+        if [[ ! "$password" =~ $kiemtrapass ]]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Bạn chỉ được dùng số, chữ cái và ký tự: _. Vui lòng thử lại!"
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+
+        if [ ${#password} -lt 6 ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Password tối thiểu phải có 6 ký tự."
+sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        break
+    done
+echo "-------------------------------------------------------------------------"
+	echo "Vui lòng chờ...";sleep 2
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE USER '$username'@'localhost' IDENTIFIED BY '$password';
+END
+
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -rf /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+GRANT ALL PRIVILEGES ON $dataname . * TO '$username'@'localhost';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -rf /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+FLUSH PRIVILEGES;
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -rf /etc/dsnvps/.tmp/config.temp
+	
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Database: $dataname - Duoc tao vao: $(date +%d/%m/%Y)" >> /root/DBinfo.txt
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Data name: $dataname" >> /root/DBinfo.txt
+echo "Username: $username" >> /root/DBinfo.txt
+echo "password: $password" >> /root/DBinfo.txt
+echo "" >> /root/DBinfo.txt
+if [ ! -f /var/lib/mysql/$dataname/db.opt ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tạo database $dataname thất bại !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại"; sleep 3
+clear
+echo "========================================================================="
+echo "Tạo database $dataname thất bại !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại"
+dsnvps
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Tạo Database $dataname thành công. Thông tin Database: "
+echo "-------------------------------------------------------------------------"
+echo "Database: $dataname"
+echo "-------------------------------------------------------------------------" 
+echo "Username: $username | Password: $password" 
+echo "-------------------------------------------------------------------------"
+echo "Xem lại thông tin database: "
+echo "-------------------------------------------------------------------------"
+echo "Quản Lý & Kiểm Tra Database => Xem User & Password Database."; sleep 1
+clear
+echo "========================================================================="
+echo "Tạo Database $dataname thành công. Thông tin Database: "
+echo "-------------------------------------------------------------------------"
+echo "Database: $dataname"
+echo "-------------------------------------------------------------------------" 
+echo "Username: $username | Password: $password" 
+dsnvps
+            ;;
+    *)
+
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Database: $dataname - Duoc tao vao: $(date +%H:%M-%d/%m/%Y)" >> /root/DBinfo.txt
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Data name: $dataname" >> /root/DBinfo.txt
+echo "Username: root" >> /root/DBinfo.txt
+echo "password: $mariadbpass" >> /root/DBinfo.txt
+echo "" >> /root/DBinfo.txt
+
+	echo ""
+        ;;
+esac
+if [ ! -f /var/lib/mysql/$dataname/db.opt ]; then
+echo "Tạo database $dataname thất bại !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại"; sleep 3
+clear
+echo "========================================================================="
+echo "Tạo database $dataname thất bại !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại"
+dsnvps
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Tạo Database $dataname thành công. Thông tin Database: "
+echo "-------------------------------------------------------------------------"
+echo "Tên database: $dataname"
+echo "-------------------------------------------------------------------------" 
+echo "Username: root | Password: $mariadbpass" 
+echo "-------------------------------------------------------------------------"
+echo "Xem lại thông tin database: "
+echo "-------------------------------------------------------------------------"
+echo "Quản Lý & Kiểm Tra Database => Xem User & Password Database."; sleep 1
+clear
+echo "========================================================================="
+echo "Tạo Database $dataname thành công. Thông tin Database: "
+echo "-------------------------------------------------------------------------"
+echo "Tên database: $dataname"
+echo "-------------------------------------------------------------------------" 
+echo "Username: root | Password: $mariadbpass" 
+dsnvps
+exit
+fi

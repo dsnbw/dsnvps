@@ -1,0 +1,220 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+rm -rf /etc/dsnvps/.tmp/op0axf.txt
+rm -rf /etc/dsnvps/.tmp/wordpresslist_with_status
+###########################################################################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/op0axf.txt"
+
+# Xóa nội dung cũ của file kết quả
+> "$output_file"
+
+# Duyệt qua tất cả các file vhost trong thư mục Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    website_home="$home_folder/$domain"
+
+    # Xác định file wp-config.php
+    if [[ -f "$website_home/wp-config.php" ]] && grep -q "DB_NAME" "$website_home/wp-config.php"; then
+        config_file="$website_home/wp-config.php"
+    elif [[ -f "$website_home/public_html/wp-config.php" ]] && grep -q "DB_NAME" "$website_home/public_html/wp-config.php"; then
+        config_file="$website_home/public_html/wp-config.php"
+    else
+        continue
+    fi
+
+    # Kiểm tra nếu không có "DISABLE_WP_CRON" hoặc giá trị "false"
+    if grep -q "define('DISABLE_WP_CRON', false);" "$config_file" || ! grep -q "DISABLE_WP_CRON" "$config_file"; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+
+# Kiểm tra kết quả
+if [[ -s "$output_file" ]]; then
+ALL_WEBSITES_FILE="/etc/dsnvps/.tmp/wordpresslist"
+KLAND_FILE="/etc/dsnvps/.tmp/op0axf.txt"
+OUTPUT_FILE="/etc/dsnvps/.tmp/wordpresslist_with_status"
+> "$OUTPUT_FILE"
+while read -r domain; do
+    if grep -q "^$domain$" "$KLAND_FILE"; then
+        echo "$domain**" >> "$OUTPUT_FILE"
+    else
+        echo "$domain" >> "$OUTPUT_FILE"
+    fi
+done < "$ALL_WEBSITES_FILE" 
+else
+mv /etc/dsnvps/.tmp/wordpresslist /etc/dsnvps/.tmp/wordpresslist_with_status
+fi
+####################################################################################
+
+echo "========================================================================="
+echo "Mặc định, WP-Cron.php luôn BẬT trên WordPress Website"
+echo "-------------------------------------------------------------------------"
+echo "Sử dụng chức năng này để TẮT - BẬT tính năng này."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1104"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist_with_status
+echo "========================================================================="
+echo "Danh sách các website WordPress trên server: | ** : Wp-cron.php đang BẬT"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=$(echo "${danh_sach_website[lua_chon-1]}" | sed 's/**$//')
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+
+if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+config_file="/home/$website/wp-config.php"
+else
+config_file="/home/$website/public_html/wp-config.php"
+fi	
+if grep -q "define('DISABLE_WP_CRON', false);" "$config_file" || ! grep -q "DISABLE_WP_CRON" "$config_file"; then
+        wpcron="bat"
+fi
+
+if [ "$wpcron" = "bat" ]; then
+echo "========================================================================="
+echo "$website hiện tại đang BẬT WP-Cron.php"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT WP-Cron.php? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."  		
+    sleep 2
+		sleep 2
+if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+config_file="/home/$website/wp-config.php"
+else
+config_file="/home/$website/public_html/wp-config.php"
+fi	
+if grep -q "define('DISABLE_WP_CRON', false);" "$config_file"; then
+        sed -i "s/define('DISABLE_WP_CRON', false);/define('DISABLE_WP_CRON', true);/" "$config_file"
+    else
+        sed -i "/define( 'DB_COLLATE', '' );/a define('DISABLE_WP_CRON', true);" "$config_file"
+    fi
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+clear
+echo "========================================================================="
+echo "TẮT WP-Cron.php cho $website thành công!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+   echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        ;;
+esac
+exit
+fi
+
+echo "========================================================================="
+echo "$website hiện tại đang TẮT wp-cron.php"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn BẬT wp-cron.php? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng chờ..."
+		sleep 2
+if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+config_file="/home/$website/wp-config.php"
+else
+config_file="/home/$website/public_html/wp-config.php"
+fi
+if grep -q "define('DISABLE_WP_CRON', true);" "$config_file"; then
+        sed -i "s/define('DISABLE_WP_CRON', true);/define('DISABLE_WP_CRON', false);/" "$config_file"
+    else
+        sed -i "/define( 'DB_COLLATE', '' );/a define('DISABLE_WP_CRON', false);" "$config_file"
+    fi
+    	
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+echo "========================================================================="
+echo "BẬT wp-cron.php cho $website thành công !"
+
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+       ;;
+    *)
+    clear
+    echo "========================================================================="
+   echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        ;;
+esac
+exit
+fi

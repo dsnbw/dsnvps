@@ -1,0 +1,93 @@
+#!/bin/bash
+apt-get install -y -qq pure-ftpd
+sed -i 's/ChrootEveryone/#ChrootEveryone/g' /etc/pure-ftpd/pure-ftpd.conf
+sed -i 's/VerboseLog/#VerboseLog/g' /etc/pure-ftpd/pure-ftpd.conf
+sed -i 's/NoAnonymous/#NoAnonymous/g' /etc/pure-ftpd/pure-ftpd.conf
+sed -i 's/MaxClientsPerIP[[:space:]]*[0-9]*/MaxClientsPerIP              321/g' /etc/pure-ftpd/pure-ftpd.conf
+sed -i 's/MaxClientsNumber[[:space:]]*[0-9]*/MaxClientsNumber             123/g' /etc/pure-ftpd/pure-ftpd.conf
+echo "
+ChrootEveryone yes
+UnixAuthentication yes
+VerboseLog yes
+CreateHomeDir yes
+NoAnonymous yes
+PureDB /etc/pure-ftpd/pureftpd.pdb
+PassivePortRange          30000 50000
+TLS 1
+" >> /etc/pure-ftpd/pure-ftpd.conf ;
+openssl req -x509 -nodes -days 7200 -newkey rsa:2048 -keyout /etc/ssl/private/pure-ftpd.pem -out /etc/ssl/private/pure-ftpd.pem -subj "/C=US/ST=DSNVPS FTP/L=DSNVPS FTP/O=DSNVPS FTP/CN=DSNVPS FTP"
+if [ ! -f /etc/dsnvps/pure-ftpd.pem ]; then
+yes | cp -rf /etc/ssl/private/pure-ftpd.pem /etc/dsnvps/pure-ftpd.pem
+fi
+if [ "$(grep /etc/ssl/private/pure-ftpd.pem /etc/pure-ftpd/pure-ftpd.conf)" != "" ]; then
+sed -i 's/\/etc\/ssl\/private\/pure-ftpd.pem/\/etc\/dsnvps\/pure-ftpd.pem/g' /etc/pure-ftpd/pure-ftpd.conf
+fi
+if [ "$(grep CertFile\ /etc/dsnvps/pure-ftpd.pem /etc/pure-ftpd/pure-ftpd.conf)" == "" ]; then
+echo "
+TLSCipherSuite HIGH
+CertFile /etc/dsnvps/pure-ftpd.pem
+" >> /etc/pure-ftpd/pure-ftpd.conf ;
+fi
+sed -i "s/.*TLSCipherSuite\ HIGH.*/TLSCipherSuite\ HIGH/g" /etc/pure-ftpd/pure-ftpd.conf
+sed -i "s/.*CertFile\ \/etc\/dsnvps\/pure-ftpd.pem.*/CertFile\ \/etc\/dsnvps\/pure-ftpd.pem/g" /etc/pure-ftpd/pure-ftpd.conf
+systemctl enable pure-ftpd 
+systemctl start pure-ftpd 
+systemctl restart pure-ftpd 
+#iptables -I INPUT 2 -p tcp --dport 30000:50000 -j ACCEPT
+#iptables -I INPUT 2 -p udp --dport 30000:50000 -j ACCEPT
+#iptables -I INPUT 2 -p tcp --dport 21 -j ACCEPT
+#iptables -I INPUT 2 -p udp --dport 21 -j ACCEPT
+#service iptables save
+#!/bin/bash
+# Kim tra phi�n bn RHEL
+vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
+
+#######################################
+if [ "$vercheck" -lt 10 ]; then
+        # �p dng quy tc iptables
+        iptables -I INPUT 2 -p tcp --dport 30000:50000 -j ACCEPT  # FTP passive ports hoc dch v kh�c
+        iptables -I INPUT 3 -p udp --dport 30000:50000 -j ACCEPT  # FTP passive ports hoc dch v kh�c
+        iptables -I INPUT 4 -p tcp --dport 21 -j ACCEPT  # FTP (TCP)
+        iptables -I INPUT 5 -p udp --dport 21 -j ACCEPT  # FTP (UDP, him d�ng)
+        # Lu cu h�nh
+        service iptables save
+else
+######################
+# Kiểm tra và tạo bảng/chain nếu chưa tồn tại
+if ! nft list table inet filter >/dev/null 2>&1; then
+    nft add table inet filter
+fi
+if ! nft list chain inet filter input >/dev/null 2>&1; then
+    nft add chain inet filter input "{ type filter hook input priority 0; policy drop; }"
+fi
+
+# Bổ sung quy tắc vào cuối chuỗi input
+nft add rule inet filter input tcp dport 30000-50000 accept
+nft add rule inet filter input udp dport 30000-50000 accept
+nft add rule inet filter input tcp dport 21 accept
+nft add rule inet filter input udp dport 21 accept
+
+# Lưu cấu hình
+mkdir -p /etc/nftables
+nft list ruleset > /etc/nftables/main.nft
+chmod 600 /etc/nftables/main.nft
+
+# Cập nhật /etc/nftables.conf để include ruleset
+if [ ! -f /etc/nftables.conf ]; then
+    printf '#!/usr/sbin/nft -f\nflush ruleset\n' > /etc/nftables.conf
+    echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+elif ! grep -Fx 'include "/etc/nftables/main.nft"' /etc/nftables.conf >/dev/null; then
+    echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+fi
+
+# Khởi động lại nftables để áp dụng
+systemctl restart nftables
+####################
+fi
+
+######################################
+#chown -R nginx:nginx /home
+if [ -f /etc/csf/csf.conf ]; then
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd
+fi
+

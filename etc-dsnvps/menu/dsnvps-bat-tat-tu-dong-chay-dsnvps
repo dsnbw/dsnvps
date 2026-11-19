@@ -1,0 +1,78 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /root/.bash_profile ]; then
+clear
+echo "========================================================================="
+echo "Không thể tìm thấy file /root/.bash_profile"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này trên server này"
+
+sleep 2
+/etc/dsnvps/menu/childmenu/dsnvps-tien-ich
+exit
+fi
+
+if [ "$(grep "/bin/dsnvps" /root/.bash_profile)" == "" ]; then
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1120 "
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT/TẮT chức năng tự động chạy DSNVPS khi login"
+echo "-------------------------------------------------------------------------"
+echo "SSH vào Server. Hiện tại chức năng này đang TẮT."
+echo "========================================================================="
+read -r -p "Bạn muốn BẬT chức năng này? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "
+    sleep 2
+echo "/bin/dsnvps" >> /root/.bash_profile
+clear
+echo "========================================================================="
+echo "BẬT chức năng tự động chạy DSNVPS khi login SSH vào server thành công ! "; sleep 2
+/etc/dsnvps/menu/childmenu/dsnvps-tien-ich
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Hủy bỏ "
+dsnvps
+  exit
+;;
+esac
+else
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1120 "
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT/TẮT chức năng tự động chạy DSNVPS khi login"
+echo "-------------------------------------------------------------------------"
+echo "SSH vào Server. Hiện tại chức năng này đang TẮT."
+echo "========================================================================="
+read -r -p "Bạn muốn TẮT chức năng này? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "
+    sleep 2
+    sed -i '/\/bin\/dsnvps/d' /root/.bash_profile
+clear
+echo "========================================================================="
+echo "TẮT chức năng tự động chạy DSNVPS khi login SSH vào server thành công ! "; sleep 2
+/etc/dsnvps/menu/childmenu/dsnvps-tien-ich
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Hủy bỏ  "; sleep 2
+/etc/dsnvps/menu/childmenu/dsnvps-tien-ich
+  exit
+;;
+esac
+fi

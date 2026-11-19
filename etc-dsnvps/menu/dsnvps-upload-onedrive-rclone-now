@@ -1,0 +1,167 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Xác định serverip_priport
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Kiểm tra dung lượng thư mục backup
+dungluong=$(du -sh /home/$mainsite/private_html/backup 2>/dev/null | awk '{print $1}')
+if [ -z "$dungluong" ] || [ "$dungluong" == "0" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Trên server không tồn tại các file backup."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy sao lưu Website & Database trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra rclone
+if ! command -v rclone >/dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt Rclone trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra cấu hình Rclone
+if [ ! -f /root/.config/rclone/rclone.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Cloud (G-Drive, OneDrive) chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra file cấu hình OneDrive
+if [ ! -f /etc/dsnvps/backup.onedrive.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn phải hoàn thành [Cấu Hình Tự Động Sao Lưu] "
+    echo "-------------------------------------------------------------------------"
+    echo "trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+
+
+# Kiểm tra cấu hình OneDrive
+rm -rf /etc/dsnvps/.tmp/checkrcloneonedrive
+awk '/^\[onedrive\]/ {print}' /root/.config/rclone/rclone.conf > /etc/dsnvps/.tmp/checkrcloneonedrive
+checkb=$(wc -l < /etc/dsnvps/.tmp/checkrcloneonedrive)
+
+if [ "$checkb" -lt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối VPS với OneDrive trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+if [ "$checkb" -gt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Hiện tại DSNVPS chỉ hỗ trợ backup VPS với 1 config OneDrive"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chạy chức năng [ Xóa Tất Cả Cấu Hình ], và thực hiện config lại."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Lấy tên remote từ cấu hình Rclone
+rm -rf /etc/dsnvps/.tmp/chckshxn0
+grep -B 1 "type = onedrive" /root/.config/rclone/rclone.conf | awk 'NR==1' | sed 's/\[//' | sed 's/\]//' > /etc/dsnvps/.tmp/chckshxn0
+uservue=$(cat /etc/dsnvps/.tmp/chckshxn0)
+if [ -z "$uservue" ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng kiểm tra lại."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra file thực thi upload
+upload_script="/etc/dsnvps/menu/backup-onedrive-rclone-run-now"
+if [ ! -f "$upload_script" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file thực thi: $upload_script"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại cấu hình DSNVPS."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+
+# Kiểm tra kết nối tới OneDrive
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới OneDrive"; sleep 2
+REMOTE_NAME="onedrive"
+if ! rclone about "$REMOTE_NAME": &>/dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Kết nối tới OneDrive thất bại !"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy thử lại hoặc [Xóa Tất Cả Cấu Hình] để kết nối OneDrive lại."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi
+sleep 3 && tput cuu 2 && tput ed
+
+# Hỏi người dùng về việc upload
+echo "========================================================================="
+echo "Dùng chức năng này để upload backup files lên OneDrive ngay và luôn."
+echo "========================================================================="
+read -r -p "Bạn muốn upload backup files lên OneDrive ngay bây giờ? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "OK, Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Uploading ..."; sleep 3
+    
+    # Thực hiện upload và kiểm tra kết quả
+    "$upload_script"
+    
+    echo "-------------------------------------------------------------------------"
+    echo "Upload thành công!"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Tất cả các file backup đã được upload lên tài khoản OneDrive!"
+    echo "-------------------------------------------------------------------------"
+    echo "Tên folder: $serverip"
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-rclone-onedrive-menu
+    exit
+fi

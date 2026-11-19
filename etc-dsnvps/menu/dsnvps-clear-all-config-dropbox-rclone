@@ -1,0 +1,31 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Dùng chức năng này để xóa cấu hình của [Sao Lưu Backup Tới Dropbox] "
+echo "========================================================================="
+read -r -p "Bạn chắc chắn muốn xóa tất cả cấu hình này? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+rm -rf /etc/cron.d/dsnvps.rclone.backup.dropbox.cron
+rm -rf /etc/dsnvps/backup.dropbox.conf
+rm -rf /etc/dsnvps/backup.dropbox.telegram.conf
+sed -i '/^\[dropbox\]/,/^\[/{/^\[/!d; /^\[dropbox\]/d;}' /root/.config/rclone/rclone.conf
+ clear
+ echo "========================================================================="
+ echo "Hoàn tất xóa tất cả cấu hình hiện tại."
+  /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+  exit
+else
+ clear
+ echo "========================================================================="
+ echo "Huỷ bỏ !"
+  /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+  exit
+ fi

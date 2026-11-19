@@ -1,0 +1,223 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode*
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+clear
+echo "========================================================================="
+echo "CSF Firewall đang tắt"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật CSF Firewall lên để chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+fi
+
+echo "========================================================================="
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+echo "Chức năng này sẽ bật CSF Firewall nếu bạn đang tắt nó."
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để block một hoặc nhiều quốc gia truy cập vào Server."
+echo "-------------------------------------------------------------------------" 
+echo "Khi quốc gia đó bị chặn, địa chỉ IP từ quốc gia đó sẽ không thể truy cập"
+echo "-------------------------------------------------------------------------" 
+echo "các website trên server, cũng như truy cập SSH vào server."
+echo "-------------------------------------------------------------------------" 
+echo "Bạn cần nhập mã quốc gia gồm 2 chữ cái. Bạn có thể nhập nhiều quốc gia bằng"
+echo "-------------------------------------------------------------------------" 
+echo "cách sử dụng dấu [,] và không có [space] giữa các mã quốc gia. VD: CN,RU,DE"
+echo "-------------------------------------------------------------------------" 
+echo "để block China, Russia và Germany."
+echo "-------------------------------------------------------------------------" 
+echo "Xem danh sách Tên + Mã Quốc gia tại: https://dsnvps/country-codes"
+echo "========================================================================="
+# Tệp thông tin mã nước
+country_info_file="/etc/dsnvps/menu/CSF-Fiwall/dsnvps-country-code"
+country_codes=($(awk -F'|' '{print $2}' "$country_info_file" | tr -d ' ' | sort | uniq))
+# Hiển thị danh sách mã nước (12 cột)
+display_countries() {
+    local count=0
+    for code in "${country_codes[@]}"; do
+        printf "%-5s" "$code"
+        ((count++))
+        if ((count % 15 == 0)); then
+            echo
+        fi
+    done
+    echo
+}
+
+# Hiển thị danh sách
+echo "Danh sách mã quốc gia:"
+echo "========================================================================="
+display_countries
+echo "========================================================================="
+echo -n "Nhập mã quốc gia [ENTER]: "
+read countrycode
+countrycode=`echo $countrycode | tr '[a-z]' '[A-Z]'`
+countrycode=`echo $countrycode | sed 's/\///' | sed 's/\///' | sed 's/\///'`
+echo "$countrycode" > /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+sed -i 's/,$//' /etc/dsnvps/.tmp/dsnvpscheckcountrycode
+cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode | awk -F, '{for (i=1;i<=NF;i++)print $i}' > /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list
+if [ ! "$(grep ";" /etc/dsnvps/.tmp/dsnvpscheckcountrycode)" = "" ]; then
+clear
+echo "========================================================================= "
+echo "Bạn không thể sử dụng phím [ ; ]"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+if [ "$countrycode" = "" ]; then
+clear
+echo "========================================================================="
+echo "You typed wrong, please fill accurately"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+
+if [ ! "$(grep "\ " /etc/dsnvps/.tmp/dsnvpscheckcountrycode)" = "" ]; then
+clear
+echo "========================================================================= "
+echo "Bạn không thể sử dụng phím [ Space (cách) ]"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+if [ ! "$(grep "\." /etc/dsnvps/.tmp/dsnvpscheckcountrycode)" = "" ]; then
+clear
+echo "========================================================================= "
+echo "Bạn không thể sử dụng phím [ . ]"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode_code_trung_nhau
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode_code_trung_nhau2
+country_list=`cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list`
+
+for manuoc in $country_list; do
+ 
+ if [ ! ${#manuoc}  == "2" ]; then 
+clear
+echo "========================================================================= "
+echo "Mã nước $manuoc không tồn tại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+
+if [ "$(grep "|${manuoc}|" /etc/dsnvps/menu/CSF-Fiwall/dsnvps-country-code)" = "" ]; then
+clear
+echo "========================================================================= "
+echo "Mã nước $manuoc không tồn tại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+else
+echo "$(grep "|${manuoc}|" /etc/dsnvps/menu/CSF-Fiwall/dsnvps-country-code | sed "s/|${manuoc}|//")" >> /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show
+fi
+
+echo "${manuoc}" >> /etc/dsnvps/.tmp/dsnvpscheckcountrycode_code_trung_nhau
+grep "${manuoc}" /etc/dsnvps/.tmp/dsnvpscheckcountrycode_code_trung_nhau > /etc/dsnvps/.tmp/dsnvpscheckcountrycode_code_trung_nhau2
+codetrungnhau=`cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_code_trung_nhau2`
+if [ ! ${#codetrungnhau} = "2" ]; then 
+clear
+echo "========================================================================= "
+echo "Mã nước $manuoc xuất hiện nhiều hơn 1 lần trong danh sách bạn nhập."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy nhập lại !"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+
+done
+sonuoc=`cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show | wc -l`
+if [ ! "$sonuoc" = 1 ]; then
+nuoc=Countries
+hoithoai1=`echo "Danh sách các nước bạn muốn block bởi CSF Firewall:"`
+hoithoai2=`echo "Bạn muốn block $sonuoc nước trong danh sách ?"`
+else
+nuoc=Country
+hoithoai1=`echo "Nước bạn muốn block bởi CSF Firewall:"`
+hoithoai2=`echo "Bạn muốn block đất nước này ?"`
+fi
+echo "========================================================================="
+echo "$hoithoai1"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show | pr -2 -t
+echo "========================================================================="
+  read -r -p "$hoithoai2 [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ...";sleep 2
+sed -i "s/.*CC_DENY\ =.*/CC_DENY = \"$(cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode)\"/g" /etc/csf/csf.conf
+if [ "$test_csf" == "enable" ]; then
+csf -e
+fi
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd
+clear
+echo "========================================================================="
+echo "Cấu hình CSF Firewall block $sonuoc $nuoc hoàn thành."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy chờ một lúc (có thể đến 1 tiếng) để cấu hình có tác dụng."
+echo "-------------------------------------------------------------------------"
+echo "$nuoc List:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/dsnvpscheckcountrycode_list_show | pr -2 -t
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode*
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+    *)
+clear 
+echo "========================================================================= "
+echo "Hủy bỏ!"
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckcountrycode*
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+esac
+else
+echo "========================================================================= "
+echo "Chức năng này cần CSF Firewall để hoạt động"
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall chưa được cài đặt trên server! "
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn cài đặt CSF Firewall [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Bạn hủy bỏ cài đặt CSF Firewall ! "
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+
+
+
+

@@ -1,0 +1,29 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_YELLOW}              KIỂM TRA HẠN CHỨNG CHỈ SSL TẤT CẢ DOMAIN${C_RESET}"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+printf "%-32s | %-22s | %s\n" "Domain" "Hết hạn" "Còn lại"
+echo "-------------------------------------------------------------------------"
+
+now_ts=$(date +%s)
+found=0
+for cert in /etc/nginx/ssl/*/fullchain.pem /root/.acme.sh/*_ecc/fullchain.cer /root/.acme.sh/*/fullchain.cer /etc/letsencrypt/live/*/fullchain.pem; do
+    [[ -f "$cert" ]] || continue
+    found=1
+    dom="$(basename "$(dirname "$cert")")"
+    dom="${dom%_ecc}"
+    end_date="$(openssl x509 -enddate -noout -in "$cert" 2>/dev/null | cut -d= -f2)"
+    [[ -z "$end_date" ]] && continue
+    end_ts="$(date -d "$end_date" +%s 2>/dev/null || echo 0)"
+    days_left=$(( (end_ts - now_ts) / 86400 ))
+    color="$C_GREEN"
+    ((days_left < 15)) && color="$C_YELLOW"
+    ((days_left < 5)) && color="$C_RED"
+    printf "%-32s | %-22s | ${color}%d ngày${C_RESET}\n" "$dom" "$(date -d "$end_date" '+%Y-%m-%d %H:%M')" "$days_left"
+done
+if ((found == 0)); then
+    echo "Chưa có chứng chỉ SSL nào được cài đặt qua acme.sh / Let's Encrypt."
+fi
+echo "========================================================================="

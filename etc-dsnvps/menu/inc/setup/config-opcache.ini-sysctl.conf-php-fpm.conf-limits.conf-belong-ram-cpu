@@ -1,0 +1,268 @@
+#!/bin/bash
+
+### Ưu tiên IPv4 trước IPv4
+cat > /etc/gai.conf << 'EOF'
+precedence ::ffff:0:0/96  100
+precedence ::/0           40
+EOF
+
+#Cau Hinh opcache.ini, sysctl.conf, php-fpm.conf, limits.conf
+
+#/etc/dsnvps/menu/inc/config-opcache.ini-sysctl.conf-php-fpm.conf-limits.conf-belong-ram-cpu
+svram=$( free -m | awk '/^Mem:/{print $2}' )
+#Check RAM AND USE Server.Conf Config
+
+php_version=$(php -v | grep -oP 'PHP \K\d+')
+# Xác định ram tối thiểu cho opcache tùy theo PHP version
+if [ "$php_version" -eq 7 ]; then
+    ramminopcache=64
+elif [ "$php_version" -eq 8 ]; then
+    ramminopcache=128
+else
+    ramminopcache=128
+fi
+
+# Tùy theo dung lượng RAM VPS để set cấu hình OPCache
+if [[ $svram -le 512 ]]; then
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=64
+    ramuse=0
+    cachefile=0
+elif [[ $svram -ge 513 && $svram -le 1000 ]]; then
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=$ramminopcache
+    ramuse=32
+    cachefile=12000
+elif [[ $svram -ge 1100 && $svram -le 2500 ]]; then
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=120
+    ramuse=32
+    cachefile=15000
+elif [[ $svram -ge 2600 && $svram -le 4000 ]]; then
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=250
+    ramuse=60
+    cachefile=35000
+elif [[ $svram -ge 4100 && $svram -le 16100 ]]; then
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=350
+    ramuse=60
+    cachefile=90000
+elif [[ $svram -ge 16100 && $svram -le 32100 ]]; then
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=550
+    ramuse=90
+    cachefile=100000
+else
+    createfile="/etc/php.d/opcache.ini"
+    ramopcache=850
+    ramuse=90
+    cachefile=250000
+fi
+
+# Gỡ file opcache cũ (nếu có)
+rm -f /etc/php.d/*opcache*
+                # Lấy phiên bản PHP chính xác (major.minor)
+php_version_full=$(php -r "echo PHP_VERSION;")
+php_major=$(php -r "echo PHP_MAJOR_VERSION;")
+php_minor=$(php -r "echo PHP_MINOR_VERSION;")
+
+# Ghi file cấu hình OPCache hoặc .bak nếu RAM quá thấp
+# Kiểm tra PHP >= 8.5 (OPcache đã built-in)
+if [[ "$php_major" -eq 8 && "$php_minor" -ge 5 ]] || [[ "$php_major" -gt 8 ]]; then
+    # PHP 8.5+ - OPcache built-in, không cần load extension
+    cat > "$createfile" <<END
+opcache.enable=0
+opcache.enable_cli=0
+opcache.memory_consumption=$ramopcache
+opcache.interned_strings_buffer=$ramuse
+opcache.max_accelerated_files=$cachefile
+opcache.max_wasted_percentage=5
+opcache.use_cwd=1
+opcache.validate_timestamps=1
+opcache.revalidate_freq=1800
+opcache.save_comments=1
+opcache.fast_shutdown=1
+END
+else
+    # PHP < 8.5 - Cần load extension opcache.so
+    cat > "$createfile" <<END
+zend_extension=opcache.so
+opcache.enable=0
+opcache.enable_cli=0
+opcache.memory_consumption=$ramopcache
+opcache.interned_strings_buffer=$ramuse
+opcache.max_accelerated_files=$cachefile
+opcache.max_wasted_percentage=5
+opcache.use_cwd=1
+opcache.validate_timestamps=1
+opcache.revalidate_freq=1800
+opcache.save_comments=1
+opcache.fast_shutdown=1
+END
+fi
+##############################
+##############################
+###########################################################################################################
+## Lặng lẽ backup
+cp -f /etc/sysctl.conf /etc/sysctl.conf.bak.dsnvps 2>/dev/null
+
+# Đọc tổng RAM (MB)
+total_ram=$(awk '/MemTotal/ {printf "%.0f", $2 / 1024}' /proc/meminfo)
+
+# Xác định các giá trị cấu hình theo RAM
+if [ "$total_ram" -le 512 ]; then
+    shmmax=134217728      # 128MB
+    shmall=32768
+    swappiness=30
+    dirty_ratio=60
+    dirty_background_ratio=5
+elif [ "$total_ram" -le 1024 ]; then
+    shmmax=268435456      # 256MB
+    shmall=65536
+    swappiness=25
+    dirty_ratio=70
+    dirty_background_ratio=10
+elif [ "$total_ram" -le 2048 ]; then
+    shmmax=536870912      # 512MB
+    shmall=131072
+    swappiness=15
+    dirty_ratio=75
+    dirty_background_ratio=10
+elif [ "$total_ram" -le 4096 ]; then
+    shmmax=1073741824     # 1GB
+    shmall=262144
+    swappiness=10
+    dirty_ratio=80
+    dirty_background_ratio=10
+else
+    shmmax=2147483648     # 2GB
+    shmall=524288
+    swappiness=5
+    dirty_ratio=90
+    dirty_background_ratio=10
+fi
+
+# Ghi cấu hình mới
+cat > "/etc/sysctl.conf" <<END
+#####################
+# Networking
+#####################
+net.ipv4.ip_forward = 0
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_max_syn_backlog = 10240
+net.core.netdev_max_backlog = 4096
+net.ipv4.tcp_fin_timeout = 30
+net.ipv4.tcp_keepalive_time = 1800
+
+#####################
+# Memory
+#####################
+vm.swappiness = $swappiness
+vm.overcommit_memory = 1
+vm.dirty_ratio = $dirty_ratio
+vm.dirty_background_ratio = $dirty_background_ratio
+
+#####################
+# Shared Memory
+#####################
+kernel.shmmax = $shmmax
+kernel.shmall = $shmall
+
+#####################
+# Message Queue
+#####################
+kernel.msgmnb = 65536
+kernel.msgmax = 65536
+
+#####################
+# Core dump & panic
+#####################
+kernel.sysrq = 0
+kernel.panic = 10
+kernel.core_uses_pid = 0
+kernel.core_pattern = /dev/null
+fs.suid_dumpable = 0
+
+#####################
+# File descriptors
+#####################
+fs.file-max = 2097152
+END
+
+# Áp dụng và kiểm tra lỗi
+if sysctl -p >/dev/null 2>&1; then
+    rm -f /etc/sysctl.conf.bak.dsnvps 2>/dev/null
+else
+    cp -f /etc/sysctl.conf.bak.dsnvps /etc/sysctl.conf
+    sysctl -p >/dev/null 2>&1
+    rm -f /etc/sysctl.conf.bak.dsnvps
+fi
+##################################################################
+########################################################################
+##########################
+#####################
+# Lấy tổng RAM hệ thống (MB)
+total_ram=$(free -m | awk '/^Mem:/{print $2}')
+
+# Đặt giá trị mặc định
+nofile_soft=65536
+nofile_hard=65536
+nproc_soft=4096
+nproc_hard=4096
+
+# Tính nproc theo RAM
+if [ "$total_ram" -le 512 ]; then
+    nproc_soft=1024
+    nproc_hard=1024
+elif [ "$total_ram" -le 1024 ]; then
+    nproc_soft=2048
+    nproc_hard=2048
+elif [ "$total_ram" -le 2048 ]; then
+    nproc_soft=4096
+    nproc_hard=4096
+elif [ "$total_ram" -le 4096 ]; then
+    nproc_soft=8192
+    nproc_hard=8192
+else
+    nproc_soft=65536
+    nproc_hard=65536
+fi
+
+# Ghi lại limits.conf
+rm -f /etc/security/limits.conf
+cat > /etc/security/limits.conf <<END
+* soft nofile $nofile_soft
+* hard nofile $nofile_hard
+nginx soft nofile $nofile_soft
+nginx hard nofile $nofile_hard
+* soft core 0
+* hard core 0
+* soft nproc $nproc_soft
+* hard nproc $nproc_hard
+END
+#################################
+###################################
+
+mkdir -p /var/run/php-fpm /var/log/php-fpm; : > /etc/php-fpm.conf
+    cat > "/etc/php-fpm.conf" <<END
+include=/etc/php-fpm.d/*.conf
+
+[global]
+log_level = warning
+pid = /var/run/php-fpm/php-fpm.pid
+error_log = /var/log/php-fpm/php-fpm.log
+emergency_restart_threshold = 10
+emergency_restart_interval = 1m
+process_control_timeout = 10s
+events.mechanism = epoll
+END
+
+# Apply DSNVPS Enterprise Kernel, ZRAM & PHP JIT Optimizations
+/etc/dsnvps/menu/optimize/dsnvps-opt-kernel >/dev/null 2>&1 || true
+/etc/dsnvps/menu/optimize/dsnvps-opt-php-jit --auto >/dev/null 2>&1 || true

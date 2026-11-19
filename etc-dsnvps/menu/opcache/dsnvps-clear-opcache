@@ -1,0 +1,58 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+ if [ -f /etc/php.d/opcache.ini ]; then
+    enable_status=$(grep "^opcache.enable=" "/etc/php.d/opcache.ini" | tail -1 | awk -F '=' '{print $2}' | tr -d ' "')
+ if [ -z "$enable_status" ] || [ "$enable_status" = "0" ]; then
+ clear
+ echo "========================================================================="
+ echo "Zend Opcache phải được BẬT trước khi dùng chức năng này !"
+ /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+      
+ fi
+ fi
+if [ -f /etc/php.d/opcache.ini ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ....";sleep 2
+
+php -r 'opcache_reset();'
+#/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+test_php=$(/bin/systemctl status  php-fpm.service | awk 'NR==3 {print $2}')
+if [ "$test_php" == "inactive" ]; then
+    clear
+    echo "========================================================================="
+    echo "Zend Opcache Cache không thể xóa vì PHP-FPM đã bị dừng."
+    /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+    exit
+fi
+
+test_php=$(/bin/systemctl status php-fpm.service | awk 'NR==3 {print $2}')
+if [ "$test_php" == "failed" ]; then
+    clear
+    echo "========================================================================="
+    echo "Zend Opcache Cache không thể xóa vì PHP-FPM không thể khởi động."
+    echo "-------------------------------------------------------------------------"
+    echo "Có thể bạn đã cấu hình PHP-FPM sai!!"
+    /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+    exit
+fi
+
+clear
+echo "========================================================================= "
+echo "Bạn đã hoàn thành việc xóa Cache Zend Opcache."
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+clear
+echo "========================================================================= "
+echo "Zend OPcache đang bị tắt trên server."
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật Zend Opcache để server có hiệu suất tốt nhất!"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+fi

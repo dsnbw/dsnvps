@@ -1,0 +1,160 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+kiemtrafolder="^[a-zA-Z0-9-][-a-zA-Z0-9_-.]{0,61}[a-zA-Z0-9]$";
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite
+do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$checksite/public_html ]; then
+find /home/$checksite/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 3 ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+fi
+ done
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không có website nào có dữ liệu trên hệ thống"
+echo "--------------------------------------------------------------------------"
+echo "Bạn không cần sử dụng chức năng này !"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+mapfile -t website_list < /etc/dsnvps/.tmp/checksite-list
+echo "========================================================================="
+echo "Danh sách các Website có dữ liệu trên server:"
+echo "-------------------------------------------------------------------------"
+total=${#website_list[@]}
+half=$(( (total + 1) / 2 ))
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))
+    right_index=$((half + i + 1))
+    left_db="${website_list[i]:- }"
+    if (( right_index <= total )); then
+        right_db="${website_list[right_index-1]}"
+        printf "%-4s %-30s %-4s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-4s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: "
+    read -r selection
+    if [[ -z "$selection" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$selection" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-sao-luu
+        break
+    elif [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#website_list[@]} )); then
+        website=${website_list[selection-1]}
+        break
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+if [ ! -d /home/$mainsite/private_html/backup/$website ]; then
+mkdir -p /home/$mainsite/private_html/backup/$website/
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+find /home/$website/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 5 ]; then
+backuphomename=-`date |md5sum |cut -c '1-16'`
+echo "-------------------------------------------------------------------------"
+echo -n "Bạn muốn sao lưu $website? [y/N] "
+read -r response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    if [ -f /home/$mainsite/private_html/backup/$website/*.zip ]; then
+        cd /home/$mainsite/private_html/backup/$website
+        for file in *.zip; do
+            if [ -f "$file" ]; then
+                time=$(date -r "$file" +%Hh%Mm-%d-%m-%y)
+                mv "$file" "${file%.zip}.zip.$time"
+                echo "${file%.zip}.zip.$time" > /etc/dsnvps/.tmp/dsnvps_ten_file_cu
+            fi
+        done
+        cd
+        if [ -f /etc/dsnvps/.tmp/dsnvps_ten_file_cu ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS sẽ đổi tên file backup cũ thành:"
+            echo "-------------------------------------------------------------------------"
+            echo "`cat /etc/dsnvps/.tmp/dsnvps_ten_file_cu`"; sleep 2
+        fi
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Chuẩn bị sao lưu $website ..."; sleep 2
+    if [ -f /bin/auto-backupcode-$website ]; then
+        if [ ! "$(grep auto-backupcode-$website /etc/cron.d/dsnvps.code.cron)" == "" ]; then
+            pathname=$(awk -v site="$website" -v mainsite="$mainsite" '
+                $1=="mv" && $2 ~ (site "\\.zip$") && $3 ~ ("/home/" mainsite "/private_html/backup/" site "/") { last=$3 }
+                END { if (last) print last }
+            ' /bin/auto-backupcode-$website | tail -n1)
+            filename2=$(basename "$pathname")
+            if [[ -z "$filename2" || "$filename2" == *"$"* ]]; then
+                filename2=$website$backuphomename.zip
+            fi
+            thongbao=$(echo " ($website Enabled Auto Backup)")
+        else
+            filename2=$website$backuphomename.zip
+            thongbao=$(echo "")
+        fi
+    else
+        filename2=$website$backuphomename.zip
+        thongbao=$(echo "")
+    fi
+    cd /home/$website/public_html/
+    zip -r --exclude=*Full-DSNVPS* --exclude=*0-DSNVPS* --exclude=*full_backup.* $excludefolder $website.zip *
+    mv $website.zip /home/$mainsite/private_html/backup/$website/$filename2
+    clear
+    echo "========================================================================="
+    echo "Liên kết file sao lưu:"
+    echo "-------------------------------------------------------------------------"
+    echo "http://$serverip_priport/backup/$website/$filename2"
+    if [ -f /etc/dsnvps/.tmp/dsnvps_ten_file_cu ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "File sao lưu cũ được đổi tên thành:"
+        echo "-------------------------------------------------------------------------"
+        echo "$(cat /etc/dsnvps/.tmp/dsnvps_ten_file_cu)"
+    fi
+    if [ ! -z "$thongbao" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "$thongbao"
+    fi
+    rm -rf /etc/dsnvps/.tmp/*dsnvps*
+/etc/dsnvps/menu/dsnvps-sao-luu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy sao lưu $website."
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+else
+clear
+echo "========================================================================="
+echo "Không tìm thấy $website trên server hoặc web chưa có dữ liệu!"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi

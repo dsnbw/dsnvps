@@ -1,0 +1,55 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+#mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+echo "========================================================================="
+echo "Sử dụng chức năng này sao lưu hoặc phục hồi full code + database cho"  
+echo "-------------------------------------------------------------------------"
+echo "WordPress Website. Trong quá trình phục hồi website, DSNVPS sẽ tự động "
+echo "-------------------------------------------------------------------------"
+echo "tạo database cho website nếu cần thiết. Bạn không cần tạo database cho "
+echo "-------------------------------------------------------------------------"
+echo "website trước khi chạy chức năng này."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/bakrefull"
+echo "========================================================================="
+#prompt="Nhập lựa chọn của bạn: "
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Sao Lưu Full Website + Database" "Phục Hồi Full Website + Database")
+printf "LỰA CHỌN SAO LƯU HAY PHỤC HỒI WEBSITE\n"
+
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachon="saoluu"; break;;
+    2) luachon="phuchoi"; break;;
+    0) luachon="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#Sao luu
+###################################
+if [ "$luachon" = "saoluu" ]; then
+/etc/dsnvps/menu/dsnvps-sao-luu-full-wordpress-database-code
+###################################
+#Phuc Hoi
+###################################
+elif [ "$luachon" = "phuchoi" ]; then
+/etc/dsnvps/menu/dsnvps-phuc-hoi-full-wordpress-database-code
+###################################
+#cancel
+###################################
+else
+clear
+exit 0
+fi

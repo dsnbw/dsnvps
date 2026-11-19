@@ -1,0 +1,88 @@
+#!/bin/bash
+#curl -LsS https://r.mariadb.com/downloads/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version=$selected_value
+#Lay noi dung file: /etc/dsnvps/.tmp/mariadbversionsetup.txt
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+if [ -f /etc/dsnvps/.tmp/mariadbversionsetup.txt ]; then
+rm -rf /etc/dsnvps/.tmp/mariadbversionsetup.txt
+fi
+latest_versions_server=$(curl -s https://dlm.mariadb.com/rest/releases/mariadb_server/)
+echo "$latest_versions_server" > /etc/dsnvps/.tmp/current_mariadb.txt
+checkmmadb="/etc/dsnvps/.tmp/current_mariadb.txt"
+output_file="/etc/dsnvps/.tmp/current_mariadbC.txt"
+> "$output_file"
+while IFS= read -r line
+do
+   ppahsnd=$(echo "$line" | cut -d ' ' -f 3)
+   echo "$ppahsnd" >> "$output_file"
+done < "$checkmmadb"
+
+if [[ -f "$checkmmadb" ]]; then
+    options=($(cat "$checkmmadb"))
+else
+    echo "exit"
+    exit 1
+fi
+
+# Hàm hiển thị các lựa chọn
+function show_options {
+echo "========================================================================="
+echo "Day la nhung phien ban ma MariaDB con ho tro cap nhat."
+    echo "========================================================================="
+    for i in "${!options[@]}"; do
+        echo "$((i+1)). ${options[$i]}"
+    done
+}
+function choose_option {
+    while true; do
+    echo "========================================================================="
+echo "Ban hay nhap so thu tu tuong ung voi phien ban MariaDB ban muon cai."
+echo "-------------------------------------------------------------------------"
+echo "(Vi du: Muon cai phien ban $ppahsnd, ban nhap so 4.)"
+echo "-------------------------------------------------------------------------"
+        read -p "Nhap lua chon: " choice
+        if [[ $choice -gt 0 && $choice -le ${#options[@]} ]]; then
+            selected_value=${options[$((choice-1))]}
+            echo "-------------------------------------------------------------------------"
+            echo "Ban da lua chon $choice: $selected_value"
+            confirm_choice
+            break
+        else
+            echo "=========================================================================="
+                echo "========================================================================="
+            echo "Lua chon khong hop le, ban hay nhap lai."
+        fi
+    done
+}
+
+function confirm_choice {
+    while true; do
+    echo "========================================================================="
+        read -p "Ban chac chan muon cai MariaDB $selected_value ? (y/n): " confirm
+        case $confirm in
+            [Yy]* )
+            #    echo "Đồng ý. Chạy lệnh /home/abcnhs"
+                echo "$selected_value" > /etc/dsnvps/.tmp/mariadbversionsetup.txt
+                exit 0
+                ;;
+            [Nn]* )
+            echo "=========================================================================="
+                echo "========================================================================="
+                echo "Vui long chon lai"
+                show_options
+                choose_option
+                break
+                ;;
+            * )
+            echo "=========================================================================="
+                echo "Vui long nhap y (Dong y) Hoac n (Khong dong y)."
+                ;;
+        esac
+    done
+}
+
+# Hiển thị các lựa chọn lần đầu tiên
+show_options
+
+# Cho người dùng chọn giá trị
+choose_option
+

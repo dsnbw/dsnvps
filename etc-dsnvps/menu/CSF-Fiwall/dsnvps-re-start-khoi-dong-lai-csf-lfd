@@ -1,0 +1,19 @@
+#!/bin/bash 
+
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+check=notok
+fi
+if [ "$check" == "notok" ]; then
+csf -e >/dev/null 2>&1
+fi
+
+
+systemctl restart lfd.service
+csf -r
+service lfd restart
+csf -r
+
+if [ "$check" == "notok" ]; then
+csf -x >/dev/null 2>&1
+fi

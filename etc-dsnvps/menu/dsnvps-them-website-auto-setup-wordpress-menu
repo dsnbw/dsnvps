@@ -1,0 +1,206 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+####################################################
+########## Check File check ban quyen. Khong hop le thi out
+rm -rf /etc/dsnvps/.tmp/sllokie
+mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+if [ ! -f /etc/dsnvps/.tmp/sllokie ]; then
+clear
+echo "========================================================================="
+echo "Vui lòng cập nhật DSNVPS lên phiên bản Pro để sử dụng chức năng này !"
+dsnvps
+fi
+rm -rf /etc/dsnvps/.tmp/sllokie
+############################################
+################################################
+
+rm -rf /etc/dsnvps/.tmp/function.php.check*
+grep "disable_functions\ =\ " /etc/php.ini > /etc/dsnvps/.tmp/function.php.check
+if [ ! "$(grep ,exec, /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "exec" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep shell_exec /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "shell_exec" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep proc_close /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "proc_close" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep proc_open /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "proc_open" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep escapeshellarg /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "escapeshellarg" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+
+if [ -f /etc/dsnvps/.tmp/function.php.check1 ]; then
+echo "========================================================================="
+echo "Ban dang disable cac ham PHP can thiet de chuc nang nay nay. Danh sach: "
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/function.php.check1 | pr -4 -t 
+echo "-------------------------------------------------------------------------"
+echo "De enable cac ham php nay, ban co the tu config file php.ini hoac su dung "
+echo "-------------------------------------------------------------------------"
+echo "chuc nang: DSNVPS Menu ==> [ Config Cau Hinh PHP ] => "
+echo "-------------------------------------------------------------------------"
+echo "=> [ Enable/Disable PHP Function ] . Sau do, lua chon ham de enable "
+echo "-------------------------------------------------------------------------"
+echo "hoac dung chuc nang [ Config Mac Dinh ] => Y => Enter "
+echo "========================================================================="
+echo " "
+read -p "Press [Enter] to continue  ..."
+clear && /etc/dsnvps/menu/dsnvps-them-website-menu
+fi
+
+show_menu () {
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+options=( "WP Super cache" "W3 Total Cache" "WP Optimize" "WP Fastest Cache" "Loại Khác" )
+printf "=========================================================================\n"
+printf "Tùy thuộc vào cache bạn sử dụng mà DSNVPS cấu hình Vhost cho phù hợp.\n"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2566"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) vhostconfig="supercache"; break;;
+    2) vhostconfig="w3total"; break;;
+    3) vhostconfig="wpoptimize"; break;;
+    4) vhostconfig="fastestcache"; break;;
+    5) vhostconfig="khac"; break;;
+    0) vhostconfig="cancle"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#Redis Cache
+###################################
+if [ "$vhostconfig" = "wpoptimize" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-wp-auto-install-wp-optimize-cache
+###################################
+#Super Cache
+###################################
+elif [ "$vhostconfig" = "supercache" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-wp-auto-install-super-cache
+###################################
+#W3 Total Cache
+###################################
+elif [ "$vhostconfig" = "w3total" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-wp-auto-install-w3-total-cache
+elif [ "$vhostconfig" = "fastestcache" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-wp-auto-install-wp-fastest-cache
+elif [ "$vhostconfig" = "khac" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-wp-auto-install-normal
+else
+clear
+exit 0
+fi
+}
+
+check_wpcli_version() {
+
+    # Kiểm tra xem wp-cli đã được cài đặt chưa, nếu chưa cài đặt thì cài đặt
+    if [ ! -f /usr/local/bin/wp ] && [ ! -f /bin/wp ]; then
+        echo "WP-CLI chưa được cài đặt, đang cài đặt..."
+        curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        chmod +x wp-cli.phar
+        sudo mv wp-cli.phar /usr/local/bin/wp
+    fi
+
+    # Kiểm tra file wpcli.version, nếu không có thì tạo mới
+    if [ ! -f /etc/dsnvps/wpcli.version ]; then
+        touch -a -m -t 201601180130.09 /etc/dsnvps/wpcli.version
+    fi
+
+    # Kiểm tra kết nối internet
+    if ping -q -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
+        fileTime3=$(date -r /etc/dsnvps/wpcli.version +%d)
+        curTime3=$(date +%d)
+        
+        # Nếu ngày của wpcli.version khác ngày hiện tại, tiến hành kiểm tra bản cập nhật
+        if [ "$fileTime3" != "$curTime3" ]; then
+            wp --version --allow-root > /etc/dsnvps/wpcli.version
+            wp cli check-update --allow-root > /etc/dsnvps/.tmp/ailsod
+            
+            # Nếu có bản cập nhật, thực hiện cập nhật WP-CLI
+            if ! grep -q "latest" /etc/dsnvps/.tmp/ailsod; then
+                echo "========================================================================="
+                echo "Có cập nhật cho WP-CLI! Đang cập nhật WP-CLI..."
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng chờ ..."
+                sleep 4
+                /etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+                echo y | wp cli update --allow-root
+                wp --version --allow-root > /etc/dsnvps/wpcli.version
+                /etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+            fi
+        fi
+    fi
+
+    # Quay lại menu WordPress Blog Tools
+show_menu
+}
+#check_wpcli_version
+
+check_mariaDB_service () {
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ MySQL không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+rm -rf /var/lib/mysql/ib_logfile*
+/etc/dsnvps/menu/inc/start-mysql-fix-error
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ MySQL!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+	if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+	clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ MySQL"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	#echo "Xin lỗi, MySQL đang dừng. Hãy bật lên trước khi dùng chức năng này!"
+		echo "Xin lỗi, MySQL đã dừng. Hãy BẬT lại trước khi sử dụng chức năng này!"
+	dsnvps
+	else
+	rm -rf /var/lib/mysql/dsnvpsCheckDB
+check_wpcli_version
+#show_menu
+	fi
+else
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+check_wpcli_version
+#show_menu
+fi
+}
+check_mariaDB_service

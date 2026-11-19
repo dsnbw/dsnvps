@@ -1,0 +1,83 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /home/$mainsite/private_html/LUBD*
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto2
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto
+rm -rf /etc/dsnvps/.tmp/dsnvps-databaselist
+ls /var/lib/mysql > /etc/dsnvps/.tmp/dsnvps-databaselist
+rm -rf /etc/dsnvps/.tmp/checkautobackupdsnvps
+mkdir -p /etc/dsnvps/.tmp/checkautobackupdsnvps
+checkautobackup=$(cat /etc/dsnvps/.tmp/dsnvps-databaselist)
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto
+randomcode=`date |md5sum |cut -c '1-12'`
+for databasecheck in $checkautobackup 
+do
+if [ -f /bin/auto-backupdb-$databasecheck ]; then
+ if [ -f /etc/cron.d/dsnvps.db.cron ]; then
+     if [ ! "$(grep auto-backupdb-$databasecheck /etc/cron.d/dsnvps.db.cron)" == "" ]; then
+     touch /etc/dsnvps/.tmp/checkautobackupdsnvps/$databasecheck
+     if [ ! -f /etc/dsnvps/.tmp/chitietbackupauto ]; then
+     touch /etc/dsnvps/.tmp/chitietbackupauto
+     fi
+	if [ "$(grep DSNVPS /etc/dsnvps/.tmp/chitietbackupauto)" == "" ]; then
+	echo "=========================================================================" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Link Download Backup for Database Enabled Auto Backup - Created by DSNVPS" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "=========================================================================" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Luu Y:" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Cac Link Download Backup Cua Database Chi Kha Dung Khi Database Tren " >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+	echo "Server Duoc Backup Thanh Cong. " >> /etc/dsnvps/.tmp/chitietbackupauto
+	fi
+filename=$(grep "$databasecheck" /bin/auto-backupdb-$databasecheck | awk 'NR==7 {print $11}')
+echo "=========================================================================" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "Database $databasecheck:" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto
+echo "http://$serverip_priport/backup/$databasecheck/$filename" >> /etc/dsnvps/.tmp/chitietbackupauto
+###################################
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto2
+echo "Database $databasecheck:" >> /etc/dsnvps/.tmp/chitietbackupauto2
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/.tmp/chitietbackupauto2
+echo "http://$serverip_priport/backup/$databasecheck/$filename" >> /etc/dsnvps/.tmp/chitietbackupauto2    
+     fi
+ fi
+fi  
+done
+if [  "$(ls -1 /etc/dsnvps/.tmp/checkautobackupdsnvps | wc -l)" == "0" ]; then
+clear
+echo "========================================================================="
+echo "Hien tai khong co database nao duoc BAT che do tu dong backup"
+else
+rm -rf /home/$mainsite/private_html/LUBD*
+mv /etc/dsnvps/.tmp/chitietbackupauto /home/$mainsite/private_html/LUBD-$randomcode.txt
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                      Link Download Backup Database \n"
+echo "========================================================================="
+echo "Hien tai co $(ls -1 /etc/dsnvps/.tmp/checkautobackupdsnvps | wc -l) Database duoc BAT che do tu dong backup"
+echo "-------------------------------------------------------------------------"
+ls /etc/dsnvps/.tmp/checkautobackupdsnvps  | pr -2 -t
+echo "========================================================================="
+cat /etc/dsnvps/.tmp/chitietbackupauto2
+echo "========================================================================="
+echo "List Link Download File Backup Tren Trinh Duyet:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/LUBD-$randomcode.txt"
+fi
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/chitietbackupauto
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+exit

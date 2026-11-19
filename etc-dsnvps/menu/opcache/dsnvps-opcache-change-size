@@ -1,0 +1,183 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+opcachesss=$(free -m | awk 'NR==2 {print $2}' | awk '{print int($1/5)}')
+if [ "$opcachesss" -lt 120 ]; then
+    opcachesss=200
+fi
+php_version=$(php -v | grep -oP 'PHP \K\d+')
+if [ "$php_version" -eq 7 ]; then
+    ramminopcache=64
+elif [ "$php_version" -eq 8 ]; then
+    ramminopcache=128
+else
+ramminopcache=128
+fi
+ if [ -f /etc/php.d/opcache.ini ]; then
+    enable_status=$(grep "^opcache.enable=" "/etc/php.d/opcache.ini" | tail -1 | awk -F '=' '{print $2}' | tr -d ' "')
+ if [ -z "$enable_status" ] || [ "$enable_status" = "0" ]; then
+ clear
+ echo "========================================================================="
+ echo "Zend Opcache phải được BẬT trước khi dùng chức năng này !"
+ /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+      
+ fi
+ fi
+
+if [ -f /etc/php.d/opcache.ini ]; then
+echo "========================================================================="
+cleartime=$(grep opcache.revalidate_freq /etc/php.d/opcache.ini | grep -o '[0-9]*')
+echo "Truy cập http://$serverip_priport => Opcache Manage"
+echo "========================================================================="
+echo "RAM cho Opcache phải là số tự nhiên nằm trong khoảng ($ramminopcache - $opcachesss)."
+echo "-------------------------------------------------------------------------"
+while true; do
+echo -n "Nhập lượng RAM bạn muốn cho Opcache dùng [0 -Thoát]: "
+read opcacheram
+
+     if [ "$opcacheram" = "0" ]; then
+    clear
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+    exit
+    elif ! [[ $opcacheram =~ ^[0-9]+$ ]] || ! [[ $opcacheram -ge $ramminopcache && $opcacheram -le $opcachesss ]]; then  
+        echo "========================================================================="
+echo "RAM cho Opcache phải là số tự nhiên nằm trong khoảng ($ramminopcache - $opcachesss)."
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+echo "========================================================================="
+echo "DSNVPS đang đếm số lượng file PHP trên server"
+sleep 2
+echo "========================================================================="
+echo "Số file PHP hiện tại trong server: $(find /home -type f | grep php | wc -l)"
+echo "MAX FILES là số file PHP lớn nhất mà Zend Opcache có thể cache"
+echo "MAX FILES phải là số tự nhiên nằm trong khoảng (2000 - 1000000)."
+echo "-------------------------------------------------------------------------"
+while true; do
+echo -n "Nhập MAX FILES [0 -Thoát]: " 
+read filephp
+     if [ "$filephp" = "0" ]; then
+    clear
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+    exit
+elif ! [[ $filephp -ge 2000 && $filephp -le 1000000  ]] ; then 
+        echo "========================================================================="
+echo "MAX FILES phải là số tự nhiên nằm trong khoảng (2000 - 550000)."
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+
+echo "========================================================================="
+echo "Thời gian tự động xóa Cache PHP hiện tại là: $cleartime giây"
+echo "Thời gian tự động xóa PHP Cache càng lớn thì hiệu suất server càng tốt."
+echo "Giá trị này phải nằm trong khoảng (30 - 999999)."
+echo "-------------------------------------------------------------------------"
+
+
+while true; do
+echo -n "Nhập thời gian tự động xóa PHP Cache [0 - Thoát]: "
+read timeclear
+     if [ "$timeclear" = "0" ]; then
+    clear
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+    exit
+elif ! [[ $timeclear -ge 30 && $timeclear -le 999999  ]] ; then 
+        echo "========================================================================="
+echo "Thời gian tự động xóa PHP cache phải nằm trong khoảng (30 - 9999999)."
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+fi
+###################################################################
+###################################################################
+
+###################################################################
+
+rm -rf /etc/dsnvps/.tmp/opcache.ini
+yes | cp -rf /etc/php.d/opcache.ini /etc/dsnvps/.tmp/
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ....";sleep 2
+sed --in-place '/opcache.memory_consumption/d' /etc/php.d/opcache.ini
+sed --in-place '/opcache.max_accelerated_files/d' /etc/php.d/opcache.ini
+sed --in-place '/opcache.revalidate_freq/d' /etc/php.d/opcache.ini
+###
+echo "opcache.memory_consumption=$opcacheram" >> /etc/php.d/opcache.ini
+echo "opcache.max_accelerated_files=$filephp" >> /etc/php.d/opcache.ini
+echo "opcache.revalidate_freq=$timeclear" >> /etc/php.d/opcache.ini
+
+echo "-------------------------------------------------------------------------"
+echo "Đang kiểm tra cấu hình mới ..."
+echo "-------------------------------------------------------------------------" ; sleep 5
+
+############### KHoi Dong lai PHP
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+
+if [ -f /etc/dsnvps/.tmp/opcache.ini ]; then
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+
+
+if [ "$UPPHP" -ne 1 ]; then
+echo "========================================================================="
+echo "Cấu hình không hợp lệ !"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ phục hồi cấu hình cũ ..."; sleep 10
+rm -rf /etc/php.d/opcache.ini
+yes | cp -rf /etc/dsnvps/.tmp/opcache.ini /etc/php.d/opcache.ini
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+clear
+echo "========================================================================="
+echo "Cấu hình mới thất bại."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy tăng RAM dành cho Zend Opcache lên."
+echo "-------------------------------------------------------------------------"
+echo "Nếu vẫn chưa được, bạn hãy điều chỉnh các thông số còn lại."
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+fi
+fi
+
+clear
+echo "========================================================================="
+echo "Cấu hình Zend Opcache sử dụng $opcacheram MB RAM thành công."
+echo "-------------------------------------------------------------------------"
+echo "Tệp PHP tối đa mà Zend Opcache có thể cache = $filephp"
+echo "-------------------------------------------------------------------------"
+echo "PHP cached sẽ được tự động xóa mỗi $timeclear giây"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+else
+clear
+echo "========================================================================= "
+echo "Zend OPcache đang bị tắt trên server"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật Zend Opcache lên để server có hiệu suất tốt nhất!"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+exit
+fi

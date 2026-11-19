@@ -1,0 +1,116 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+. /etc/dsnvps/pwprotect.default
+if [ ! -d /etc/nginx/pwprotect ]; then
+mkdir -p /etc/nginx/pwprotect
+fi
+
+
+if [ ! -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải [ Thêm domain Quản Lý ] trước khi chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi
+
+
+
+if [ ! -f /etc/nginx/.htpasswd ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải tạo User và Mật khẩu mặc định trước khi chạy chức năng này. Tạo "
+echo "-------------------------------------------------------------------------"
+echo "User và Mật Khẩu mặc định: "
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS Menu => Bảo Mật Server & Website => User & Password Mặc Định."
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit
+fi
+
+if ! grep -q "auth_basic_user_file" /etc/dsnvps/domainquanly/domainquanly.conf; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT bảo vệ domain Quản Lý bằng mật khẩu. "
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập sẽ được thiết lập: "
+echo "-------------------------------------------------------------------------"
+echo "Domain Quản Lý: $domainquanly"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn BẬT bảo vệ domain Quản Lý ? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 2
+rm -rf /etc/dsnvps/.tmp/baovephpmyadmin
+   cat >> "/etc/dsnvps/.tmp/baovephpmyadmin" <<END
+sed -i "/\/home\/dsnvps.demo\/private_html;/aauth_basic \"Authorization Required\";" /etc/dsnvps/domainquanly/domainquanly.conf
+sed -i "/.*Authorization\ Required.*/aauth_basic_user_file  /etc/nginx/.htpasswd;" /etc/dsnvps/domainquanly/domainquanly.conf
+END
+chmod +x /etc/dsnvps/.tmp/baovephpmyadmin
+/etc/dsnvps/.tmp/baovephpmyadmin
+rm -rf /etc/dsnvps/.tmp/baovephpmyadmin
+service nginx reload
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Huỷ bỏ dat mat khau bao ve domain Quản Lý. "
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Hoàn thành BẬT bảo vệ domain Quản Lý"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Domain Quản Lý: http://$domainquanly"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+
+else
+
+echo "========================================================================="
+echo "Chức năng bảo vệ domain Quản Lý bằng mật khẩu đang được BẬT "
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập:"
+echo "-------------------------------------------------------------------------"
+echo "Domain Quản Lý: http://$domainquanly"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT chức năng bảo vệ này? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 2
+sed -i '/auth_basic/d' /etc/dsnvps/domainquanly/domainquanly.conf
+
+systemctl reload nginx
+
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Huỷ bỏ "
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Hoàn thành TẮT mật khẩu bảo vệ domain Quản Lý"
+
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+fi

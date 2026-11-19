@@ -1,0 +1,35 @@
+#!/bin/bash
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                       Chuyển Server Siêu Nhanh \n"
+printf "=========================================================================\n"
+config_file="/etc/dsnvps/cauhinh_move_vps.info"
+if [ -f "$config_file" ] && grep -q "thanhcong" "$config_file"; then
+    ip=$(grep "ipaddress" "$config_file" | awk '{print $3}')
+    if [ -n "$ip" ]; then
+        echo "Kết Nối Tới Server Mới => Cấu Hình Hoàn Tất | IP: $ip"
+        echo "========================================================================="
+    fi
+fi
+echo "Thứ Tự Thực Hiện => Lần Lượt Thực Hiện Các Bước: 1 => 3 => 4"
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/3251"
+printf "=========================================================================\n"
+while true; do
+printf "%-40s %s\n" "1) Kết Nối Tới Server Mới" "3) Chuyển Dữ Liệu Sang Server Mới Ngay"
+printf "%-39s %s\n" "2) Xóa Toàn Bộ Cấu Hình"   "4) Phục Hồi Database Trên Server Mới"
+echo "========================================================================="
+read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+case $choice in  
+1) /etc/dsnvps/menu/dsnvps-move-vps-ket-noi-vps-moi ;;
+2) /etc/dsnvps/menu/dsnvps-move-vps-ngat-disconect-ket-noi-vps-moi ;;
+3) /etc/dsnvps/menu/dsnvps-move-chuan-bi-va-thuc-hien-copy-du-lieu-vps-moi ;;
+4) /etc/dsnvps/menu/move-phuc-hoi-tren-database-tren-vps-moi ;;
+0) clear; exit 0;;
+*)
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"
+sleep 3
+tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6 ;;
+esac
+done

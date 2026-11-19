@@ -1,0 +1,32 @@
+#!/bin/bash
+# Tắt cảnh báo run as root và ẩn dòng diagnose
+export COMPOSER_ALLOW_SUPERUSER=1
+
+# Kiểm tra composer đã cài chưa
+if ! command -v composer >/dev/null 2>&1; then
+echo "-------------------------------------------------------------------------"
+    echo "Đang cài đặt Composer..."
+    php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" >/dev/null 2>&1
+    php composer-setup.php --install-dir=/usr/local/bin --filename=composer >/dev/null 2>&1
+    rm -f composer-setup.php
+    clear
+    printf "=========================================================================\n"
+    echo "Đã cài đặt Composer thành công."
+    /etc/dsnvps/menu/dsnvps-tien-ich
+else
+    # Kiểm tra update
+        echo "-------------------------------------------------------------------------"
+    echo "Đã cài Composer. Đang kiểm tra cập nhật..."
+    output=$(composer self-update 2>&1 | grep -v diagnose)
+    if echo "$output" | grep -q "No update"; then
+    clear
+    printf "=========================================================================\n"
+        echo "DSNVPS hiện đã cài phiên bản mới nhất."
+        /etc/dsnvps/menu/dsnvps-tien-ich
+    else
+    clear
+    printf "=========================================================================\n"
+        echo "$output"
+        /etc/dsnvps/menu/dsnvps-tien-ich
+    fi
+fi

@@ -1,0 +1,38 @@
+#!/bin/bash
+echo "========================================================================="
+echo "Khi DSNVPS từ PRO chuyển về FREE, các cấu hình thuộc về bản PRO: Tự động"
+echo "------------------------------------------------------------------------"
+echo "sao lưu, backup lên Google Drive/VPS Backup, thiết lập tăng chịu tải cho"
+echo "------------------------------------------------------------------------"
+echo "Server... sẽ bị xóa. Vì vậy, bạn hãy gia hạn VPro365 Key trước khi hết   "
+echo "------------------------------------------------------------------------"
+echo "hạn để không phải cấu hình lại tất cả các chức năng này."
+echo "========================================================================="
+while true; do
+
+printf "%-35b %b\n" "\e[33m1) Dùng Thử PRO (7 Ngày)          \e[0m" "\e[33m2) Nâng Cấp PRO (365 Ngày & More)    \e[0m|"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in   
+    1) /etc/dsnvps/menu/dsnvps-kich-hoat-dung-thu;;
+    2) /etc/dsnvps/menu/dsnvps-register-business-version;; 
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+
+ 

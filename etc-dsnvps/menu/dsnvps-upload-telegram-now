@@ -1,0 +1,209 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Xác định serverip_priport
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Kiểm tra dung lượng thư mục backup
+dungluong=$(du -sh /home/$mainsite/private_html/backup 2>/dev/null | awk '{print $1}')
+if [ -z "$dungluong" ] || [ "$dungluong" == "0" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Trên server không tồn tại các file backup."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy sao lưu Website & Database trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra python3 và pip3
+if ! command -v python3 >/dev/null 2>&1 || ! command -v pip3 >/dev/null 2>&1; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang cài đặt python3 và pip3..."
+    apt-get install -y -qq python3 python3-pip >/dev/null 2>&1
+    if [ $? -ne 0 ]; then
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không thể cài đặt python3 và pip3. Vui lòng kiểm tra quyền hoặc kết nối mạng."
+        /etc/dsnvps/menu/dsnvps-telegram-menu
+        exit
+    fi
+fi
+
+# Kiểm tra và cài đặt telethon
+if ! python3 -c "import telethon" >/dev/null 2>&1; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang cài đặt thư viện telethon..."
+    sudo pip3 install telethon >/tmp/telethon_install.log 2>&1
+    if [ $? -ne 0 ]; then
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không thể cài đặt telethon. Chi tiết lỗi:"
+        cat /tmp/telethon_install.log
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn có thể thử tiếp tục upload hoặc kiểm tra quyền/mạng."
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Cài đặt telethon thành công."
+    fi
+fi
+
+# Kiểm tra file cấu hình Telegram
+if [ ! -f /etc/dsnvps/telegram_group.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Telegram chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra file cấu hình Telegram
+if [ ! -f /etc/dsnvps/backup.telegram.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa cấu hình [ Cấu Hình Tự Động Sao Lưu ]."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn cần cấu hình nó trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra group_id
+grep -q "group_id" /etc/dsnvps/telegram_group.conf
+if [ $? -ne 0 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "File cấu hình Telegram không hợp lệ. Hãy chạy [Xóa Tất Cả Cấu Hình]."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra file thực thi upload
+upload_script="/etc/dsnvps/menu/dsnvps-upload-telegram.py"
+if [ ! -f "$upload_script" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file thực thi: $upload_script"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại cấu hình DSNVPS."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi
+
+# Kiểm tra quyền đọc file config và session
+if [ ! -r /etc/dsnvps/telegram_group.conf ]; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Không thể đọc file /etc/dsnvps/telegram_group.conf. Kiểm tra quyền hoặc chạy với sudo."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit 1
+fi
+if [ ! -r /etc/dsnvps/telegram.session ]; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: File session /etc/dsnvps/telegram.session không tồn tại hoặc không đọc được."
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chạy lại [Kết Nối VPS Tới Telegram]."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit 1
+fi
+
+# Kiểm tra kết nối tới Telegram
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới Telegram - Tối đa 60 giây"; sleep 2
+
+# Kiểm tra kết nối bằng Python
+
+# Chạy script kiểm tra với timeout để tránh treo (ẩn thông báo kill)
+{
+    timeout 60 python3 /etc/dsnvps/menu/inc/checktelegram.py > /etc/dsnvps/.tmp/telegram_check.log 2>&1
+} 2>/dev/null
+check_exit_code=$?
+
+# Kiểm tra kết quả
+if [ $check_exit_code -eq 124 ] || [ $check_exit_code -eq 143 ]; then
+    check_result="ERROR: Timeout - Script chạy quá 60 giây. Có thể do database bị lock."
+elif [ $check_exit_code -ne 0 ]; then
+    if [ -f /etc/dsnvps/.tmp/telegram_check.log ]; then
+        check_result=$(cat /etc/dsnvps/.tmp/telegram_check.log 2>/dev/null)
+        if [ -z "$check_result" ] || [ "$check_result" = "" ]; then
+            check_result="ERROR: Script bị dừng bất thường (exit code: $check_exit_code)"
+        fi
+    else
+        check_result="ERROR: Không tìm thấy file log (exit code: $check_exit_code)"
+    fi
+else
+    if [ -f /etc/dsnvps/.tmp/telegram_check.log ]; then
+        check_result=$(cat /etc/dsnvps/.tmp/telegram_check.log 2>/dev/null)
+        if [ -z "$check_result" ] || [ "$check_result" = "" ]; then
+            check_result="ERROR: Kết quả trống - có thể script bị lỗi"
+        fi
+    else
+        check_result="ERROR: Không tìm thấy file kết quả"
+    fi
+fi
+
+# Cleanup
+rm -rf /etc/dsnvps/.tmp/checktelegram.py /etc/dsnvps/.tmp/telegram_check.log 2>/dev/null
+
+if [[ "$check_result" != "OK" ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Kết nối tới Telegram thất bại!"
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi: $check_result"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn có thể thử tiếp tục upload hoặc kiểm tra api_id, api_hash, session, hoặc kết nối mạng."
+else
+    echo "-------------------------------------------------------------------------"
+    echo "Kết nối thành công!"; sleep 1
+fi
+sleep 2 && tput cuu 4 && tput ed
+
+# Hỏi người dùng về việc upload
+echo "========================================================================="
+echo "Dùng chức năng này để upload backup files lên Telegram ngay và luôn."
+echo "========================================================================="
+read -r -p "Bạn muốn upload backup files lên Telegram ngay bây giờ? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "OK, Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Uploading ..."; sleep 3
+    
+    # Thực hiện upload và kiểm tra kết quả
+    python3 "$upload_script"
+    
+    echo "-------------------------------------------------------------------------"
+    echo "Upload thành công!"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Tất cả các file backup đã được upload lên tài khoản Telegram!"
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-telegram-menu
+    exit
+fi

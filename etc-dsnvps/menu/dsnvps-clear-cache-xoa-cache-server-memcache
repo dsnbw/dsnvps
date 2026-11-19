@@ -1,0 +1,39 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/sysconfig/memcached ]; then
+clear
+echo "========================================================================="
+echo "Sorry, Memcache chưa được cài đặt trên server!"
+dsnvps
+exit
+fi
+
+up=$(/bin/systemctl is-active memcached.service | grep -c active)
+
+if [ "$up" -lt 1 ]; then
+    clear
+    echo "========================================================================= "
+    echo "Memcache đang tắt trên server"
+    dsnvps
+else
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."; sleep 2
+        echo "-------------------------------------------------------------------------"
+    echo "flush_all" | nc 127.0.0.1 11211
+    clear
+    echo "========================================================================= "
+    echo "Xoá Memcached => Hoàn thành"
+    dsnvps
+fi
+
+clear
+echo "========================================================================="
+echo "Sorry, DSNVPS không thể tìm thấy Memcached trong hệ thống!"
+dsnvps
+exit

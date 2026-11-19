@@ -1,0 +1,128 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+#################
+# Neu khong có thì thoat ngay:
+if [ ! -f "/etc/dsnvps/.tmp/9malossxd" ]; then
+    echo "1" >/dev/null 2>&1
+    exit
+fi
+# Xóa file check Neu khong có thì thoat ngay:
+if [ -f "/etc/dsnvps/.tmp/9malossxd" ]; then
+    rm -rf /etc/dsnvps/.tmp/9malossxd
+fi
+##########
+
+# Khai báo hàm unset_api và các biến API
+unset_api() {
+    unset API_KEY >/dev/null 2>&1
+    unset API_URL >/dev/null 2>&1
+}
+API_URL="https://$(cat /dev/urandom | tr -dc 'a-f0-9' | head -c6).dsnvps.top"
+API_KEY="HALINH-Dq1r68x4EHYgqmBphIKgZpw4Ka"
+
+# Hàm parse JSON bằng Python hoặc sed
+parse_json() {
+    local json="$1" key="$2" value
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import json' 2>/dev/null; then
+        value=$(echo "$json" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"$key\", \"\"))" 2>/dev/null)
+        [ "$value" = "None" ] && value=""
+        echo "$value"
+    else
+        value=$(echo "$json" | sed -n "s/.*\"$key\":\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}.*/\\1/p" | head -1)
+        [ "$value" = "null" ] && value=""
+        echo "$value"
+    fi
+}
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+# Kiểm tra và xóa file phiên bản tạm nếu đang dùng phiên bản mới nhất
+LOCALVER=$(cat /etc/dsnvps/menu/inc/dsnvps.version 2>/dev/null)
+# So sánh và xóa file tạm nếu phiên bản giống nhau
+if [ -f /etc/dsnvps/dsnvpsnewversion ]; then
+    REMOVER=$(cat /etc/dsnvps/dsnvpsnewversion 2>/dev/null)
+    # Kiểm tra lại API nếu REMOVER không hợp lệ
+    if [ -n "$REMOVER" ] && ! echo "$REMOVER" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+        rm -f /etc/dsnvps/dsnvpsnewversion
+        REMOVER=""
+    else
+        response=$(curl -s --max-time 5 -X POST "$API_URL/?action=get_latest_version" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{}" --write-out '\n%{http_code}')
+        http_code=$(echo "$response" | tail -n 1)
+        json_data=$(echo "$response" | sed '$d')
+        if [ "$http_code" = "200" ] && [ -n "$json_data" ] && echo "$json_data" | grep -q '"status":"success"'; then
+            version=$(parse_json "$json_data" "version" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+            if [ -n "$version" ] && [ "$REMOVER" != "$version" ]; then
+                echo "$version" > /etc/dsnvps/dsnvpsnewversion
+                REMOVER="$version"
+            fi
+        fi
+    fi
+    if [ -n "$REMOVER" ] && [ "$LOCALVER" = "$REMOVER" ]; then
+        rm -f /etc/dsnvps/dsnvpsnewversion
+    fi
+fi
+# Lấy phiên bản từ API nếu file tạm không tồn tại và đã quá 1 tiếng
+if [ ! -f /etc/dsnvps/dsnvpsnewversion ]; then
+    timestamp_file="/etc/dsnvps/.tmp/api_check_timestamp_menu"
+    current_time=$(date +%s)
+    check_api=true
+    if [ -f "$timestamp_file" ]; then
+        last_check=$(cat "$timestamp_file" 2>/dev/null)
+        if [ -n "$last_check" ] && [ $((current_time - last_check)) -lt 7600 ]; then
+            check_api=false
+        fi
+    fi
+    if [ "$check_api" = true ]; then
+        response=$(curl -s --max-time 5 -X POST "$API_URL/?action=get_latest_version" \
+            -H "Authorization: Bearer $API_KEY" \
+            -H "Content-Type: application/json" \
+            -d "{}" --write-out '\n%{http_code}')
+        http_code=$(echo "$response" | tail -n 1)
+        json_data=$(echo "$response" | sed '$d')
+        if [ "$http_code" = "200" ] && [ -n "$json_data" ] && echo "$json_data" | grep -q '"status":"success"'; then
+            version=$(parse_json "$json_data" "version" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+            if [ -n "$version" ] && [ "$LOCALVER" != "$version" ]; then
+                echo "$version" > /etc/dsnvps/dsnvpsnewversion
+            fi
+            # Cập nhật timestamp
+            mkdir -p /etc/dsnvps/.tmp
+            echo "$current_time" > "$timestamp_file"
+        fi
+        unset_api
+    fi
+fi
+
+# Tạo và chạy script kiểm tra bổ sung
+if [ -f /etc/dsnvps/dsnvpsnewversion ]; then
+    REMOVER=$(cat /etc/dsnvps/dsnvpsnewversion 2>/dev/null)
+    if [ "$LOCALVER" != "$REMOVER" ]; then
+        echo "#!/bin/bash
+        echo '========================================================================='
+        echo 'Phát hiện phiên bản nâng cấp của DSNVPS !'
+        echo '-------------------------------------------------------------------------'
+        echo 'Bạn đang sử dụng: $LOCALVER   |   Phiên bản mới nhất: $REMOVER'
+        echo '-------------------------------------------------------------------------'
+        echo 'Bạn hãy nâng cấp DSNVPS lên phiên bản mới nhất để tiếp tục sử dụng.'
+        echo '========================================================================='
+        echo '========================================================================='
+        echo 'Cách nâng cấp: DSNVPS main menu => Cập Nhật Phiên Bản Mới'
+        echo '========================================================================='
+        read -p 'Nhấn Enter để tiếp tục...' enter
+        clear
+        dsnvps
+        " > /etc/dsnvps/.tmp/dsnvps_check_dsnvps_version
+        chmod +x /etc/dsnvps/.tmp/dsnvps_check_dsnvps_version
+        /etc/dsnvps/.tmp/dsnvps_check_dsnvps_version
+        rm -f /etc/dsnvps/.tmp/dsnvps_check_dsnvps_version
+    fi
+fi
+unset_api

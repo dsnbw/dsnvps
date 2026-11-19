@@ -1,0 +1,20 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                    Dịch Vụ Đang Chạy &  RAM Sử Dụng \n"
+printf "=========================================================================\n"
+/etc/dsnvps/menu/tienich/dsnvps-tien-trinh-dang-chay-ram-use > /etc/dsnvps/.tmp/sevessk.txt
+sed -i '/dsnvps/d' /etc/dsnvps/.tmp/sevessk.txt
+cat /etc/dsnvps/.tmp/sevessk.txt
+rm -rf /etc/dsnvps/.tmp/sevessk.txt
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+dsnvps

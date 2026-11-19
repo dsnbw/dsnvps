@@ -1,0 +1,311 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Tạo thư mục tạm
+mkdir -p /etc/dsnvps/.tmp
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để thêm park domain vào Server"
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập domain mới [ENTER]: "
+read domain
+domain=$(echo "$domain" | tr '[A-Z]' '[a-z]')
+
+# Kiểm tra domain rỗng
+if [ "$domain" = "" ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn nhập sai, vui lòng nhập lại!"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Kiểm tra domain hợp lệ
+kiemtradomain3="^(([a-zA-Z0-9]|xn--[a-zA-Z0-9-]+)([-a-zA-Z0-9]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9-]+)$"
+if [[ ! "$domain" =~ $kiemtradomain3 ]]; then
+    clear
+    echo "========================================================================="
+    echo "$domain không phải domain hợp lệ!"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại!"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Kiểm tra WWW/non-WWW
+if [ -d /home/www.$domain/public_html ] && [ -f /etc/nginx/conf.d/www.$domain.conf ]; then
+    domain=www.$domain
+fi
+if [[ "$domain" == www.* ]]; then
+    domain_redirect="${domain#www.}"
+else
+    domain_redirect="www.$domain"
+fi
+
+# Kiểm tra domain đã tồn tại
+if [ -f /etc/nginx/conf.d/$domain.conf ] || [ -f /etc/nginx/conf.d/$domain_redirect.conf ]; then
+    clear
+    echo "========================================================================="
+    echo "Phát hiện $domain hoặc $domain_redirect đã tồn tại!"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng thử lại!"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Kiểm tra xung đột server_name
+for conf_file in /etc/nginx/conf.d/*.conf /home/*/conf.d/*.conf; do
+    if [ -f "$conf_file" ] && grep -E "server_name.*($domain|$domain_redirect)" "$conf_file" >/dev/null; then
+        clear
+        echo "========================================================================="
+        echo "Lỗi: $domain hoặc $domain_redirect đã được sử dụng trong $conf_file!"
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng kiểm tra và thử lại!"
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    fi
+done
+
+# Kiểm tra domain trước khi thêm
+echo "$domain" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-truoc-khi-them-vao-server
+rm -f /etc/dsnvps/.tmp/websitenhap.test
+
+# Lấy danh sách website
+vhost_dir="/etc/nginx/conf.d"
+home_dir="/home"
+output_file="/etc/dsnvps/.tmp/checkallwebsites"
+> "$output_file"
+
+for vhost_file in "$vhost_dir"/*.conf; do
+    domainc=$(basename "$vhost_file" .conf)
+    if [[ "$domainc" == "dsnvps.demo" ]]; then
+        continue
+    fi
+    if [[ -d "$home_dir/$domainc" ]]; then
+        echo "$domainc" >> "$output_file"
+    fi
+done
+
+if [[ ! -s "$output_file" ]]; then
+    rm -f /etc/dsnvps/.tmp/checkallwebsites
+    clear
+    echo "========================================================================="
+    echo "Hiện tại bạn chưa thêm website vào server!"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Hiển thị danh sách website
+mapfile -t file_list < /etc/dsnvps/.tmp/checkallwebsites
+echo "========================================================================="
+echo "Nhập số tương ứng với website bạn muốn $domain park vào."
+echo "-------------------------------------------------------------------------"
+
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))
+    right_index=$((half + i + 1))
+    left_db="${file_list[i]:- }"
+    if (( right_index <= total )); then
+        right_db="${file_list[right_index-1]}"
+        printf "%-1s %-30s %-1s %-40s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+
+# Chọn website
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng website [0 -Thoát]: "
+    read -r choice
+    if [[ "$choice" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    fi
+    if [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+        website=${file_list[choice-1]}
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Vui lòng chọn lại."
+    fi
+done
+
+# Xác nhận thêm park domain
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS sẽ thêm $domain vào hệ thống"
+    echo "-------------------------------------------------------------------------"
+    echo "và cho chạy song song với $website"
+    echo "-------------------------------------------------------------------------"
+    read -p "Nhập OK để xác nhận: " input
+
+    if [[ "$input" != "OK" ]]; then
+        clear
+        echo "========================================================================="
+        echo "Xác nhận không chính xác. Cần nhập 'OK'!"
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    fi
+else
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Website $website không tồn tại!"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Kiểm tra SSL của domain gốc
+has_ssl=0
+ssl_cert_path=""
+ssl_key_path=""
+
+if grep -q "/etc/nginx/paidssl/$website/$website.crt" /etc/nginx/conf.d/$website.conf; then
+    has_ssl=1
+    ssl_cert_path="/etc/nginx/paidssl/$website/$website.crt"
+    ssl_key_path="/etc/nginx/paidssl/$website/$website.key"
+elif grep -q "/etc/nginx/auth-acme/$website/$website.crt" /etc/nginx/conf.d/$website.conf; then
+    has_ssl=1
+    ssl_cert_path="/etc/nginx/auth-acme/$website/$website.crt"
+    ssl_key_path="/etc/nginx/auth-acme/$website/$website.key"
+fi
+
+# Tạo thư mục conf.d
+mkdir -p /home/$website/conf.d
+
+# Thêm include vào file gốc nếu chưa có
+if ! grep -F "include /home/$website/conf.d/*.conf;" /etc/nginx/conf.d/$website.conf >/dev/null; then
+    echo "include /home/$website/conf.d/*.conf;" >> /etc/nginx/conf.d/$website.conf
+fi
+
+echo "-------------------------------------------------------------------------"
+echo "Đang thêm $domain vào hệ thống..."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Đang cấu hình park domain..."; sleep 2
+
+# Xóa file tạm trước khi tạo mới
+rm -f /etc/dsnvps/.tmp/$website.conf.txt /etc/dsnvps/.tmp/$domain.conf.tmp
+
+# Xử lý theo trạng thái SSL
+if [ $has_ssl -eq 0 ]; then
+    # Không có SSL: Sao chép và thay thế
+    cp /etc/nginx/conf.d/$website.conf /home/$website/conf.d/$domain.conf
+    sed -i "s/${website}/${domain}/g" /home/$website/conf.d/$domain.conf
+    sed -i "s/\/home\/$domain/\/home\/$website/g" /home/$website/conf.d/$domain.conf
+    sed -i '/Protect-Wp-login.php/d; /include \/etc\/nginx\/pwprotect/d' "/home/$website/conf.d/$domain.conf"
+    sed -i '/include \/home\/'"$website"'\/conf.d\/\*.conf;/d' "/home/$website/conf.d/$domain.conf"
+else
+    # Có SSL: Lấy root directory từ file gốc, các giá trị khác theo park domain
+    
+    # Lấy root directory từ file gốc
+    actual_root=$(grep -m1 "^\s*root\s" /etc/nginx/conf.d/$website.conf | awk '{print $2}' | sed 's/;//')
+    
+    # Nếu không tìm thấy root, sử dụng giá trị mặc định
+    if [ -z "$actual_root" ]; then
+        actual_root="/home/$website/public_html"
+    fi
+    
+    # Tìm dòng chứa server_name của website gốc và lấy toàn bộ phần phía dưới
+    servername_line=$(grep -n "server_name $website;" /etc/nginx/conf.d/$website.conf | head -1 | cut -d: -f1)
+    
+    if [ -n "$servername_line" ]; then
+        # Lấy toàn bộ phần từ dòng sau server_name cho đến cuối server block
+        tail -n +$((servername_line + 1)) /etc/nginx/conf.d/$website.conf > /etc/dsnvps/.tmp/$website.conf.txt
+        
+        # Tìm và cắt tại dấu } đóng của server block
+        awk '
+        BEGIN { brace_count = 0; }
+        {
+            if (/{/) brace_count++;
+            if (/}/) {
+                brace_count--;
+                if (brace_count < 0) {
+                    print "}";
+                    exit;
+                }
+            }
+            print;
+        }' /etc/dsnvps/.tmp/$website.conf.txt > /etc/dsnvps/.tmp/server_content.tmp
+        
+        # Loại bỏ dòng include conf.d
+        sed '/include \/home\/'"$website"'\/conf.d\/\*.conf;/d' /etc/dsnvps/.tmp/server_content.tmp > /etc/dsnvps/.tmp/final_content.tmp
+        
+        # Tạo file vhost hoàn chỉnh - root từ domain gốc, các giá trị khác theo park domain
+        cat > /home/$website/conf.d/$domain.conf <<END
+server {
+    listen 80;
+    server_name $domain_redirect;
+    return 301 http://$domain\$request_uri;
+}
+server {
+    listen 80;
+    access_log off;
+    error_log off;
+    add_header X-Frame-Options SAMEORIGIN;
+    add_header X-Content-Type-Options nosniff;
+    add_header X-XSS-Protection "1; mode=block";
+    root $actual_root;
+    include /etc/nginx/conf/ddos2.conf;
+    index index.php index.html index.htm;
+    server_name $domain;
+$(cat /etc/dsnvps/.tmp/final_content.tmp)
+END
+        
+        # Xóa các file tạm
+        rm -f /etc/dsnvps/.tmp/$website.conf.txt /etc/dsnvps/.tmp/server_content.tmp /etc/dsnvps/.tmp/final_content.tmp
+    else
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không tìm thấy server_name $website trong file cấu hình!"
+        /etc/dsnvps/menu/dsnvps-them-website-menu
+        exit
+    fi
+
+    # Lưu file tạm để debug
+    cp /home/$website/conf.d/$domain.conf /etc/dsnvps/.tmp/$domain.conf.tmp
+fi
+
+# Kiểm tra cấu hình Nginx
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang kiểm tra..."; sleep 3
+nginx -t 2> /etc/dsnvps/.tmp/abczaeool
+if ! nginx -t &>/dev/null; then
+    rm -f /home/$website/conf.d/$domain.conf
+    clear
+    echo "========================================================================="
+    echo "Lỗi cấu hình Nginx khi thêm $domain!"
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi ..."
+    echo "========================================================================="
+    echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+    echo "-------------------------------------------------------------------------"
+    echo "Trạng thái Nginx:"
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/abczaeool
+    echo "-------------------------------------------------------------------------"
+    echo "File vhost tạm: /etc/dsnvps/.tmp/$domain.conf.tmp"
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+fi
+
+# Khởi động lại Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+
+# Xóa file tạm
+rm -rf /etc/dsnvps/.tmp/check*
+
+# Thông báo hoàn tất
+clear
+echo "========================================================================="
+echo "$domain đã được thêm làm park domain cho $website!"
+echo "-------------------------------------------------------------------------"
+echo "Hiện tại: $domain chỉ chạy trên HTTP (không có SSL)"
+/etc/dsnvps/menu/dsnvps-them-website-menu

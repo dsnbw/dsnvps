@@ -1,0 +1,26 @@
+#!/bin/bash
+curTime=$(date +%s)
+checktruenumber='^[0-9]+$'
+if [ ! -d /etc/dsnvps/.tmp ]; then
+mkdir -p /etc/dsnvps/.tmp
+fi
+
+
+if ! command -v nginx >/dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "Xin lỗi, bạn cần cài đặt Nginx trước khi sử dụng chức năng này!"
+    #echo "Sorry,You need install nginx for server it before use this function!"
+    dsnvps
+fi
+#####
+## 
+# Check ban quyen
+touch /etc/dsnvps/.tmp/ckla
+# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed)
+##
+###
+##
+ #######################################################################################################
+clear && /etc/dsnvps/menu/dsnvps-befor-them-website-menu
+#kiem tra co ket noi internet moi check

@@ -1,0 +1,393 @@
+#!/bin/bash
+# Nạp các file cấu hình
+. /root/dsnvps.conf
+. /etc/dsnvps/backup.dropbox.conf
+
+# Kiểm tra file cấu hình backup
+if [ ! -f /etc/dsnvps/backup.dropbox.conf ]; then
+    echo "Lỗi: không tìm thấy file cấu hình Dropbox."
+    exit 1
+fi
+
+# Kiểm tra rclone có được cài đặt không
+if ! command -v rclone >/dev/null 2>&1; then
+    echo "Lỗi: rclone chưa được cài đặt."
+    exit 1
+fi
+
+# Đường dẫn backup trên VPS
+backup_base_dir="/home/$mainsite/private_html/backup"
+
+# Kiểm tra thư mục backup có tồn tại không
+if [ ! -d "$backup_base_dir" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Lỗi: Thư mục backup $backup_base_dir không tồn tại."
+    exit 1
+fi
+
+# Khởi tạo biến đếm cho thông báo Telegram
+total_uploaded=0
+total_failed=0
+total_skipped=0
+total_deleted_folders=0
+uploaded_websites=()
+uploaded_databases=()
+failed_items=()
+skipped_items=()
+deleted_folders=()
+
+echo "-------------------------------------------------------------------------"
+echo "Đang quét các file backup cần upload..."
+
+# Hàm đổi tên file trên Dropbox
+rename_existing_file() {
+    local remote_file="$1"
+    local new_name="$2"
+    local item_name="$3"
+  
+    # Kiểm tra file có tồn tại trên Dropbox không
+    if rclone lsf "$remote_file" >/dev/null 2>&1; then
+        echo " → File đã tồn tại trên Dropbox, đang đổi tên..."
+        
+        # Đổi tên file cũ
+        if rclone moveto "$remote_file" "$new_name" --quiet; then
+            echo " → Đã đổi tên file thành công"
+        else
+            echo " → Cảnh báo: Không thể đổi tên file, vẫn tiếp tục upload"
+        fi
+    else
+        echo " -> ->"
+    fi
+}
+
+# Hàm xóa folder local (cho action=move)
+delete_local_folder() {
+    local folder_path="$1"
+    local folder_name="$2"
+    local reason="$3"
+    
+    if [ "$action" = "move" ]; then
+        echo " → Action=move: Đang xóa folder local ($reason): $folder_name"
+        if rm -rf "$folder_path" 2>/dev/null; then
+            echo " → ✓ Đã xóa folder local: $folder_name"
+            total_deleted_folders=$((total_deleted_folders + 1))
+            deleted_folders+=("$folder_name")
+        else
+            echo " → ✗ Lỗi: Không thể xóa folder local: $folder_name"
+        fi
+    fi
+}
+
+# Hàm upload file
+upload_file() {
+    local local_file="$1"
+    local remote_path="$2"
+    local item_name="$3"
+    local file_type="$4" # "website" hoặc "database"
+  
+    # Lấy timestamp từ file local
+    local time=$(date -r "$local_file" +%Hh%Mm-%d-%m-%y)
+    local filename=$(basename "$local_file")
+    local remote_file="$remote_path/$filename"
+    local renamed_file="$remote_path/${filename}_$time"
+  
+    echo "-------------------------------------------------------------------------"
+    echo -e "\033[31mĐang xử lý $file_type: $item_name\033[0m"
+    echo " → File: $filename"
+    echo " → Thời gian backup: $time"
+    echo " → Action: $action"
+  
+    # Tạo thư mục trên Dropbox nếu chưa có
+    rclone mkdir "$remote_path" --quiet
+  
+    # Xác định extension dựa trên type
+    local ext="\.zip"
+    if [ "$file_type" = "database" ]; then
+        ext="\.gz"
+    fi
+  
+    # Tìm file backup cũ (file có đuôi đúng type và KHÔNG có pattern timestamp ở đuôi)
+    local grep_pattern="_[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}$"
+    old_files=$(rclone lsf "$remote_path" 2>/dev/null | grep -E "${ext}$" | grep -v "$grep_pattern" || true)
+  
+    local skip=0
+    local local_size=$(stat -c%s "$local_file")
+    local local_mtime=$(stat -c%Y "$local_file") # Unix timestamp in seconds
+  
+    if [ -n "$old_files" ]; then
+        if [ $(echo "$old_files" | wc -l) -gt 1 ]; then
+            echo " → Cảnh báo: Tìm thấy nhiều hơn 1 file backup không có timestamp cho $file_type. Sẽ xử lý tất cả."
+        fi
+        while IFS= read -r old_file_name; do
+            if [ -n "$old_file_name" ]; then
+                echo " → Trên Dropbox, tìm thấy backup: $old_file_name"
+              
+                # Đối với website (.zip), kiểm tra tên file trước
+                if [ "$file_type" = "website" ] && [ "$old_file_name" != "$filename" ]; then
+                    echo " → Tên file khác ($old_file_name != $filename), coi như backup mới"
+                    # Đổi tên file cũ dựa trên mod time của chính nó
+                    old_info=$(rclone lsl "$remote_path/$old_file_name" | grep " $old_file_name$")
+                    mod_date=$(echo "$old_info" | awk '{print $2}')
+                    mod_time=$(echo "$old_info" | awk '{print $3}' | cut -c1-5)
+                    mod_timestamp=$(date -d "$mod_date $mod_time" +%Hh%Mm-%d-%m-%y 2>/dev/null || date -d "$mod_date" +%Hh%Mm-%d-%m-%y)
+                    rename_existing_file "$remote_path/$old_file_name" "$remote_path/${old_file_name}_${mod_timestamp}" "$item_name"
+                    continue
+                fi
+              
+                # Lấy thông tin file trên Dropbox
+                old_info=$(rclone lsl "$remote_path/$old_file_name" | grep " $old_file_name$")
+                old_size=$(echo "$old_info" | awk '{print $1}')
+                old_mtime=$(date -d "$(echo "$old_info" | awk '{print $2, $3}')" +%s 2>/dev/null || date -d "$(echo "$old_info" | awk '{print $2}')" +%s)
+              
+                # So sánh kích thước và thời gian
+                if [ "$local_size" -eq "$old_size" ] && [ "$local_mtime" -le "$old_mtime" ]; then
+                    echo " → File $filename đã được upload trước đó, bỏ qua."
+                    skip=1
+                    total_skipped=$((total_skipped + 1))
+                    skipped_items+=("$item_name ($filename)")
+                    break
+                else
+                    echo " → File khác với bản trên Dropbox (kích thước hoặc thời gian), đổi tên file cũ"
+                    rename_existing_file "$remote_file" "$renamed_file" "$item_name"
+                fi
+            fi
+        done <<< "$old_files"
+    fi
+  
+    if [ $skip -eq 0 ]; then
+        echo " → Đang upload: $filename lên $remote_path"
+        if rclone "$action" "$local_file" "$remote_path" --progress --quiet 2>/tmp/rclone_result.log; then
+            echo " → ✓ Upload thành công: $filename"
+            total_uploaded=$((total_uploaded + 1))
+            if [ "$file_type" = "website" ]; then
+                uploaded_websites+=("$item_name")
+            else
+                uploaded_databases+=("$item_name")
+            fi
+        else
+            echo " → ✗ Upload thất bại: $filename"
+            total_failed=$((total_failed + 1))
+            failed_items+=("$item_name ($filename)")
+        fi
+    fi
+}
+
+# Hàm xóa file backup cũ trên Dropbox
+delete_old_backups() {
+    local remote_path="$1"
+    local item_name="$2"
+    local file_type="$3"
+  
+    local ext="\.zip"
+    if [ "$file_type" = "database" ]; then
+        ext="\.gz"
+    fi
+  
+    # Lấy danh sách tất cả file backup, kể cả file có timestamp
+    all_files=$(rclone lsl "$remote_path" 2>/dev/null | grep -E "${ext}$" | awk '{print $4}' | sort -r || true)
+  
+    if [ -z "$all_files" ]; then
+        return
+    fi
+  
+    # Đếm số file
+    count=$(echo "$all_files" | wc -l)
+  
+    # Nếu số file vượt quá sobanbackup, xóa các file cũ nhất
+    if [ "$count" -gt "$sobanbackup" ]; then
+        delete_count=$((count - sobanbackup))
+        echo " → Tìm thấy $count file $file_type cho $item_name, xóa $delete_count file cũ nhất..."
+        echo "$all_files" | tail -n "$delete_count" > /tmp/to_delete_$$.txt
+        while IFS= read -r file_to_delete; do
+            echo " → Đang xóa file cũ: $file_to_delete"
+            if rclone delete "$remote_path/$file_to_delete" --quiet; then
+                echo " → ✓ Đã xóa: $file_to_delete"
+                deleted_files=$((deleted_files + 1))
+            else
+                echo " → ✗ Lỗi khi xóa: $file_to_delete"
+            fi
+        done < /tmp/to_delete_$$.txt
+        rm -f /tmp/to_delete_$$.txt
+    fi
+}
+
+# Biến đếm số file đã xóa
+deleted_files=0
+
+# Quét tất cả folder trong backup_base_dir
+for backup_subfolder in "$backup_base_dir"/*; do
+    if [ ! -d "$backup_subfolder" ]; then
+        continue
+    fi
+  
+    subfolder_name=$(basename "$backup_subfolder")
+    remote_path="$nameaction:$serverip/$subfolder_name"
+  
+    # Kiểm tra file website (.zip)
+    shopt -s nullglob
+    for zip_file in "$backup_subfolder"/*.zip; do
+        if [ -f "$zip_file" ]; then
+            website_name=$(basename "$zip_file" .zip)
+            upload_file "$zip_file" "$remote_path" "$website_name" "website"
+        fi
+    done
+  
+    # Kiểm tra file database (.gz)
+    for gz_file in "$backup_subfolder"/*.gz; do
+        if [ -f "$gz_file" ]; then
+            database_name=$(basename "$gz_file" .gz)
+            upload_file "$gz_file" "$remote_path" "$database_name" "database"
+        fi
+    done
+  
+    # Xóa file backup cũ trên Dropbox
+    if [ -n "$(rclone lsf "$remote_path" 2>/dev/null)" ]; then
+        delete_old_backups "$remote_path" "$subfolder_name" "website"
+        delete_old_backups "$remote_path" "$subfolder_name" "database"
+    fi
+  
+    # Kiểm tra và xóa folder local nếu rỗng (cho action=move)
+    if [ -d "$backup_subfolder" ] && [ -z "$(ls -A "$backup_subfolder")" ]; then
+        delete_local_folder "$backup_subfolder" "$subfolder_name" "rỗng sau khi upload"
+    fi
+done
+
+echo "-------------------------------------------------------------------------"
+echo -e "\033[31mĐang tìm và xóa thư mục rỗng trong $serverip trên Dropbox...\033[0m"
+
+# Xóa thư mục rỗng trong từng subfolder trước
+for backup_subfolder in "$backup_base_dir"/*; do
+    if [ ! -d "$backup_subfolder" ]; then
+        continue
+    fi
+  
+    subfolder_name=$(basename "$backup_subfolder")
+    remote_subfolder="$nameaction:$serverip/$subfolder_name"
+  
+    # Kiểm tra thư mục có tồn tại trên Dropbox không trước khi xóa
+    if rclone lsf "$remote_subfolder" >/dev/null 2>&1; then
+        echo " → Đang kiểm tra: $subfolder_name"
+        rclone rmdirs "$remote_subfolder" --quiet
+    fi
+done
+
+# Sau đó xóa thư mục $serverip nếu rỗng và tồn tại
+if rclone lsf "$nameaction:$serverip" >/dev/null 2>&1; then
+    echo " → Đang kiểm tra thư mục gốc: $serverip"
+    rclone rmdirs "$nameaction:$serverip" --quiet
+fi
+
+echo "-------------------------------------------------------------------------"
+echo -e "\033[31mĐã hoàn tất backup và dọn dẹp.\033[0m"
+echo " → Tổng file đã upload: $total_uploaded"
+echo " → Tổng file đã bỏ qua: $total_skipped"
+echo " → Tổng file thất bại: $total_failed"
+echo " → Tổng file đã xóa (giữ lại $sobanbackup bản mới nhất): $deleted_files"
+if [ "$action" = "move" ]; then
+    echo " → Tổng folder local đã xóa: $total_deleted_folders"
+fi
+
+# Gửi thông báo Telegram chi tiết
+if [[ -f /etc/dsnvps/telegram.conf && -f /etc/dsnvps/backup.dropbox.telegram.conf ]]; then
+    source /etc/dsnvps/telegram.conf
+    source /etc/dsnvps/backup.dropbox.telegram.conf
+  
+    # Tạo thông báo chi tiết
+    MESSAGE="VPS: $serverip - Báo cáo backup Dropbox (Action: $action)
+
+📊 Tổng kết:
+• Upload thành công: $total_uploaded file(s)
+• Upload thất bại: $total_failed file(s)
+• File bỏ qua (không có backup mới): $total_skipped file(s)
+• File cũ đã xóa: $deleted_files file(s)"
+
+    if [ "$action" = "move" ]; then
+        MESSAGE="$MESSAGE
+• Folder local đã xóa: $total_deleted_folders folder(s)"
+    fi
+
+    # Thêm danh sách website đã backup
+    if [ ${#uploaded_websites[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Website đã backup:"
+        for website in "${uploaded_websites[@]}"; do
+            MESSAGE="$MESSAGE
+• $website"
+        done
+    fi
+  
+    # Thêm danh sách database đã backup
+    if [ ${#uploaded_databases[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Database đã backup:"
+        for database in "${uploaded_databases[@]}"; do
+            MESSAGE="$MESSAGE
+• $database"
+        done
+    fi
+  
+    # Thêm danh sách file đã bỏ qua nếu có
+    if [ ${#skipped_items[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==>  Không cần backup (không có backup mới):"
+        for skipped_item in "${skipped_items[@]}"; do
+            MESSAGE="$MESSAGE
+• $skipped_item"
+        done
+    fi
+  
+    # Thêm danh sách folder đã xóa nếu có
+    if [ ${#deleted_folders[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==>  Folder local đã xóa:"
+        for deleted_folder in "${deleted_folders[@]}"; do
+            MESSAGE="$MESSAGE
+• $deleted_folder"
+        done
+    fi
+  
+    # Thêm thông tin lỗi nếu có
+    if [ ${#failed_items[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+--> Backup thất bại:"
+        for failed_item in "${failed_items[@]}"; do
+            MESSAGE="$MESSAGE
+• $failed_item"
+        done
+    fi
+  
+    # Thêm trạng thái tổng quát
+    if [ $total_failed -eq 0 ]; then
+        if [ $total_uploaded -eq 0 ]; then
+            if [ $total_skipped -gt 0 ]; then
+                MESSAGE="$MESSAGE
+--> Trạng thái: Tất cả file đã được backup trước đó"
+            else
+                MESSAGE="$MESSAGE
+--> Trạng thái: Không có file backup nào được tìm thấy"
+            fi
+        else
+            MESSAGE="$MESSAGE
+--> Trạng thái: Backup hoàn tất thành công"
+        fi
+    else
+        MESSAGE="$MESSAGE
+--> Trạng thái: Backup hoàn tất với một số lỗi"
+    fi
+  
+    MESSAGE="$MESSAGE
+--> Thời gian: $(date '+%H:%M:%S %d/%m/%Y')"
+  
+    # Gửi thông báo Telegram
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$MESSAGE" \
+        -d parse_mode="HTML" > /dev/null 2>&1
+fi
+
+# Dọn dẹp file tạm
+rm -f /tmp/rclone_check.log /tmp/rclone_result.log /tmp/check_single_file.txt
+rm -rf /tmp/rclone_check_* /tmp/all_files_*.txt /tmp/to_delete_*.txt /tmp/gdrive_folders.txt
+clear
+echo "========================================================================="
+echo -e "\033[1;32mHoàn tất upload backfile lên Dropbox!\033[0m"

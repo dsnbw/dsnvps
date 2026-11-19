@@ -1,0 +1,96 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+once=0
+[[ "${1:-}" == "--once" || "${1:-}" == "once" ]] && once=1
+
+render_wtop() {
+    local host_name os_name kernel_ver up_str load_avg cpu_cores
+    host_name="$(hostname)"
+    os_name="$(grep -oP '^PRETTY_NAME="\K[^"]+' /etc/os-release 2>/dev/null || echo Linux)"
+    kernel_ver="$(uname -r)"
+    up_str="$(uptime -p 2>/dev/null | sed 's/^up //')"
+    load_avg="$(awk '{print $1" "$2" "$3}' /proc/loadavg)"
+    cpu_cores="$(dsnvps_cpu_cores)"
+
+    # Memory & Swap & ZRAM
+    local mem_total mem_used mem_avail swap_total swap_used zram_info
+    read -r mem_total mem_used mem_avail < <(free -m | awk '/^Mem:/ {print $2, $3, $7}')
+    read -r swap_total swap_used < <(free -m | awk '/^Swap:/ {print $2, $3}')
+    zram_info="OFF"
+    if grep -q '/dev/zram' /proc/swaps 2>/dev/null; then
+        zram_info="ON ($(awk '/\/dev\/zram/ {printf "%.0fMB/%.0fMB", $4/1024, $3/1024}' /proc/swaps))"
+    fi
+
+    # Disk & Inodes
+    local disk_line inode_line
+    disk_line="$(df -h / | awk 'NR==2 {print $3"/"$2" ("$5")"}')"
+    inode_line="$(df -i / | awk 'NR==2 {print $3"/"$2" ("$5")"}')"
+
+    # Optimization badges
+    local tcp_cc bbr_badge jem_badge jit_badge noa_badge brotli_badge oom_badge
+    tcp_cc="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)"
+    [[ "$tcp_cc" == "bbr" ]] && bbr_badge="${C_GREEN}BBR${C_RESET}" || bbr_badge="${C_YELLOW}${tcp_cc}${C_RESET}"
+
+    local mpid; mpid="$(systemctl show -p MainPID --value mariadb 2>/dev/null || echo 0)"
+    if [[ "$mpid" =~ ^[0-9]+$ ]] && ((mpid > 1)) && grep -q "libjemalloc" "/proc/${mpid}/maps" 2>/dev/null; then
+        jem_badge="${C_GREEN}jemalloc${C_RESET}"
+    else
+        jem_badge="${C_YELLOW}glibc${C_RESET}"
+    fi
+
+    local jit_sz; jit_sz="$(php-fpm$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null) -i 2>/dev/null | awk -F'=> ' '/opcache\.jit_buffer_size/ {print $2; exit}' | awk '{print $1}')"
+    if [[ -n "$jit_sz" && "$jit_sz" != "0" ]]; then
+        jit_badge="${C_GREEN}JIT(${jit_sz})${C_RESET}"
+    else
+        jit_badge="${C_YELLOW}JIT:OFF${C_RESET}"
+    fi
+
+    findmnt -n -o OPTIONS / | grep -q "noatime" && noa_badge="${C_GREEN}noatime${C_RESET}" || noa_badge="${C_YELLOW}relatime${C_RESET}"
+    grep -q "brotli.conf" /etc/nginx/nginx.conf 2>/dev/null && brotli_badge="${C_GREEN}Brotli+Gzip${C_RESET}" || brotli_badge="${C_YELLOW}Gzip${C_RESET}"
+    [[ -f /etc/systemd/system/mariadb.service.d/oom-protect.conf ]] && oom_badge="${C_GREEN}OOM-Shield${C_RESET}" || oom_badge="${C_YELLOW}No-OOM${C_RESET}"
+
+    # Connections
+    local tcp_est tcp_tw
+    tcp_est="$(ss -tan state established 2>/dev/null | tail -n +2 | wc -l)"
+    tcp_tw="$(ss -tan state time-wait 2>/dev/null | tail -n +2 | wc -l)"
+
+    # Services
+    local s_nginx s_php s_db s_redis s_ftp s_nft
+    systemctl is-active --quiet nginx && s_nginx="${C_GREEN}UP${C_RESET}" || s_nginx="${C_RED}DOWN${C_RESET}"
+    systemctl is-active --quiet "$(dsnvps_php_service)" && s_php="${C_GREEN}UP${C_RESET}" || s_php="${C_RED}DOWN${C_RESET}"
+    systemctl is-active --quiet mariadb && s_db="${C_GREEN}UP${C_RESET}" || s_db="${C_RED}DOWN${C_RESET}"
+    if systemctl is-active --quiet "$(dsnvps_redis_service)"; then s_redis="${C_GREEN}UP${C_RESET}"; else s_redis="${C_DIM}OFF${C_RESET}"; fi
+    systemctl is-active --quiet pure-ftpd && s_ftp="${C_GREEN}UP${C_RESET}" || s_ftp="${C_DIM}OFF${C_RESET}"
+    systemctl is-active --quiet nftables && s_nft="${C_GREEN}UP${C_RESET}" || s_nft="${C_DIM}OFF${C_RESET}"
+
+    clear
+    echo -e "${C_CYAN}===============================================================================${C_RESET}"
+    echo -e "${C_YELLOW}  DSNVPS WTOP - REALTIME MONITOR${C_RESET}  |  ${host_name} (${os_name})  |  $(date '+%H:%M:%S')"
+    echo -e "${C_CYAN}===============================================================================${C_RESET}"
+    printf " Kernel : %-24s | Uptime  : %s\n" "$kernel_ver" "$up_str"
+    printf " CPU    : %s vCPU | Load: %-15s | TCP Conn: EST=%s TIME_WAIT=%s\n" "$cpu_cores" "$load_avg" "$tcp_est" "$tcp_tw"
+    printf " RAM    : %s/%s MB (Avail: %s MB) | Swap: %s/%s MB | ZRAM: %s\n" "$mem_used" "$mem_total" "$mem_avail" "$swap_used" "$swap_total" "$zram_info"
+    printf " Disk / : %-24s | Inodes  : %s\n" "$disk_line" "$inode_line"
+    echo -e "-------------------------------------------------------------------------------"
+    echo -e " Services : Nginx[$s_nginx]  PHP($(dsnvps_php_ver))[$s_php]  MariaDB[$s_db]  Redis[$s_redis]  FTP[$s_ftp]  NFT[$s_nft]"
+    echo -e " Turbo    : $bbr_badge | $jem_badge | $jit_badge | $noa_badge | $brotli_badge | $oom_badge"
+    echo -e "${C_CYAN}===============================================================================${C_RESET}"
+    echo -e "${C_WHITE} TOP 10 TIẾN TRÌNH CHIẾM RAM / CPU:${C_RESET}"
+    ps -eo pid,user:10,%cpu,%mem,rss:8,comm --sort=-rss | head -n 11 | awk 'NR==1 {printf "  %-7s %-10s %5s %5s %9s  %s\n", $1,$2,$3,$4,"RSS(MB)",$6; next} {printf "  %-7s %-10s %5s %5s %8.1fM  %s\n", $1,$2,$3,$4,$5/1024,$6}'
+    echo -e "${C_CYAN}===============================================================================${C_RESET}"
+}
+
+if ((once == 1)); then
+    render_wtop
+    exit 0
+fi
+
+while true; do
+    render_wtop
+    echo -e "${C_DIM}Tự động làm mới mỗi 3 giây... Nhấn [q] để thoát.${C_RESET}"
+    if read -r -t 3 -n 1 key && [[ "$key" == "q" || "$key" == "Q" ]]; then
+        clear
+        exit 0
+    fi
+done

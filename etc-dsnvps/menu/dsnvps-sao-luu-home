@@ -1,0 +1,45 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+echo "========================================================================="
+echo "Sao lưu toàn bộ thư mục Home có thể mất thời gian"
+echo "-------------------------------------------------------------------------"
+echo "và dung lượng đĩa cũng để chứa file backup."
+echo "========================================================================="
+read -r -p "Bạn muốn backup folder Home? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+backuphomename=`date |md5sum |cut -c '1-12'`
+echo "Dang backup thu muc Home ..... "
+sleep 3
+rm -rf /home/$mainsite/private_html/backup/home/*
+cd /usr/local
+zip -r $serverip-$website$backuphomename.zip /home
+mkdir -p /home/$mainsite/private_html/backup/home
+mv $serverip-$website$backuphomename.zip /home/$mainsite/private_html/backup/home/$serverip-$website$backuphomename.zip
+clear
+echo "========================================================================="
+echo "Link file backup:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/home/$serverip-$website$backuphomename.zip"
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+
+ ;;
+    *)
+        echo ""
+        ;;
+esac
+clear
+echo "========================================================================="
+echo "Huy backup thu muc Home"
+/etc/dsnvps/menu/dsnvps-sao-luu
+

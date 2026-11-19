@@ -1,0 +1,76 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra xem strace có đang chạy không
+# Anti-debug removed
+
+echo "--------------------------------------------------------------------------"
+read -r -p "Bạn muốn phục hồi Nftables Firewall từ file backup này? [y/N] " response
+if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "--------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."
+    sleep 2
+
+    # Sao lưu quy tắc hiện tại vào tệp tạm thời
+    temp_backup="/tmp/nftables_temp_backup_$(date +%s).nft"
+    nft list ruleset > "$temp_backup"
+
+    # Xóa tất cả rules hiện tại trước khi phục hồi
+    nft flush ruleset
+
+    # Phục hồi từ file backup, kiểm tra lỗi
+    if ! nft -f "$source_file"; then
+        echo "Lỗi: Phục hồi từ file backup thất bại! Khôi phục Nftables Rules trước đó..."
+        nft flush ruleset
+        nft -f "$temp_backup"
+        rm -f "$temp_backup"
+        rm -rf /etc/dsnvps/.tmp/all_nftables_backups
+        clear
+        echo "========================================================================="
+        echo "Phục hồi thất bại! Đã khôi phục Nftables Rules trước đó."
+        /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+        exit 1
+    fi
+
+    # Xóa tệp sao lưu tạm thời nếu phục hồi thành công
+    rm -f "$temp_backup"
+
+    # Lưu cấu hình nftables
+    mkdir -p /etc/nftables
+    nft list ruleset > /etc/nftables/main.nft
+    chmod 600 /etc/nftables/main.nft
+
+    # Cập nhật /etc/nftables.conf để include ruleset
+    if [ ! -f /etc/nftables.conf ]; then
+        printf '#!/usr/sbin/nft -f\nflush ruleset\n' > /etc/nftables.conf
+        echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+    elif ! grep -Fx 'include "/etc/nftables/main.nft"' /etc/nftables.conf >/dev/null; then
+        echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+    fi
+
+    # Bật và khởi động lại nftables
+    systemctl enable nftables
+    systemctl restart nftables
+
+    clear
+    echo "========================================================================="
+    echo "Phục hồi Nftables Firewall Rules hoàn thành!"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup sử dụng: $selected_file"
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian backup: $file_time"
+    rm -rf /etc/dsnvps/.tmp/all_nftables_backups
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Bạn đã hủy phục hồi Nftables Firewall Rules!"
+    rm -rf /etc/dsnvps/.tmp/all_nftables_backups
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+fi

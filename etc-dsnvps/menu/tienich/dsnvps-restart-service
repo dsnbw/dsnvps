@@ -1,0 +1,17 @@
+#!/bin/bash
+prompt="Lựa chọn của bạn [0 -Thoát]:"
+options=( "Restart MySQL" "Restart Nginx" "Restart PHP-FPM" "Restart Server" )
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}" ; do 
+
+    case "$REPLY" in
+    1) /etc/dsnvps/menu/tienich/dsnvps-restart-mysql;;
+    2) /etc/dsnvps/menu/tienich/dsnvps-restart-nginx;;
+    3) /etc/dsnvps/menu/tienich/dsnvps-restart-php;;
+    4) /etc/dsnvps/menu/tienich/dsnvps-reboot-vps;;
+0) clear; exit 0;;
+            *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+
+    esac
+done

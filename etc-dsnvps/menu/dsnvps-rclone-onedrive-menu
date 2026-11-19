@@ -1,0 +1,169 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/dsnvps/backup.onedrive.conf ]; then
+if [ ! -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ]; then
+rm -rf /etc/dsnvps/backup.onedrive.conf
+fi 
+fi
+if [ -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ]; then
+if [ ! -f /etc/dsnvps/backup.onedrive.conf ]; then
+rm -rf /etc/cron.d/dsnvps.rclone.backup.onedrive.cron
+fi 
+fi
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+mkdir -p /home/$mainsite/private_html/backup
+fi
+
+if find /home/$mainsite/private_html/backup -type f | read; then
+    dungluong=$(du -sb /home/$mainsite/private_html/backup | awk '{size=$1/1024; unit="KB"; if (size>=1024) {size/=1024; unit="MB"} if (size>=1024) {size/=1024; unit="GB"} printf "%.2f %s", size, unit}')
+else
+    dungluong="0 KB"
+fi
+
+if [ -f /etc/dsnvps/backup.onedrive.conf ]; then
+    if grep -q "move" /etc/dsnvps/backup.onedrive.conf; then
+        autoxoa="BẬT (Nên TẮT)"
+        hientongdungluong=0
+    else
+        autoxoa=TẮT
+        hientongdungluong=1
+    fi
+fi
+
+if [ -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ] && [ -f /etc/dsnvps/backup.onedrive.conf ]; then
+    trangthai=BẬT
+    # Đọc toàn bộ cron line
+    cron_line=$(cat /etc/cron.d/dsnvps.rclone.backup.onedrive.cron | awk 'NR==2')
+    abc=$(echo "$cron_line" | awk '{print $2}')  # Giờ
+    phut=$(echo "$cron_line" | awk '{print $1}')  # Phút  
+    ngay=$(echo "$cron_line" | awk '{print $3}')  # Ngày trong tháng
+    thang=$(echo "$cron_line" | awk '{print $4}') # Tháng
+    thu=$(echo "$cron_line" | awk '{print $5}')   # Thứ trong tuần
+    
+    # Debug: Ghi các giá trị để kiểm tra
+    echo "Cron line: $cron_line" > /tmp/dsnvps_debug_frequency.log
+    echo "phut=$phut abc=$abc ngay=$ngay thang=$thang thu=$thu" >> /tmp/dsnvps_debug_frequency.log
+    
+    # Xác định tần suất dựa trên các trường cron
+    if [ "$ngay" = "*" ] && [ "$thang" = "*" ] && [ "$thu" = "*" ]; then
+        # Hàng ngày (tất cả trường đều là *)
+        tan_suat_hien_thi="Hàng Ngày"
+    elif [[ "$ngay" =~ ^\*/([0-9]+)$ ]]; then
+        # Pattern */số trong trường ngày (day of month)
+        frequency_num=$(echo "$ngay" | sed 's/^\*\///')
+        echo "frequency_num from ngay: $frequency_num" >> /tmp/dsnvps_debug_frequency.log
+        tan_suat_hien_thi="$frequency_num ngày 1 lần"
+    elif [[ "$thu" =~ ^\*/([0-9]+)$ ]]; then
+        # Pattern */số trong trường thứ (day of week)  
+        frequency_num=$(echo "$thu" | sed 's/^\*\///')
+        echo "frequency_num from thu: $frequency_num" >> /tmp/dsnvps_debug_frequency.log
+        case $frequency_num in
+            1) tan_suat_hien_thi="Hàng Ngày" ;;
+            2) tan_suat_hien_thi="2 ngày 1 lần" ;;
+            3) tan_suat_hien_thi="3 ngày 1 lần" ;;
+            4) tan_suat_hien_thi="4 ngày 1 lần" ;;
+            5) tan_suat_hien_thi="5 ngày 1 lần" ;;
+            6) tan_suat_hien_thi="6 ngày 1 lần" ;;
+            7) tan_suat_hien_thi="7 ngày 1 lần (Hàng Tuần)" ;;
+            *) tan_suat_hien_thi="$frequency_num ngày 1 lần" ;;
+        esac
+    elif [[ "$ngay" =~ ^[0-9]+$ ]]; then
+        # Ngày cố định trong tháng
+        tan_suat_hien_thi="Ngày $ngay hàng tháng"
+    elif [[ "$thu" =~ ^[0-6]$ ]]; then
+        # Thứ cố định trong tuần
+        case $thu in
+            0) tan_suat_hien_thi="Chủ Nhật hàng tuần" ;;
+            1) tan_suat_hien_thi="Thứ 2 hàng tuần" ;;
+            2) tan_suat_hien_thi="Thứ 3 hàng tuần" ;;
+            3) tan_suat_hien_thi="Thứ 4 hàng tuần" ;;
+            4) tan_suat_hien_thi="Thứ 5 hàng tuần" ;;
+            5) tan_suat_hien_thi="Thứ 6 hàng tuần" ;;
+            6) tan_suat_hien_thi="Thứ 7 hàng tuần" ;;
+        esac
+    else
+        # Trường hợp phức tạp khác
+        tan_suat_hien_thi="Lịch tùy chỉnh"
+    fi
+    
+    # Xử lý hiển thị thời gian
+    if [ "$phut" = "0" ]; then
+        thoigian_hien_thi="${abc}:00"
+    else
+        thoigian_hien_thi="${abc}:${phut}"
+    fi
+    
+    thoigianbackup="| Thời gian: $thoigian_hien_thi $tan_suat_hien_thi"
+else
+    trangthai=TẮT
+    thoigianbackup=""
+fi
+
+if [ -f /etc/dsnvps/backup.onedrive.conf ]; then
+    tuoifile="| Backup lưu: $(grep '^sobanbackup=' /etc/dsnvps/backup.onedrive.conf | cut -d'=' -f2) Bản"
+else
+    tuoifile=""
+fi
+
+if [ -f /etc/dsnvps/backup.onedrive.telegram.conf ]; then
+    thongbao="BẬT    "
+else
+    thongbao="TẮT    "
+fi
+
+show_phan_tren_menu()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function 
+echo "========================================================================="
+echo "                    Sao Lưu Backup Tới OneDrive                         "
+echo "========================================================================="
+echo "Thư mục sao lưu: /home/$mainsite/private_html/backup"
+echo "========================================================================="
+if [ "$hientongdungluong" == "1" ]; then
+echo "Tổng dung lượng các file backup: $dungluong"
+echo "========================================================================="
+fi
+echo "Sao lưu: $trangthai $thoigianbackup $tuoifile"
+echo "========================================================================="
+
+if [ -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ]; then
+echo "Xóa backup file trên VPS sau khi tải lên OneDrive: $autoxoa"
+echo "========================================================================="
+fi
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1856"
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-42s %s\n" "1) Kết Nối VPS Tới OneDrive      " "| 4) Tải Lên OneDrive Ngay Bây Giờ |"
+printf "%-45s %s\n" "2) Cấu Hình Tự Động Sao Lưu     " "| 5) Tải Backup Về VPS             |"
+printf "%-45s %s\n" "-------------------------------------|----------------------------------|" ""
+printf "%-41s %s\n" "3) Kiểm Tra Trạng Thái OneDrive  " "| 6) Xóa Tất Cả Cấu Hình           |"
+printf "%-45s %s\n" "-------------------------------------|----------------------------------|" ""
+printf "%-42s %s\n" "7) Tắt / Bật Thông Báo Telegram  => "  "| => Thông Báo Telegram: $thongbao <=|"
+
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+    1) /etc/dsnvps/menu/dsnvps-ket-noi-onedrive-rclone-vps;;
+    2) /etc/dsnvps/menu/dsnvps-tao-script-auto-upload-onedrive-rclone;;
+    3) /etc/dsnvps/menu/dsnvps-kiem-tra-onedrive-status-rclone;;
+    7) /etc/dsnvps/menu/dsnvps-on-off-send-thong-bao-onedrive-rclone;;
+    4) /etc/dsnvps/menu/dsnvps-upload-onedrive-rclone-now;;
+    5) /etc/dsnvps/menu/dsnvps-download-backup-tu-onedrive-xuong-vps-rclone;;
+    6) /etc/dsnvps/menu/dsnvps-clear-all-config-onedrive-rclone;;
+0) clear; exit 0;;  
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        tput cuu 10; for ((i=0; i<10; i++)); do tput el; tput cud1; done; tput cuu 10;; 
+    esac
+done

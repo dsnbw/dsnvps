@@ -1,0 +1,430 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# /etc/php-fpm.conf => error_log = /var/log/php-fpm/php-fpm.log
+#/etc/php-fpm.d/www.conf => slowlog = /var/log/php-fpm/php-fpm-slow.log
+if [ ! -d /var/log/php-fpm ]; then
+mkdir -p /var/log/php-fpm
+chown -R nginx:nginx /var/log/php-fpm
+fi
+if [ ! -d /var/log/nginx ]; then
+mkdir -p /var/log/nginx
+chown -R nginx:nginx /var/log/nginx
+fi
+if [ ! -d /var/log/mysql ]; then
+mkdir -p /var/log/mysql
+chown -R mysql:mysql /var/log/mysql
+fi
+
+if [ ! -f /var/log/nginx/error.log ]; then
+touch /var/log/nginx/error.log 
+chown -R nginx:nginx /var/log/nginx/error.log
+fi
+
+if [ ! -f /var/log/php-fpm/php-fpm.log ]; then 
+touch /var/log/php-fpm/php-fpm.log
+chown -R nginx:nginx /var/log/php-fpm/php-fpm.log
+fi
+if [ ! -f /var/log/php-fpm/php-fpm-slow.log ]; then 
+touch /var/log/php-fpm/php-fpm-slow.log
+chown -R nginx:nginx /var/log/php-fpm/php-fpm-slow.log
+fi
+if [ ! -f /var/log/php-fpm/php-fpm-error.log ]; then 
+touch /var/log/php-fpm/php-fpm-error.log
+chown -R nginx:nginx /var/log/php-fpm/php-fpm-error.log
+fi
+
+if [ ! -f /var/log/mysql/error.log ]; then
+touch /var/log/mysql/error.log
+chown -R mysql:mysql /var/log/mysql/error.log
+fi
+
+
+# Lấy dung lượng thư mục và kiểm tra giá trị
+sizenginx=$(du -sk /var/log/nginx 2>/dev/null | awk '{print $1}')
+sizenginx=${sizenginx:-0}
+
+sizemysql=$(du -sk /var/log/mysql 2>/dev/null | awk '{print $1}')
+sizemysql=${sizemysql:-0}
+
+sizephpfpm=$(du -sk /var/log/php-fpm 2>/dev/null | awk '{print $1}')
+sizephpfpm=${sizephpfpm:-0}
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+
+# Hiển thị tiêu đề
+echo "========================================================================="
+echo "                             Download File Log                           "
+echo "========================================================================="
+echo "Tải xuống & Xóa: Nginx - PHP - MySQL Log"
+echo "========================================================================="
+echo "Tổng dung lượng Log hiện tại:"
+echo "========================================================================="
+echo "Nginx: ${sizenginx}KB | MySQL: ${sizemysql}KB | PHP-FPM: ${sizephpfpm}KB"
+echo "========================================================================="
+
+
+while true; do
+printf "%-35s  %s\n" "1) Download Nginx Log"  "3) Download PHP-FPM Log"
+printf "%-35s  %s\n" "2) Download MySQL Log" "4) Xóa Tất Cả Logs"
+echo "========================================================================="
+
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    # Kiểm tra đầu vào là số
+    if [[ ! "$choice" =~ ^[0-9]+$ ]]; then
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 2
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 6   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<6; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 6   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue
+    fi
+    if [[ "$choice" -eq 0 ]]; then
+            echo "========================================================================="
+            echo "Trở lại menu DSNVPS !"; sleep 0.9
+    clear
+dsnvps
+exit
+    fi
+
+    # Thực hiện hành động tương ứng với lựa chọn
+case "$choice" in
+
+#############################################################################
+1)
+
+echo "========================================================================="
+echo "DSNVPS sẽ nén tất cả file log của Nginx, sau đó tạo link để bạn tải về."
+echo "========================================================================="
+# Nhận phản hồi từ người dùng
+read -p "Bạn đồng ý tải Log Nginx (y/n): " choice
+if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+    # Thư mục log của Nginx
+     NGINX_LOG_DIR="/var/log/nginx"
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+echo "========================================================================="
+echo "Vui lòng chờ ..."; sleep 2
+if [ ! -d /home/dsnvps.demo/private_html/downLOG ]; then
+mkdir -p /home/dsnvps.demo/private_html/downLOG
+fi
+ZIP_FILE="/home/dsnvps.demo/private_html/downLOG/nginx_logs_$TIMESTAMP.zip"
+rm -rf /home/dsnvps.demo/private_html/downLOG/nginx_logs*
+zip -r "$ZIP_FILE" "$NGINX_LOG_DIR" >/dev/null 2>&1
+
+size=$(du -sk /var/log/nginx | awk '{print $1}')
+if [[ $size -eq 0 ]]; then
+echo "========================================================================="
+echo "Không tìm thấy Log của Nginx"; sleep 3
+         clear
+            echo "========================================================================="
+                /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+                exit
+                fi
+
+
+
+
+
+
+  if [ $? -eq 0 ]; then
+  echo "========================================================================="
+echo "Hoàn thành! File log đã được nén tại:"
+  echo "-------------------------------------------------------------------------"          
+  echo "$ZIP_FILE"; sleep 3
+  clear
+   echo "========================================================================="
+    echo "Link download Nginx Log:"; sleep 2
+    echo "-------------------------------------------------------------------------"  
+    echo "http://$serverip_priport/downLOG/nginx_logs_$TIMESTAMP.zip"
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+  
+        else
+         clear
+            echo "========================================================================="
+            echo "Có lỗi xảy ra khi nén file log."
+                /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+        fi
+else
+echo "========================================================================="
+    echo "Không tạo link tải xuống Nginx Log."; sleep 2
+clear
+echo "========================================================================="
+echo "Không tìm thấy Log của Nginx"; sleep 2
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+fi
+;;
+##############################################################################
+#############################################################################
+2)
+echo "========================================================================="
+echo "DSNVPS sẽ nén tất cả file log của MySQL, sau đó tạo link để bạn tải về."
+echo "========================================================================="
+# Nhận phản hồi từ người dùng
+read -p "Bạn đồng ý tải Log MySQL (y/n): " choice
+if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+    # Thư mục log của Nginx
+     MYSQL_LOG_DIR="/var/log/mysql"
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+echo "========================================================================="
+echo "Vui lòng chờ ..."; sleep 2
+size=$(du -sk /var/log/mysql | awk '{print $1}')
+if [[ $size -eq 0 ]]; then
+echo "========================================================================="
+echo "Không tìm thấy Log của MySQL"; sleep 3
+         clear
+echo "========================================================================="
+echo "Không tìm thấy Log của MySQL"; sleep 2
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+                /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+                exit
+                fi
+                
+if [ ! -d /home/dsnvps.demo/private_html/downLOG ]; then
+mkdir -p /home/dsnvps.demo/private_html/downLOG
+fi
+ZIP_FILE="/home/dsnvps.demo/private_html/downLOG/mysql_logs_$TIMESTAMP.zip"
+rm -rf /home/dsnvps.demo/private_html/downLOG/mysql_logs*
+zip -r "$ZIP_FILE" "$MYSQL_LOG_DIR" >/dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+  echo "========================================================================="
+echo "Hoàn thành! File log đã được nén tại:"
+  echo "-------------------------------------------------------------------------"          
+  echo "$ZIP_FILE"; sleep 3
+  clear
+   echo "========================================================================="
+    echo "Link download MySQL Log:"; sleep 2
+    echo "-------------------------------------------------------------------------"  
+    echo "http://$serverip_priport/downLOG/mysql_logs_$TIMESTAMP.zip"
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+  
+        else
+        clear
+           echo "========================================================================="
+            echo "Có lỗi xảy ra khi nén file log."
+                /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+        fi
+else
+echo "========================================================================="
+    echo "Không tạo link tải xuống MySQL Log."; sleep 2
+clear
+echo "========================================================================="
+echo "Không tìm thấy Log của MySQL"; sleep 2
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+fi
+;;
+##############################################################################
+#############################################################################
+3)
+
+if grep -q "/home/dsnvps.demo/logs/php-fpm.log" "/etc/php-fpm.conf "; then
+clear
+echo "========================================================================="
+echo "Từ phiên bản 6.0.0, DSNVPS thay đổi đường dẫn log cho PHP."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy chỉnh lại theo hướng dẫn để chức năng này hoạt động."
+echo "-------------------------------------------------------------------------"
+echo "Trong: /etc/php-fpm.conf:"
+echo "Sửa: error_log = /home/dsnvps.demo/logs/php-fpm.log"
+echo "Thành: error_log = /var/log/php-fpm/php-fpm.log"
+echo "========================================================================="
+echo "Trong: /etc/php-fpm.d/www.conf:"
+echo "Sửa: slowlog = /home/dsnvps.demo/logs/php-fpm-slow.log"
+echo "Thành: slowlog = /var/log/php-fpm/php-fpm-slow.log"
+echo "------------------------------------------------------------------------"
+echo "Sửa: php_admin_value[error_log] = /home/dsnvps.demo/logs/php-fpm-error.log"
+echo "Thành: php_admin_value[error_log] = /var/log/php-fpm/php-fpm-error.log"
+echo "========================================================================="
+echo "Sau đó chạy lệnh: systemctl restart php-fpm"
+echo "-------------------------------------------------------------------------"
+echo "Và chạy lại chức năng này!"
+/etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+fi
+
+if grep -q "/home/dsnvps.demo/logs/php-fpm-error.log" "/etc/php-fpm.d/www.conf"; then
+clear
+echo "========================================================================="
+echo "Từ phiên bản 6.0.0, DSNVPS thay đổi đường dẫn log cho PHP."
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy chỉnh lại theo hướng dẫn để chức năng này hoạt động."
+echo "-------------------------------------------------------------------------"
+echo "Trong: /etc/php-fpm.conf:"
+echo "Sửa: error_log = /home/dsnvps.demo/logs/php-fpm.log"
+echo "Thành: error_log = /var/log/php-fpm/php-fpm.log"
+echo "========================================================================="
+echo "Trong: /etc/php-fpm.d/www.conf:"
+echo "Sửa: slowlog = /home/dsnvps.demo/logs/php-fpm-slow.log"
+echo "Thành: slowlog = /var/log/php-fpm/php-fpm-slow.log"
+echo "------------------------------------------------------------------------"
+echo "Sửa: php_admin_value[error_log] = /home/dsnvps.demo/logs/php-fpm-error.log"
+echo "Thành: php_admin_value[error_log] = /var/log/php-fpm/php-fpm-error.log"
+echo "========================================================================="
+echo "Sau đó chạy lệnh: systemctl restart php-fpm"
+echo "-------------------------------------------------------------------------"
+echo "Và chạy lại chức năng này!"
+/etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+fi
+
+echo "========================================================================="
+echo "DSNVPS sẽ nén tất cả file log của PHP-FPM, sau đó tạo link để bạn tải về."
+echo "========================================================================="
+# Nhận phản hồi từ người dùng
+read -p "Bạn đồng ý tải Log PHP-FPM (y/n): " choice
+if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+    # Thư mục log của Nginx
+     PHPFPM_LOG_DIR="/var/log/php-fpm"
+    TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+echo "========================================================================="
+echo "Vui lòng chờ ..."; sleep 2
+size=$(du -sk /var/log/php-fpm | awk '{print $1}')
+if [[ $size -eq 0 ]]; then
+echo "========================================================================="
+echo "Không tìm thấy Log của PHP-FPM"; sleep 3
+         clear
+            echo "========================================================================="
+            echo "Không tìm thấy Log của PHP-FPM"; sleep 2
+                /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+                exit
+                fi
+if [ ! -d /home/dsnvps.demo/private_html/downLOG ]; then
+mkdir -p /home/dsnvps.demo/private_html/downLOG
+fi
+ZIP_FILE="/home/dsnvps.demo/private_html/downLOG/phpfpm_logs_$TIMESTAMP.zip"
+rm -rf /home/dsnvps.demo/private_html/downLOG/phpfpm_logs*
+zip -r "$ZIP_FILE" "$PHPFPM_LOG_DIR" >/dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+  echo "========================================================================="
+echo "Hoàn thành! File log đã được nén tại:"
+  echo "-------------------------------------------------------------------------"          
+  echo "$ZIP_FILE"; sleep 3
+  clear
+   echo "========================================================================="
+    echo "Link download PHP-FPM Log:"; sleep 2
+    echo "-------------------------------------------------------------------------"  
+    echo "http://$serverip_priport/downLOG/phpfpm_logs_$TIMESTAMP.zip"
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+  
+        else
+        clear
+           echo "========================================================================="
+            echo "Có lỗi xảy ra khi nén file log."
+                /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+        fi
+else
+echo "========================================================================="
+    echo "Không tạo link tải xuống PHP-FPM Log."; sleep 2
+clear
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+fi
+;;
+##############################################################################
+#############################################################################
+4)
+echo "========================================================================="
+echo "DSNVPS sẽ xóa tất cả các file Log của Nginx - PHP-FPM - MySQL"
+echo "========================================================================="
+# Nhận phản hồi từ người dùng
+read -p "Bạn đồng ý xóa các file LOG này (y/n): " choice
+if [[ "$choice" == "y" || "$choice" == "Y" ]]; then
+    # Thư mục log của Nginx
+
+echo "========================================================================="
+echo "Vui lòng chờ ..."; sleep 2
+
+sizenginx=$(du -sk /var/log/nginx 2>/dev/null | awk '{print $1}')
+sizenginx=${sizenginx:-0}
+
+sizemysql=$(du -sk /var/log/mysql 2>/dev/null | awk '{print $1}')
+sizemysql=${sizemysql:-0}
+
+sizephpfpm=$(du -sk /var/log/php-fpm 2>/dev/null | awk '{print $1}')
+sizephpfpm=${sizephpfpm:-0}
+
+# Kiểm tra nếu tất cả dung lượng đều bằng 0
+if [[ $sizenginx -eq 0 && $sizemysql -eq 0 && $sizephpfpm -eq 0 ]]; then
+echo "========================================================================="
+echo "Dung lượng tất cả Log File bằng 0."; sleep 3
+echo "========================================================================="
+echo "Không cần xóa các Log Files."; sleep 2
+clear
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+fi
+
+
+cd /var/log/nginx
+rm -rf *
+cd /var/log/php-fpm
+rm -rf *
+cd /var/log/mysql
+rm -rf *
+cd
+
+if [ ! -f /var/log/nginx/error.log ]; then
+touch /var/log/nginx/error.log 
+chown -R nginx:nginx /var/log/nginx/error.log
+fi
+
+if [ ! -f /var/log/php-fpm/php-fpm.log ]; then 
+touch /var/log/php-fpm/php-fpm.log
+chown -R nginx:nginx /var/log/php-fpm/php-fpm.log
+fi
+if [ ! -f /var/log/php-fpm/php-fpm-slow.log ]; then 
+touch /var/log/php-fpm/php-fpm-slow.log
+chown -R nginx:nginx /var/log/php-fpm/php-fpm-slow.log
+fi
+if [ ! -f /var/log/mysql/error.log ]; then
+touch /var/log/mysql/error.log
+chown -R mysql:mysql /var/log/mysql/error.log
+fi
+echo "========================================================================="
+echo "Hoàn thành xóa các file Log."; sleep 2
+clear
+echo "========================================================================="
+echo "Hoàn thành xóa các file Log."; sleep 2
+/etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+
+else
+echo "========================================================================="
+echo "Không xóa các Log Files."; sleep 2
+clear
+    /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files
+    exit 0
+fi
+;;
+##############################################################################
+        *)
+            echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 2
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 8   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<8; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 8   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue
+            ;;
+    esac
+done

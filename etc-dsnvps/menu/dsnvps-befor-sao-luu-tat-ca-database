@@ -1,0 +1,61 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+code=`date |md5sum |cut -c '1-19'`
+echo "$(mysql --user=root --password=$mariadbpass -e "SHOW DATABASES;" | grep -Ev "(Database|information_schema|mysql|performance_schema)")" > /etc/dsnvps/.tmp/listdabasehostingaz
+checksize=$(du -sb /etc/dsnvps/.tmp/listdabasehostingaz | awk 'NR==1 {print $1}')
+   if [ "$checksize" == "0" ]; then
+   clear
+   echo "========================================================================="
+   echo "Không tìm thấy database có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+   exit
+   fi
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz | wc -l)
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz)
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz
+rm -rf /etc/dsnvps/.tmp/*check*
+for database in $listdatabasetrenserver 
+do
+if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" == "1" ]; then
+echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+rm -rf /etc/dsnvps/.tmp/*list*
+clear
+echo "========================================================================="
+echo "Không tìm thấy database có dữ liệu trên server"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi
+echo "========================================================================= "
+echo "Dùng chức năng này để sao lưu tất cả database trên server thành một file"
+echo "-------------------------------------------------------------------------"
+echo "duy nhất. Sau khi sao lưu xong, bạn có thể sử dụng file này để phục hồi"
+echo "-------------------------------------------------------------------------"
+echo "toàn bộ database trên một server khác."
+echo "========================================================================= "
+read -r -p "Bạn muốn sao lưu Full database? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/dsnvps-sao-luu-tat-ca-database
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Huỷ bỏ ! "
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi

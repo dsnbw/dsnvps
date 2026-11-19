@@ -1,0 +1,18 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="$(dsnvps_pick_domain wp)" || exit 0
+cur_url="$(dsnvps_wp "$dom" option get siteurl 2>/dev/null)"
+echo -e "Site URL hiện tại: ${C_YELLOW}${cur_url}${C_RESET}"
+read -r -p "Nhập chuỗi/URL cũ cần thay: " old_str
+read -r -p "Nhập chuỗi/URL mới: " new_str
+[[ -z "$old_str" || -z "$new_str" ]] && exit 0
+read -r -p "Chạy thử (--dry-run) trước? [Y/n]: " dry
+if [[ ! "$dry" =~ ^[Nn]$ ]]; then
+    dsnvps_wp "$dom" search-replace "$old_str" "$new_str" --all-tables --dry-run
+    read -r -p "Thực thi thay thế thật ngay bây giờ? [y/N]: " go
+    [[ "$go" =~ ^[Yy]$ ]] || exit 0
+fi
+dsnvps_wp "$dom" search-replace "$old_str" "$new_str" --all-tables
+dsnvps_wp "$dom" cache flush 2>/dev/null || true
+echo -e "${C_GREEN}✔ Hoàn tất Search & Replace!${C_RESET}"

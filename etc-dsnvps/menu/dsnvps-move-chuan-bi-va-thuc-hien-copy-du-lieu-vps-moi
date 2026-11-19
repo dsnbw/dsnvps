@@ -1,0 +1,180 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/cauhinh_move_vps.info ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa kết nối server hiện tại tới server mới"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chạy chức năng [Kết Nối Tới Server Mới] trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+    exit
+fi
+
+if [ -f /etc/dsnvps/cauhinh_move_vps.info ]; then
+    if [ "$(grep "thanhcong" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')" == "" ]; then
+        clear
+        echo "========================================================================="
+        echo "Bạn chưa hoàn thành cấu hình kết nối server hiện tại với server mới"
+        echo "-------------------------------------------------------------------------"
+        echo "Hãy chạy chức năng [Kết Nối Tới Server Mới] trước khi chạy chức năng này."
+        /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+        exit
+    fi
+fi
+
+vpsipmoi=$(grep "ipaddress" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')
+echo "========================================================================="
+echo "Thực hiện chức năng này để copy dữ liệu từ server này sang server mới."
+echo "========================================================================="
+echo "Trước khi copy dữ liệu sang, trên server mới bạn cần:"
+echo "-------------------------------------------------------------------------"
+echo "=> Thêm tất cả các website bằng chức năng [Thêm Website] trong DSNVPS để"
+echo "-------------------------------------------------------------------------"
+echo "cấu hình Vhost cho Website. Sau khi đưa dữ liệu xong, dùng chức năng"
+echo "-------------------------------------------------------------------------"
+echo "[Cấu Hình Vhost Dùng Plugin Cache] trong [Tiện Ích Cho Wordpress Website]"
+echo "-------------------------------------------------------------------------"
+echo "để config lại Vhost theo plugin cache bạn dùng Với Wordpress website, "
+echo "-------------------------------------------------------------------------"
+echo "Hoặc cấu hình lại theo Vhost đang dùng trong /home/0-$serverip"
+echo "-------------------------------------------------------------------------"
+echo "Với các website khác nếu cần thiết."
+echo "========================================================================="
+echo "==>> CHÚ Ý: "
+echo "========================================================================="
+echo "+ Bạn cần [Sao Lưu Tất Cả Database] trước khi đưa dữ liệu sang server mới"
+echo "-------------------------------------------------------------------------"
+echo "+ Tất cả config Vhost, Cronjob... server của cũ sẽ được đưa vào: "
+echo "-------------------------------------------------------------------------"
+echo "/home/0-$serverip trên server $vpsipmoi."
+printf "=========================================================================\n"
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=( "=> Truy cập [Sao Lưu & Phục Hồi Database]" "=> Bắt đầu copy dữ liệu sang $vpsipmoi")
+printf "LỰA CHỌN THAO TÁC TIẾP THEO  \n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+printf "=========================================================================\n"
+    case "$REPLY" in
+    1) luachonthaotac="truycapquanlydatabase"; break;;
+    2) luachonthaotac="batdaucopy"; break;;
+    0) luachonthaotac="thoat"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+
+
+if [ "$luachonthaotac" = "truycapquanlydatabase" ]; then
+clear
+/etc/dsnvps/menu/dsnvps-befor-them-xoa-database
+elif [ "$luachonthaotac" = "thoat" ]; then
+clear
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+else
+printf "=========================================================================\n"
+read -p "Bạn đã sao lưu tất cả Database trên Server hiện tại? (y/N): " choice
+[[ "$choice" == "y" || "$choice" == "Y" ]] || { echo "=========================================================================";echo "=========================================================================";echo "Bạn hãy [Sao Lưu Tất Cả Database] sau đó [Chuyển Dữ Liệu Sang Server Mới Ngay]";sleep 10;clear;/etc/dsnvps/menu/dsnvps-befor-them-xoa-database; exit; }
+echo "========================================================================="
+echo "Kết nối tới $vpsipmoi ... vui lòng chờ ... ";sleep 1
+
+vpsipmoi=$(grep "ipaddress" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')
+sshport=$(grep "sshport" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')
+checkconnect=$(ssh -p $sshport -o BatchMode=yes -o ConnectTimeout=9 root@$vpsipmoi echo connected 2>&1)
+if [[ ! $checkconnect == connected ]] ; then
+    clear
+    echo "========================================================================="
+echo "Kết nối thất bại"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại thông tin server mới"
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+    exit
+fi
+make_script_copy_du_lieu () {
+rm -rf /etc/dsnvps/.tmp/akxnasd08xasdxjhloaxk
+vpsipmoi=$(grep "ipaddress" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')
+cat > "/etc/dsnvps/.tmp/akxnasd08xasdxjhloaxk" <<END
+#!/bin/bash
+ssh -p $sshport root@$vpsipmoi mkdir -p /home/0-$serverip 
+ssh -p $sshport root@$vpsipmoi mkdir -p /home/0-$serverip/nginx
+ssh -p $sshport root@$vpsipmoi mkdir -p /home/dsnvps.demo/private_html/backup 
+echo "========================================================================="; sleep 2
+echo "Chuẩn bị copy Vhost, thông tin database.."
+echo "========================================================================="; sleep 24
+rsync -avz -e "ssh -p $sshport" /etc/nginx/conf.d root@$vpsipmoi:/home/0-$serverip/nginx/
+#rsync -avz -e "ssh -p $sshport" /root/.acme.sh root@$vpsipmoi:/home/0-$serverip/
+rsync -avz -e "ssh -p $sshport" /root/DBinfo.txt root@$vpsipmoi:/home/0-$serverip/Database_OLD_VPS_info.txt
+rsync -avz -e "ssh -p $sshport" /root/DBinfo.txt root@$vpsipmoi:/tmp/9oakxl.txt
+rsync -avz -e "ssh -p $sshport" /etc/nginx/geoip root@$vpsipmoi:/etc/nginx/
+rsync -avz -e "ssh -p $sshport" /etc/nginx/geoip2 root@$vpsipmoi:/etc/nginx/
+rsync -avz -e "ssh -p $sshport" /etc/nginx/paidssl root@$vpsipmoi:/etc/nginx/
+echo "========================================================================="; sleep 2
+echo "Chuẩn bị copy file backup."; sleep 2
+echo "========================================================================="; sleep 24
+rsync -avz -e "ssh -p $sshport" /home/dsnvps.demo/private_html/backup/ root@$vpsipmoi:/home/dsnvps.demo/private_html/backup/
+
+echo "========================================================================="; sleep 2
+echo "Chuẩn bị copy tất cả dữ liệu website."; sleep 2
+echo "========================================================================="; sleep 24
+rsync -avz -e "ssh -p $sshport" --exclude={dsnvps.conf,dsnvps.demo,DBinfo.txt,DSNVPS-manage-info.txt} /home/ root@$vpsipmoi:/home/
+rm -rf /etc/dsnvps/.tmp/akxnasd08xasdxjhloaxk
+END
+}
+
+
+echo "========================================================================="
+echo "Kết nối tới $vpsipmoi thành công !"; sleep 2
+
+sleep 3;tput cuu 35 && tput ed
+
+########################################################
+#tput cuu 2 && tput ed
+echo "========================================================================="
+echo "=> Chức năng này chỉ hoạt động trên Server dùng DSNVPS Pro. "
+echo "========================================================================="
+echo "Kiểm tra DSNVPS trên $vpsipmoi..."; sleep 10
+
+( rsync -avz -e "ssh -p $sshport" /etc/dsnvps/menu/move-dsnvps-chuyen-tiep-chuc-sang-vps-kiem-tra-1 root@$vpsipmoi:/tmp/90zmakl99llk ) &>/dev/null &
+ssh -p $sshport root@$vpsipmoi 'rm -f /tmp/zadfv'
+
+ssh -p $sshport root@$vpsipmoi bash /tmp/90zmakl99llk 
+
+
+if ssh -p $sshport root@$vpsipmoi test -f /tmp/zadfv; then
+clear
+echo "========================================================================="
+echo "Chức năng này chỉ hoạt động trên Server dùng DSNVPS quản lý."
+echo "-------------------------------------------------------------------------"
+echo "Hiện $vpsipmoi chưa cài đặt DSNVPS."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này."
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+exit
+fi
+
+#############################################################################
+tput cuu 6 && tput ed
+echo "========================================================================="
+echo "Bắt đầu Copy Dữ Liệu ..."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Không được tắt cửa sổ SSH này ..."
+echo "========================================================================="; sleep 10
+make_script_copy_du_lieu
+chmod +x /etc/dsnvps/.tmp/akxnasd08xasdxjhloaxk
+/etc/dsnvps/.tmp/akxnasd08xasdxjhloaxk
+echo "ok" > /etc/dsnvps/.tmp/0klsa
+clear
+echo "========================================================================="
+echo "Copy dữ liệu sang $vpsipmoi thành công."
+echo "-------------------------------------------------------------------------"
+echo "Tiếp theo, bạn hãy chạy chức năng [Phục Hồi Database Trên Server Mới ]"
+echo "-------------------------------------------------------------------------"
+echo "để phục hồi toàn bộ Database trên server mới."
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+
+fi

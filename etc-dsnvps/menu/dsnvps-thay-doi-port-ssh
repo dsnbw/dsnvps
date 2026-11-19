@@ -1,0 +1,210 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Khởi tạo các biến cần thiết
+serverip=${serverip:-""}
+domainquanly=${domainquanly:-""}
+priport=${priport:-""}
+
+# Hàm hiển thị thông báo lỗi và gọi menu
+show_error() {
+    clear
+    echo "========================================================================="
+    echo "$1"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy làm lại!"
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+}
+
+# Hàm xử lý thay đổi cổng SSH
+change_ssh_port() {
+    local sshport=$1
+    local portcu=$2
+    if [[ ! ${portcu} =~ ^[0-9]+$ ]]; then
+        echo "Port $sshport" >> /etc/ssh/sshd_config
+    else
+        cat > "/etc/dsnvps/.tmp/changeportssh" <<END
+sed -i 's/Port $portcu/Port $sshport/g' /etc/ssh/sshd_config
+END
+        chmod +x /etc/dsnvps/.tmp/changeportssh
+        /etc/dsnvps/.tmp/changeportssh
+        rm -rf /etc/dsnvps/.tmp/changeportssh
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."; sleep 2
+
+#############################
+##
+### Firewall Configuration
+##
+###################################   
+vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
+
+if [ "$vercheck" -lt 10 ]; then
+    # AlmaLinux 8 và cũ hơn - sử dụng iptables
+    # Kiểm tra quy tắc iptables trùng lặp trước khi thêm
+    if ! iptables -C INPUT -m state --state NEW -m tcp -p tcp --dport $sshport -j ACCEPT 2>/dev/null; then
+        iptables -A INPUT -m state --state NEW -m tcp -p tcp --dport $sshport -j ACCEPT
+        if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+    fi
+    /etc/dsnvps/menu/dsnvps-cai-dat-remove-csf-ssh-port
+else
+    # AlmaLinux 9 và mới hơn - sử dụng nftables
+    # Kiểm tra xem nftables có được cài đặt không
+    if ! command -v nft &> /dev/null; then
+        echo "Lỗi: nftables không được cài đặt trên hệ thống này!"
+        echo "Vui lòng cài đặt nftables trước khi sử dụng chức năng này."
+        exit 1
+    fi
+    
+    #############################################################
+    # Kiểm tra và tạo table nếu chưa tồn tại
+    if ! nft list tables | grep -q "table inet filter"; then
+        nft add table inet filter
+    fi
+    
+    # Kiểm tra và tạo chain nếu chưa tồn tại
+    if ! nft list chains | grep -q "chain input"; then
+        nft add chain inet filter input '{ type filter hook input priority 0 \; policy drop \; }'
+    fi
+    
+    # Kiểm tra và thêm quy tắc cho trạng thái ESTABLISHED,RELATED nếu chưa có
+    if ! nft list chain inet filter input | grep -q "ct state established,related accept"; then
+        nft add rule inet filter input ct state established,related accept
+    fi
+    
+    # Kiểm tra và thêm quy tắc cho cổng SSH nếu chưa có
+    if ! nft list chain inet filter input | grep -q "tcp dport $sshport ct state new accept"; then
+        nft add rule inet filter input tcp dport $sshport ct state new accept
+    fi
+    
+    # Lưu cấu hình nftables
+    mkdir -p /etc/nftables
+    nft list ruleset > /etc/nftables/main.nft
+    chmod 600 /etc/nftables/main.nft
+    
+    # Cập nhật file cấu hình hệ thống
+    if [ ! -f /etc/nftables.conf ]; then
+        printf '#!/usr/sbin/nft -f\nflush ruleset\n' > /etc/nftables.conf
+        echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+    elif ! grep -Fx 'include "/etc/nftables/main.nft"' /etc/nftables.conf >/dev/null; then
+        echo 'include "/etc/nftables/main.nft"' >> /etc/nftables.conf
+    fi
+    
+    # Sao lưu ruleset hiện tại trước khi khởi động lại
+    temp_backup="/tmp/nftables_temp_backup_$(date +%s).nft"
+    nft list ruleset > "$temp_backup"
+    
+    # Khởi động lại dịch vụ nftables
+    if ! systemctl restart nftables; then
+        echo "Lỗi: Khởi động lại nftables thất bại! Khôi phục ruleset trước đó..."
+        nft flush ruleset
+        nft -f "$temp_backup"
+        rm -f "$temp_backup"
+        echo "========================================================================="
+        echo "Khôi phục ruleset thành công do lỗi khởi động nftables."
+        exit 1
+    fi
+    rm -f "$temp_backup"
+fi
+
+#############################
+##
+###
+##
+###################################
+systemctl restart sshd 
+    clear
+    echo "========================================================================="
+    echo "Thay đổi cổng SSH thành công! Cổng SSH mới là $sshport"
+    echo "-------------------------------------------------------------------------"
+    echo "Nếu đăng nhập bằng command, bạn cần sử dụng lệnh sau:"
+    echo "-------------------------------------------------------------------------"
+    echo "ssh root@$serverip -p $sshport"
+    echo "-------------------------------------------------------------------------"
+    echo "Upload qua SFTP:"
+    echo "-------------------------------------------------------------------------"
+    echo "Host: sftp://$serverip, User & Pass: Thông tin Root, Cổng: $sshport"
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+}
+
+# Kiểm tra file cấu hình domain quản lý (đã được xử lý trong dsnvps.conf)
+
+# Kiểm tra strace đang chạy
+# Anti-debug removed
+
+# Lấy cổng SSH hiện tại
+sshPortdefault=$(grep "Port" /etc/ssh/sshd_config | head -n 1)
+portcu=$(cat /etc/ssh/sshd_config | grep Port | awk 'END {print $2}')
+
+# Kiểm tra nếu SSH port đã thay đổi không qua DSNVPS
+if ! grep -q "#Port 22" /etc/ssh/sshd_config; then
+    show_error "Bạn đã thay đổi port SSH mà không sử dụng DSNVPS\nChức năng này không thể hoạt động được !"
+fi
+echo "========================================================================="
+if [[ ${portcu} =~ ^[0-9]+$ ]]; then
+    echo "Cổng SSH hiện tại là: $portcu"
+else
+    echo "Cấu hình SSH mặc định: $sshPortdefault"
+    echo "-------------------------------------------------------------------------"
+    echo "Mặc định khi kết nối tới server trên SSH ta sử dụng cổng 22"
+
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để thay đổi cổng SSH ta đang sử dụng."
+echo "-------------------------------------------------------------------------"
+echo "Một số nhà cung cấp VPS (OVH, Oracle...) mặc định chặn toàn bộ port."
+echo "-------------------------------------------------------------------------"
+echo "Do đó, hãy chắc chắn mở port bạn muốn sử dụng trước khi đổi Port SSH."
+echo "-------------------------------------------------------------------------"
+echo "Nếu không, bạn sẽ mất quyền truy cập SSH vào VPS."
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn thay đổi cổng SSH? [Y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+        echo "-------------------------------------------------------------------------"
+        echo "Cổng SSH mới phải khác $priport và nằm giữa (30000 - 50000)"
+        echo "-------------------------------------------------------------------------"
+        echo -n "Nhập cổng SSH mới bạn muốn sử dụng [ENTER]: "
+        read sshport
+        # Kiểm tra cổng nhập vào có phải số tự nhiên
+        if [[ ! ${sshport} =~ ^[0-9]+$ ]]; then
+            show_error "Cổng bạn nhập: ${sshport} không phải là số tự nhiên."
+        fi
+        # Kiểm tra cổng có nằm trong khoảng hợp lệ
+        if ! [[ $sshport -ge 30000 && $sshport -le 50000 ]]; then
+            show_error "Cổng bạn nhập: ${sshport} không hợp lệ.\nCổng SSH phải khác $priport và nằm trong khoảng (30000 - 50000) !"
+        fi
+        # Kiểm tra cổng mới có trùng với cổng phpMyAdmin
+        if [ "$priport" = "$sshport" ]; then
+            show_error "Cổng SSH bạn muốn thay trùng với cổng phpMyAdmin !"
+        fi
+        # Kiểm tra cổng mới có trùng với cổng hiện tại
+        if [[ ${portcu} =~ ^[0-9]+$ && "$portcu" = "$sshport" ]]; then
+            show_error "Cổng SSH bạn nhập trùng với cổng hiện tại!"
+        fi
+        # Xác minh lần cuối trước khi thay đổi cổng
+        echo "-------------------------------------------------------------------------"
+        read -r -p "Bạn có chắc chắn muốn thay đổi cổng SSH thành $sshport? [Y/N] " confirm
+        case $confirm in
+            [yY][eE][sS]|[yY])
+                # Thực hiện thay đổi cổng SSH
+                change_ssh_port "$sshport" "$portcu"
+                ;;
+            *)
+                clear
+                echo "========================================================================="
+                echo "Bạn đã hủy thay đổi cổng SSH!"
+                /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+                ;;
+        esac
+        ;;
+    *)
+        clear
+        echo "========================================================================="
+        echo "Bạn đã hủy thay đổi cổng SSH!"
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        ;;
+esac

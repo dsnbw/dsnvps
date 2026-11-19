@@ -1,0 +1,120 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+# Kiểm tra jq đã cài chưa
+if ! command -v jq &> /dev/null; then
+    apt-get install -y -qq jq >/dev/null 2>&1 &
+fi
+########## Update DSNVPS tu 6.0.0
+if [ ! -f /etc/nginx/conf/ssl-protocol-cipherV2.conf ]; then
+cp -r /etc/dsnvps/menu/inc/conf/ssl-protocol-cipherV2.conf /etc/nginx/conf/
+fi
+
+if [ ! -d /etc/nginx/paidssl ]; then
+mkdir -p /etc/nginx/paidssl 
+fi
+
+show_phan_tren_menu() {
+    /etc/dsnvps/menu/dsnvps-menu-all-function 
+    echo "========================================================================="
+    echo "       Cài Đặt Free SSL Cloudflare & PaidSSL Cho Website (HTTPS)"
+    echo "========================================================================="
+    if [ -f /etc/dsnvps/ssl-cloudflare-api-global.conf ]; then
+        . /etc/dsnvps/ssl-cloudflare-api-global.conf
+        if [ -n "$global_ssl_api_email" ]; then
+            echo "API Đang Sử Dụng: Cloudflare API Global"
+        else
+            echo "API Đang Sử Dụng: Cloudflare API Token"
+        fi
+        echo "-------------------------------------------------------------------------"
+    else
+        echo "Recommend: Cấu hình Cloudflare API để cài đặt SSL hoàn toàn tự động."
+        echo "-------------------------------------------------------------------------"
+        echo "API Đang Sử Dụng: API Chưa Cấu Hình"
+        echo "-------------------------------------------------------------------------"
+        echo "Hướng dẫn lấy API: http://go.dsnvps/2655"
+        echo "-------------------------------------------------------------------------"
+    fi
+}
+
+show_menu_setup_ssl() {
+    while true; do
+    clear
+    show_phan_tren_menu
+        echo ""
+        printf "%-43s %s\n" "1) Cài đặt Free SSL Cloudflare (15 Năm)" ""
+        printf "%-43s %s\n" "2) Cấu Hình Cloudflare API" ""
+        printf "%-43s %s\n" "-------------------------------------------------------------------------" ""
+        printf "%-43s %s\n" "3) Cài đặt SSL Tự Ký Cho Backend Domain (Kết nối với Revese Proxy Domain)" ""
+        printf "%-43s %s\n" "-------------------------------------------------------------------------" ""
+        printf "%-43s %s\n" "-------------------------------------------------------------------------" ""
+        printf "%-43s %s\n" "4) Gỡ Cài Đặt SSL (Quay lại HTTP)" ""
+        printf "%-43s %s\n" "-------------------------------------------------------------------------" ""
+        printf "%-43s %s\n" "-------------------------------------------------------------------------" ""
+        printf "%-43s %s\n" "5) Tạo/Tải Xuống Domain Key & CSR File (Cho PaidSSL)" ""
+        printf "%-43s %s\n" "6) Cài đặt Paid SSL" ""
+        printf "%-43s %s\n" "-------------------------------------------------------------------------" ""
+        printf "%-43s %s\n" "7) List Website đã cài Cloudflare SSL / PaidSSL" ""
+        echo "========================================================================="
+        read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+        case $choice in 
+            1) /etc/dsnvps/menu/dsnvps-cai-dat-paidssl-website-park-domain-origin-V2;;
+            2) /etc/dsnvps/menu/dsnvps-ssl-cloudflare-add-api-global;;
+            3) /etc/dsnvps/menu/dsnvps-cai-dat-cai-ssl-tu-ky-danh-cho-reverse-proxy;;
+            4) /etc/dsnvps/menu/dsnvps-cai-dat-paidssl-quay-tro-lai-http-cho-paidssl;;
+            5) /etc/dsnvps/menu/dsnvps-create-csr-paidssl;;
+            6) /etc/dsnvps/menu/dsnvps-cai-dat-paidssl-website-park-domain;;
+            7) /etc/dsnvps/menu/dsnvps-list-domain-cai-dat-paid-ssl;;
+0) clear; exit 0;;
+            *)
+                echo "========================================================================="
+                echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+                tput cuu 18; for ((i=0; i<18; i++)); do tput el; tput cud1; done; tput cuu 18
+            ;;
+        esac
+    done
+}
+
+check_nginx_service() {
+    UP=$(systemctl status nginx | grep running | grep -v not | wc -l)
+    if [ ! "$UP" -ne 1 ]; then
+        show_menu_setup_ssl
+    else
+        clear
+        echo "========================================================================"
+        echo "Dịch vụ Nginx không chạy"
+        echo "------------------------------------------------------------------------"
+        echo "DSNVPS đang cố gắng khởi động nó"
+        echo "------------------------------------------------------------------------"
+        echo "Vui lòng chờ ..."
+        sleep 5 ; clear
+        /etc/dsnvps/menu/inc/start-nginx-service
+        clear
+        echo "========================================================================"
+        echo "Kiểm tra lại dịch vụ Nginx!"
+        echo "------------------------------------------------------------------------"
+        echo "Vui lòng chờ ..."
+        sleep 5 ; clear
+        UP=$(systemctl status nginx | grep running | grep -v not | wc -l)
+        if [ ! "$UP" -ne 1 ]; then
+            show_menu_setup_ssl 
+        else
+            clear
+            echo "========================================================================"
+            echo "DSNVPS không thể khởi động dịch vụ Nginx"
+            sleep 4 ;
+            clear
+            echo "========================================================================="
+            echo "Xin lỗi, nginx đã dừng. Vui lòng BẬT lại trước khi sử dụng chức năng này."
+            echo "------------------------------------------------------------------------"
+            nginx -t
+            dsnvps
+        fi
+    fi
+}
+check_nginx_service

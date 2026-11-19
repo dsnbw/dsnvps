@@ -1,0 +1,15 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="$(dsnvps_pick_domain wp)" || exit 0
+echo "1) BẬT Chế Độ Bảo Trì (Maintenance Mode)"
+echo "2) TẮT Chế Độ Bảo Trì"
+echo "3) BẬT WP_DEBUG + WP_DEBUG_LOG"
+echo "4) TẮT WP_DEBUG"
+read -r -p "Chọn [1-4]: " ch
+case "$ch" in
+    1) dsnvps_wp "$dom" maintenance-mode activate ;;
+    2) dsnvps_wp "$dom" maintenance-mode deactivate ;;
+    3) dsnvps_wp "$dom" config set WP_DEBUG true --raw && dsnvps_wp "$dom" config set WP_DEBUG_LOG true --raw && dsnvps_wp "$dom" config set WP_DEBUG_DISPLAY false --raw ;;
+    4) dsnvps_wp "$dom" config set WP_DEBUG false --raw && dsnvps_wp "$dom" config set WP_DEBUG_LOG false --raw ;;
+esac

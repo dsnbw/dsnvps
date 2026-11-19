@@ -1,0 +1,93 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+clear
+echo "========================================================================= "
+echo "LMD with ClamAV chưa được cài đặt trên VPS "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng cài đặt LMD trước khi chạy chức năng này !"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+exit
+fi
+echo "========================================================================= "
+echo "Scan tất cả website có thể mất rất nhiều thời gian "
+echo "-------------------------------------------------------------------------"
+echo "Để scan nhanh hơn, bạn nên scan 1 website bạn thấy cần scan."
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Scan Normal" "Scan In Background")
+printf "=========================================================================\n"
+echo "LỰA CHỌN SCAN: NORMAL HOẶC BACKGROUND"
+echo "-------------------------------------------------------------------------"
+printf "Nên lựa chọn [ Scan In Background ] khi scan số lượng file lớn \n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) cachscan="normal"; break;;
+    2) cachscan="background"; break;;
+    0) cachscan="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#scan 1 website
+###################################
+if [ "$cachscan" = "normal" ]; then
+scanway=normal
+elif [ "$cachscan" = "background" ]; then
+scanway=background
+else
+clear
+exit 0
+fi
+echo "-------------------------------------------------------------------------"
+if [ "$cachscan" = "background" ]; then
+echo "LMD sẽ scan /home theo hình thức Background"
+echo "-------------------------------------------------------------------------"
+fi
+read -r -p "Bạn chắc chắn muốn scan tất cả các website? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY])
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 2
+echo "========================================================================= "
+if [ "$cachscan" == "background" ]; then
+maldet -b -a /home
+clear
+echo "========================================================================="
+echo "Scan đang được diễn ra."
+echo "-------------------------------------------------------------------------"
+echo "Xem quá trình scan bằng lệnh bên dưới:"
+echo "-------------------------------------------------------------------------"
+echo "cat /usr/local/maldetect/logs/event_log"
+echo "-------------------------------------------------------------------------"
+echo "Khi scan hoàn thành. Xem kết quả bằng chức năng: View Last Scan Report"
+/etc/dsnvps/menu/dsnvps-maldet-menu
+else
+maldet -a /home
+name123=$(cat /usr/local/maldetect/sess/session.last)
+rm -rf /etc/dsnvps/.tmp/maldet.txt
+cp /usr/local/maldetect/sess/session.$name123 /etc/dsnvps/.tmp/maldet-home.txt
+sed -i '$d' /etc/dsnvps/.tmp/maldet-home.txt && sed -i '$d' /etc/dsnvps/.tmp/maldet-home.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-home.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-home.txt && sed -i '1d' /etc/dsnvps/.tmp/maldet-home.txt
+clear
+echo "========================================================================="
+echo "Scan hoàn thành. Report for scan on: $(maldet --report list | grep SCAN | awk 'NR==1 {print $1,$2,$3}')"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/maldet-home.txt | grep '\S'
+/etc/dsnvps/menu/dsnvps-maldet-menu
+fi
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Hủy bỏ scan tất cả các website !"
+/etc/dsnvps/menu/dsnvps-maldet-menu

@@ -1,0 +1,307 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Anti-debug removed
+
+###########################################
+RSLSYNC_PATHS=(
+    "/usr/bin/rslsync"
+    "/usr/local/bin/rslsync"
+    "/bin/rslsync"
+    "/sbin/rslsync"
+    "/opt/rslsync/rslsync"
+    "/opt/resilio-sync/rslsync"
+    "/etc/rslsync/rslsync"
+)
+for path in "${RSLSYNC_PATHS[@]}"; do
+    if [ -f "$path" ]; then
+killall -q rslsync
+pkill rslsync
+rm -f "$path"
+    fi
+done
+############################################################
+
+ssh_port=$(grep -i "^Port " /etc/ssh/sshd_config | awk '{print $2}' | head -n 1)
+[ -z "$ssh_port" ] && ssh_port=22
+echo "========================================================================="
+echo "Port của Resilio WebUI không được trùng port SSH, phpMyAdmin và phải là"
+echo "-------------------------------------------------------------------------"
+echo "số tự nhiên nằm trong khoảng (30000 - 50000)."
+echo "========================================================================="
+# Lấy port SSH hiện tại
+ssh_port=$(grep -i "^Port " /etc/ssh/sshd_config | awk '{print $2}' | head -n 1)
+[ -z "$ssh_port" ] && ssh_port=22
+
+# Hàm kiểm tra port đã được sử dụng chưa
+is_port_in_use() {
+    local port=$1
+    if command -v lsof &>/dev/null; then
+        lsof -iTCP:"$port" -sTCP:LISTEN &>/dev/null
+    elif command -v netstat &>/dev/null; then
+        netstat -tuln | grep -q ":$port "
+    else
+        return 1
+    fi
+}
+
+rslsyncport=50168
+
+# Nhập port rslsync WebUI
+while true; do
+    echo -n "Nhập Port Cho Resilio Sync WebUI [0 -Thoát]: "
+    read rslsyncportwebui
+
+    if [ "$rslsyncportwebui" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+        exit 0
+    fi
+
+    if [[ "$rslsyncportwebui" =~ ^[0-9]+$ ]] &&
+       [ "$rslsyncportwebui" -ge 30000 ] &&
+       [ "$rslsyncportwebui" -le 50000 ] &&
+       [ "$rslsyncportwebui" != "$priport" ] &&
+       [ "$rslsyncportwebui" != "$ssh_port" ] &&
+       [ "$rslsyncportwebui" != "$rslsyncport" ]; then
+
+        if is_port_in_use "$rslsyncportwebui"; then
+            echo "========================================================================="
+            echo "Port $rslsyncportwebui đang được sử dụng. Vui lòng chọn port khác!"
+            sleep 4 && tput cuu 3 && tput ed
+        else
+            break
+        fi
+    else
+        echo "========================================================================="
+        echo "Port không hợp lệ hoặc đang được sử dụng. Vui lòng nhập lại!"
+        sleep 4 && tput cuu 3 && tput ed
+    fi
+done
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+fi
+###################################################################
+###################################################################
+
+random=$(printf "%02d" $((RANDOM % 100)))
+username="dsnvps$random"
+password=$(date | md5sum | cut -c '1-32')
+
+rm -rf /etc/dsnvps/rslsync.info 
+rm -rf /etc/rslsync-dsnvps
+mkdir -p /etc/dsnvps/rslsync 
+mkdir -p /etc/rslsync-dsnvps/.sync 
+mkdir -p /etc/rslsync-dsnvps/.rslsync
+
+cat > "/etc/dsnvps/rslsync.info" <<END
+username = $username
+password = $password
+rslport = $rslsyncport
+rslportwebui = $rslsyncportwebui
+END
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..." 
+
+if [ "$(arch)" = "aarch64" ]; then
+    wget -O /etc/dsnvps/rslsync/rslsync https://dsnvps/script/dsnvps/rslsync.ARM --timeout=30 -q --show-progress 2>/tmp/wget.log
+else
+    wget -O /etc/dsnvps/rslsync/rslsync https://dsnvps/script/dsnvps/rslsync.X86 --timeout=30 -q --show-progress 2>/tmp/wget.log
+fi
+
+if [ $? -ne 0 ] || [ ! -f /etc/dsnvps/rslsync/rslsync ] || [ $(stat -c %s /etc/dsnvps/rslsync/rslsync) -lt $((1024 * 1024)) ]; then
+    clear
+    echo "========================================================================="
+    echo "Tải Resilio Sync thất bại!"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy thử chạy lại chức năng này lần nữa !"
+    /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+    exit 1
+fi
+
+chmod +x /etc/dsnvps/rslsync/rslsync
+
+cat > "/etc/rslsync-dsnvps/sync.conf" <<END
+{
+  "device_name": "dsnvps",
+  "listening_port": $rslsyncport,
+  "storage_path": "/etc/rslsync-dsnvps/.sync",
+  "check_for_updates": false,
+  "use_upnp": true,
+  "download_limit": 0,
+  "upload_limit": 0,
+  "webui": {
+    "listen": "0.0.0.0:$rslsyncportwebui",
+    "login": "$username",
+    "password": "$password"
+  }
+}
+END
+
+chown -R nginx:nginx /etc/dsnvps/rslsync 
+chown -R nginx:nginx /etc/rslsync-dsnvps
+chmod -R 755 /etc/dsnvps/rslsync 
+chmod -R 755 /etc/rslsync-dsnvps
+
+chown -R nginx:nginx /home
+chmod -R 755 /home
+
+cat > "/etc/systemd/system/resilio-sync.service" <<END
+[Unit]
+Description=Resilio Sync Service
+After=network.target
+
+[Service]
+Type=simple
+User=nginx
+Group=nginx
+ExecStart=/etc/dsnvps/rslsync/rslsync --nodaemon --config /etc/rslsync-dsnvps/sync.conf
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+END
+
+# Taoj Lograte
+LOGFILE="/etc/rslsync-dsnvps/.sync/sync.log"
+# Tạo file logrotate cho Resilio Sync
+cat > /etc/logrotate.d/resilio-sync <<EOF
+$LOGFILE {
+    daily
+    missingok
+    rotate 7
+    compress
+    delaycompress
+    notifempty
+    create 0644 nginx nginx
+}
+EOF
+if ! sudo -u nginx /etc/dsnvps/rslsync/rslsync --help --config /etc/rslsync-dsnvps/sync.conf >/dev/null 2>&1; then
+    clear
+    echo "========================================================================="
+    echo "File Resilio Sync không hoạt động được!"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng chạy lại chức năng này lần nữa !"
+    rm -rf /etc/dsnvps/rslsync/rslsync
+    rm -rf /etc/dsnvps/rslsync.info
+    rm -rf /etc/systemd/system/resilio-sync.service
+    rm -rf /etc/dsnvps/rslsync
+    rm -rf /etc/rslsync-dsnvps
+    /etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+    exit 1
+fi
+
+
+if [ -f /etc/csf/csf.pignore ]; then
+    IGNORE_FILE="/etc/csf/csf.pignore"
+
+    grep -qxF "exe:/etc/dsnvps/rslsync/rslsync" "$IGNORE_FILE" || echo "exe:/etc/dsnvps/rslsync/rslsync" >> "$IGNORE_FILE"
+    grep -qxF "exe:/etc/systemd/system/resilio-sync.service" "$IGNORE_FILE" || echo "exe:/etc/systemd/system/resilio-sync.service" >> "$IGNORE_FILE"
+rm -rf /etc/dsnvps/.tmp/csf-port   
+    cat > "/etc/dsnvps/.tmp/csf-port" <<END
+sed -i "s/^TCP_IN = \".*/TCP_IN = \"20,21,22,25,53,80,110,143,443,465,587,853,993,995,6379,11211,7844,30000:50000,${priport}\"/" /etc/csf/csf.conf
+sed -i "s/^TCP_OUT = \".*/TCP_OUT = \"20,21,22,25,53,80,110,113,443,853,587,11211,993,995,6379,465,587,3306,3307,8080,7844,30000:50000,${priport}\"/" /etc/csf/csf.conf
+END
+chmod +x /etc/dsnvps/.tmp/csf-port
+/etc/dsnvps/.tmp/csf-port
+rm -rf /etc/dsnvps/.tmp/csf-port
+csf -q > /dev/null 2>&1
+csf -x > /dev/null 2>&1
+csf -e > /dev/null 2>&1
+service lfd restart > /dev/null 2>&1
+fi
+
+##############
+PIGNORE="/etc/csf/csf.pignore"
+LINE="user:root"
+
+# Kiểm tra CSF đã cài chưa
+if [ -f "$PIGNORE" ]; then
+    grep -qxF "$LINE" "$PIGNORE" || echo "$LINE" >> "$PIGNORE"
+fi
+#############################
+#####################################################
+###################
+# Lấy port WebUI từ config
+if [ -f /etc/rslsync-dsnvps/sync.conf ]; then
+
+    rslsyncwebui_port=$(grep -oP '"listen"\s*:\s*"0.0.0.0:\K[0-9]+' /etc/rslsync-dsnvps/sync.conf)
+    rslsync_port=$(grep -oP '"listening_port"\s*:\s*\K[0-9]+' /etc/rslsync-dsnvps/sync.conf)
+    ssh_port=$(grep -i '^Port ' /etc/ssh/sshd_config | awk '{print $2}' | head -n1)
+    [ -z "$ssh_port" ] && ssh_port=22
+
+    # Hàm thêm port nếu chưa có
+    add_port_if_missing() {
+        local port="$1"
+        local var="$2"
+        grep -qE "${var}.*\b${port}\b" /etc/csf/csf.conf || \
+        sed -i "s/\(${var} = \".*\)\"/\1,${port}\"/" /etc/csf/csf.conf
+    }
+
+    # Mở port cho Resilio Sync (webui và sync port)
+    for var in TCP_IN TCP_OUT UDP_IN UDP_OUT; do
+        [ "$rslsync_port" != "0" ] && add_port_if_missing "$rslsync_port" "$var"
+        add_port_if_missing "$rslsyncwebui_port" "$var"
+    done
+
+    # Mở port SSH (để rsync qua SSH)
+    for var in TCP_IN TCP_OUT; do
+        add_port_if_missing "$ssh_port" "$var"
+    done
+
+    # Khởi động lại CSF/LFD nếu có script
+    [ -x /etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd ] && \
+        /etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd
+fi
+#############
+
+systemctl daemon-reload
+systemctl enable resilio-sync.service
+
+iptables -I INPUT -p tcp --dport $rslsyncport -j ACCEPT > /dev/null 2>&1
+iptables -I INPUT -p tcp --dport $rslsyncportwebui -j ACCEPT > /dev/null 2>&1
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi > /dev/null 2>&1
+
+systemctl start resilio-sync.service
+clear
+echo "========================================================================="
+echo -n "Cài đặt hoàn tất sau: "
+
+        for i in {20..1}; do
+            echo -n "$i "
+            sleep 1
+        done
+
+# Kiểm tra trạng thái bằng systemctl và ps
+if systemctl is-active resilio-sync.service >/dev/null || pgrep -f "/etc/dsnvps/rslsync/rslsync --nodaemon" >/dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Cài đặt Resilio Sync thành công!"
+    echo "-------------------------------------------------------------------------"
+    echo "Link truy cập WebUI: http://$serverip:$rslsyncportwebui"
+    echo "-------------------------------------------------------------------------"
+    echo "User: $username | Password: $password"
+else
+    clear
+    echo "========================================================================="
+    echo "Cài đặt Resilio Sync thất bại!"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy thử chạy lại chức năng này lần nữa !"
+fi
+
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu

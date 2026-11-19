@@ -1,0 +1,200 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+re='^[0-9]+$'
+website=$(cat /etc/dsnvps/.tmp/websiteautobackup)
+randomcode=`date |md5sum |cut -c '1-9'` 
+kiemtrafolder="^[a-zA-Z0-9-][-a-zA-Z0-9_-.]{0,61}[a-zA-Z0-9]$";
+
+chon_so_ban_luu_tru () {
+echo "========================================================================="
+echo "Lựa Chọn Số Bản Sao Lưu Tối Đa Được Lưu Trữ Trên VPS."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS Sẽ Tự Động Xóa Các Bản Sao Lưu Cũ Nhất Nếu Vượt Quá Số Này."
+echo "========================================================================="
+options=( "2 Bản" "3 Bản" "4 Bản" "5 Bản" "7 Bản" "10 Bản" "14 Bản" "21 Bản" "28 Bản")
+while true; do
+    printf "%-34s %-20s\n" "1) ${options[0]}" "6) ${options[5]}"
+    printf "%-34s %-20s\n" "2) ${options[1]}" "7) ${options[6]}"
+    printf "%-34s %-20s\n" "3) ${options[2]}" "8) ${options[7]}"
+    printf "%-34s %-20s\n" "4) ${options[3]}" "9) ${options[8]}"
+    printf "%-34s %-20s\n" "5) ${options[4]}" 
+    echo -n "Nhập lựa chọn của bạn [0 -Thoát]: "
+    read choice
+    case "$choice" in
+        1) sobansaoluu=2; break;;
+        2) sobansaoluu=3; break;;
+        3) sobansaoluu=4; break;;
+        4) sobansaoluu=5; break;;
+        5) sobansaoluu=7; break;;
+        6) sobansaoluu=10; break;;
+        7) sobansaoluu=14; break;;
+        8) sobansaoluu=21; break;;
+        9) sobansaoluu=28; break;;
+        0) sobansaoluu=0; break;;
+        *) echo "Bạn nhập sai! Vui lòng chọn số từ 0-9."; continue;;
+    esac
+done
+if [ "$sobansaoluu" = "0" ]; then
+    clear
+    exit
+fi
+echo "========================================================================="
+echo "Số bản sao lưu tối đa: $sobansaoluu bản"
+}
+
+chongio()
+{
+echo "========================================================================="
+echo -n "Bạn muốn cấu hình tự động sao lưu $website vào mấy giờ ?[0-23]: " 
+read gio
+if [ "$gio" = "" ]; then
+echo "========================================================================="
+echo "Bạn chưa nhập thời gian backup:"
+echo "-------------------------------------------------------------------------"
+echo "Giờ backup phải là số tự nhiên nằm trong khoảng (0 - 23)."
+echo "-------------------------------------------------------------------------"
+chongio
+fi
+if ! [[ $gio =~ $re ]] ; then
+echo "========================================================================="
+echo "$gio không đúng!"
+echo "-------------------------------------------------------------------------"
+echo "Giờ backup phải là số tự nhiên nằm trong khoảng (0 - 23)."
+echo "-------------------------------------------------------------------------"
+chongio
+fi
+if ! [[ $gio -ge 0 && $gio -le 23 ]] ; then 
+echo "========================================================================="
+echo "$gio không đúng!"
+echo "-------------------------------------------------------------------------"
+echo "Giờ backup phải là số tự nhiên nằm trong khoảng (0 - 23)."
+echo "-------------------------------------------------------------------------"
+chongio
+fi 
+}
+
+websiteTO=`echo $website | tr '[a-z]' '[A-Z]'`
+
+if [ ! -f /etc/dsnvps/.tmp/xafdf0askfhcv9 ]; then
+echo "-------------------------------------------------------------------------"
+echo "$websiteTO hiện không được bật chế độ tự động backup"
+fi
+rm -rf /etc/dsnvps/.tmp/xafdf0askfhcv9
+
+echo "========================================================================="
+echo "LỰA CHỌN TẦN SUẤT SAO LƯU"
+echo "========================================================================="
+options=( "Hàng ngày" "2 ngày 1 lần" "3 ngày 1 lần" "4 ngày 1 lần" "5 ngày 1 lần" "6 ngày 1 lần" "7 ngày 1 lần")
+while true; do
+    printf "%-33s %-20s\n" "1) ${options[0]}" "5) ${options[4]}"
+    printf "%-34s %-20s\n" "2) ${options[1]}" "6) ${options[5]}"
+    printf "%-34s %-20s\n" "3) ${options[2]}" "7) ${options[6]}"
+    printf "%-34s %-20s\n" "4) ${options[3]}"  
+    echo -n "Nhập lựa chọn của bạn [0 -Thoát]: "
+    read choice
+    case "$choice" in
+        1) khoangcachngay=1; break;;
+        2) khoangcachngay=2; break;;
+        3) khoangcachngay=3; break;;
+        4) khoangcachngay=4; break;;
+        5) khoangcachngay=5; break;;
+        6) khoangcachngay=6; break;;
+        7) khoangcachngay=7; break;;
+        0) khoangcachngay=0; break;;
+        *) echo "Bạn nhập sai! Vui lòng chọn số từ 0-7."; continue;;
+    esac
+done
+
+if [ "$khoangcachngay" = "0" ]; then
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    exit
+fi
+
+chongio
+chon_so_ban_luu_tru
+if [ "$khoangcachngay" = "1" ]; then
+    tan_suat_hien_thi="Sao lưu hàng ngày"
+else
+    tan_suat_hien_thi="Sao lưu $khoangcachngay ngày 1 lần"
+fi
+echo "========================================================================="
+echo "Cấu hình tự động sao lưu: $tan_suat_hien_thi, vào lúc ${gio}h"
+echo "-------------------------------------------------------------------------"
+echo "Số bản sao lưu tối đa: $sobansaoluu bản"
+echo "========================================================================="
+read -r -p "Bạn đồng ý với cấu hình này ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "OK, Vui lòng chờ ..."
+    sleep 3
+    ####################################################################
+    ##Check Ban Pro
+    ####################################################################
+    if [ ! -f /usr/bin/gxred ]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-sao-luu
+    fi
+    ###################################################################
+    ###################################################################
+    cat > "/bin/auto-backupcode-$website" <<END
+#!/bin/bash
+. /root/dsnvps.conf
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+if [ ! -d /home/$mainsite/private_html/backup/$website ]; then
+mkdir -p /home/$mainsite/private_html/backup/$website
+fi
+file_count=\$(ls -1 /home/$mainsite/private_html/backup/$website/*.zip* | wc -l)
+if [ \$file_count -gt $sobansaoluu ]; then
+    ls -1t /home/$mainsite/private_html/backup/$website/*.zip* | tail -n +\$(( $sobansaoluu + 1 )) | xargs rm -f
+fi
+cd /home/$mainsite/private_html/backup/$website
+for file in *.zip; do
+time=\$(date -r /home/$mainsite/private_html/backup/$website/\$file +%Hh%Mm-%d-%m-%y)
+    mv "\$file" "\`basename \$file .zip\`.zip.\$time"
+done
+cd
+cd /home/$website/public_html/
+zip -r --exclude=*Full-DSNVPS* --exclude=*0-DSNVPS* --exclude=*full_backup.* $website.zip *
+mv $website.zip /home/$mainsite/private_html/backup/$website/$website-$randomcode.zip
+cd
+END
+chmod +x /bin/auto-backupcode-$website
+if [ ! -f /etc/cron.d/dsnvps.code.cron ]; then
+echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.code.cron
+echo "0 $gio */$khoangcachngay * * root /bin/auto-backupcode-$website >/dev/null 2>&1" >> /etc/cron.d/dsnvps.code.cron
+else
+  if [ "$(grep "SHELL=/bin/sh" /etc/cron.d/dsnvps.code.cron)" == "" ]; then
+echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.code.cron 
+  fi
+echo "0 $gio */$khoangcachngay * * root /bin/auto-backupcode-$website >/dev/null 2>&1" >> /etc/cron.d/dsnvps.code.cron
+fi
+systemctl restart crond
+clear
+echo "========================================================================="
+echo "Cấu hình tự động sao lưu $website thành công."
+echo "-------------------------------------------------------------------------"
+echo "Website sẽ được sao lưu: $tan_suat_hien_thi, vào lúc ${gio}h"
+echo "-------------------------------------------------------------------------"
+echo "Số bản sao lưu tối đa: $sobansaoluu bản."
+echo "-------------------------------------------------------------------------"
+echo "Link file backup:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/$website/$website-$randomcode.zip"
+/etc/dsnvps/menu/dsnvps-sao-luu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-sao-luu
+    exit
+fi

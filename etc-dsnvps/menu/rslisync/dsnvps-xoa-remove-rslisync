@@ -1,0 +1,54 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+clear
+echo "========================================================================= "
+echo "Bạn chưa cài đặt Resilio Sync"
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+    exit 0
+fi
+echo "========================================================================= "
+echo "Sử dụng chức năng này để gỡ cài đặt Resilio Sync khỏi server"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn gỡ cài đặt Resilio Sync? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Chuẩn bị gỡ cài đặt Resilio Sync ..."; sleep 2
+sleep 2
+killall -q rslsync
+pkill rslsync
+systemctl stop resilio-sync.service
+if [ -f /etc/rslsync-dsnvps/sync.conf ]; then
+
+    rslsyncwebui_port=$(grep -oP '"listen"\s*:\s*"0.0.0.0:\K[0-9]+' /etc/rslsync-dsnvps/sync.conf)
+    rslsync_port=$(grep -oP '"listening_port"\s*:\s*\K[0-9]+' /etc/rslsync-dsnvps/sync.conf)
+fi
+iptables -I INPUT -p tcp --dport $rslsyncwebui_port -j DROP
+iptables -I INPUT -p tcp --dport $rslsync_port -j DROP
+if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+
+rm -rf /etc/dsnvps/rslsync
+rm -rf /etc/dsnvps/rslsync.info
+rm -rf /etc/rslsync-dsnvps
+rm -rf /etc/systemd/system/resilio-sync.service
+systemctl daemon-reload
+#sed -i "/\b\(rslsync\)\b/d" /etc/rc.d/rc.local
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Hủy bỏ ! "
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+        ;;
+esac
+clear 
+echo "========================================================================= "
+echo "Hoàn thành gỡ cài đặt Resilio Sync "
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu

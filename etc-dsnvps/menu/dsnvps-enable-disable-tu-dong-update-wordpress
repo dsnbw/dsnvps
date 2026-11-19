@@ -1,0 +1,181 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+######################################################################################
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+rm -rf /etc/dsnvps/.tmp/check*
+mkdir -p /etc/dsnvps/.tmp/sitedangbatsqlinjecthostingaz
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+sowebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+for website in $sowebsite 
+do
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+if [ "$(grep block.conf /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/conf/block.conf;" ]; then
+touch /etc/dsnvps/.tmp/sitedangbatsqlinjecthostingaz/$website
+fi
+fi
+done
+rm -rf /etc/dsnvps/.tmp/kland
+SOURCE_DIR="/etc/dsnvps/.tmp/sitedangbatsqlinjecthostingaz"
+OUTPUT_FILE="/etc/dsnvps/.tmp/kland"
+> "$OUTPUT_FILE"
+for file in "$SOURCE_DIR"/*; do
+    # Check if it is a file
+    if [ -f "$file" ]; then
+        # Extract the file name and append it to the output file
+        echo "$(basename "$file")" >> "$OUTPUT_FILE"
+    fi
+done
+###################################################################################
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+
+echo "========================================================================="
+echo "Mặc định, chế độ tự động cập nhật code luôn BẬT trên WordPress Website"
+echo "-------------------------------------------------------------------------"
+echo "Sử dụng chức năng này để TẮT - BẬT tính năng tự động cập nhật này."
+
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1103"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-0s %-30s %-0s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-0s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Cac doan ma xac nhan phia duoi se tiep tuc chay
+if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+wp_config="/home/$website/wp-config.php"
+else
+wp_config="/home/$website/public_html/wp-config.php"
+fi
+
+if grep -q "define('AUTOMATIC_UPDATER_DISABLED', true);" "$wp_config"; then
+echo "========================================================================="
+echo "$website hiện tại đang TẮT tự động nâng cấp!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn BẬT tự động Nâng cấp? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ..."
+    		
+    sleep 2
+ 
+sed -i "/define('AUTOMATIC_UPDATER_DISABLED', true);/d" "$wp_config" 
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+echo "========================================================================="
+echo "BẬT tự động Nâng cấp cho $website thành công!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+;;
+*)
+   clear
+   echo "========================================================================="
+   echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        ;;
+esac
+exit
+fi
+
+echo "========================================================================="
+echo "$website hiện tại đang BẬT tự động nâng cấp!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT tự động Nâng cấp? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+    		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng chờ...";
+		sleep 2
+echo "define('AUTOMATIC_UPDATER_DISABLED', true);" >> "$wp_config"
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+clear
+echo "========================================================================="
+echo "TẮT tự động Nâng cấp cho $website thành công!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+       ;;
+    *)
+    clear
+    echo "========================================================================="
+   echo "Hủy bỏ"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        ;;
+esac
+exit
+fi

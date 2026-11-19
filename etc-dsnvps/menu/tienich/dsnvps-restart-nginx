@@ -1,0 +1,87 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+######################################################
+CONFIG_FILE="/etc/nginx/nginx.conf"
+OLD_PID="/etc/nginx/nginx.pid"
+NEW_PID="/var/run/nginx.pid"
+if [ -f /etc/dsnvps/.tmp/1990 ]; then
+rm -rf /etc/dsnvps/.tmp/1990
+fi
+if [[ -f "$CONFIG_FILE" ]] && grep -q "$OLD_PID" "$CONFIG_FILE"; then
+    sed -i "s|$OLD_PID|$NEW_PID|g" "$CONFIG_FILE"
+echo "1" > /etc/dsnvps/.tmp/1990
+fi
+
+#########################################
+#########################################
+#################################################
+#Fix loi Nginx Pid File trong nginx.service
+######################################################
+SERVICE_FILE="/usr/lib/systemd/system/nginx.service"
+OLD_PID2="/etc/nginx/nginx.pid"
+NEW_PID2="/var/run/nginx.pid"
+
+if [[ -f "$SERVICE_FILE" ]] && grep -q "$OLD_PID2" "$SERVICE_FILE"; then
+    sed -i "s|$OLD_PID2|$NEW_PID2|g" "$SERVICE_FILE"
+systemctl daemon-reload
+systemctl enable nginx.service 
+systemctl restart nginx.service
+fi
+if [ -f /etc/dsnvps/.tmp/1990 ]; then
+systemctl restart nginx.service
+fi
+###################################################################
+	if [ "`systemctl is-active nginx.service`" == "active" ]; then
+clear
+echo "========================================================================"
+nginx -t
+/bin/systemctl stop nginx.service
+/bin/systemctl start nginx.service
+/etc/dsnvps/menu/dsnvps-tien-ich
+	else
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+		echo "-------------------------------------------------------------------------"
+		nginx -t
+systemctl restart nginx.service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+	if [ "`systemctl is-active nginx.service`" == "active" ]; then
+clear
+echo "========================================================================"
+/bin/systemctl stop nginx.service
+/bin/systemctl start nginx.service
+/etc/dsnvps/menu/dsnvps-tien-ich
+		else
+				clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động lại dịch vụ Nginx"
+sleep 4 ;
+clear
+echo "========================================================================="
+echo "Rất tiếc, DSNVPS không thể khởi động lại được Nginx!"
+			echo "-------------------------------------------------------------------------"
+	echo "Trạng thái Nginx:"
+	echo "-------------------------------------------------------------------------"
+	nginx -t
+	#echo "Sorry, DSNVPS can not restart nginx service !"
+	/etc/dsnvps/menu/dsnvps-tien-ich
+		fi
+fi
+

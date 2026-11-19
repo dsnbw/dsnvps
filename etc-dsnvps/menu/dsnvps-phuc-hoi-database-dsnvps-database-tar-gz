@@ -1,0 +1,40 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+website=$(cat /etc/dsnvps/.tmp/dsnvps-tensitephuchoi)
+dataname=$(cat /etc/dsnvps/.tmp/dsnvps-tendatabasephuchoi)
+randomcode=`date |md5sum |cut -c '1-18'`   
+echo "========================================================================="
+	echo "Tìm thấy file backup DSNVPS-DATABASE.tar.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Chuẩn bị phục hồi .... "
+	sleep 2
+	gunzip < /home/DSNVPS-DATABASE.tar.gz | mysql -u root -p$mariadbpass -f $dataname
+	date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+	check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+	check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+		if [ "$check1" == "$check2" ]; then
+		rm -rf /etc/dsnvps/.tmp/*dsnvps*
+		sleep 8
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thất bại "
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng kiểm tra file backup và thử lại !"
+		/etc/dsnvps/menu/dsnvps-them-xoa-database
+		else	
+		rm -rf /etc/dsnvps/.tmp/*dsnvps*
+		mv /home/DSNVPS-DATABASE.tar.gz /home/DSNVPS-DATABASE.tar.gz.$randomcode
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thành công !"
+		echo "-------------------------------------------------------------------------"
+		echo "File backup được đổi tên thành DSNVPS-DATABASE.tar.gz.$randomcode"
+		/etc/dsnvps/menu/dsnvps-them-xoa-database
+		exit
+		fi

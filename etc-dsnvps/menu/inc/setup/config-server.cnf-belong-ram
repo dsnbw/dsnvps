@@ -1,0 +1,232 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Kiểm tra strace (rút ngắn thời gian)
+# Anti-debug removed
+
+# Tạo thư mục tạm và cấu hình quyền
+mkdir -p /var/lib/mariadbtmp
+chown -R mysql:mysql /var/lib/mariadbtmp
+
+# Tính toán tài nguyên
+svram=$(free -m | awk '/^Mem:/{print $2}')
+cpucores=$(grep -c ^processor /proc/cpuinfo)
+[[ "$cpucores" =~ ^[0-9]+$ ]] || cpucores=2
+innodb_thread_concurrency=$((cpucores * 2))
+
+# Sao lưu file cấu hình cũ
+[ -f /etc/my.cnf ] && cp /etc/my.cnf /etc/my.cnf-old
+
+# Cấu hình theo RAM (sửa lỗi innodbbuffer thành innodb_buffer_pool_size)
+if [[ $svram -le 700 ]]; then
+    # 512MB
+    innodb_buffer_pool_size=32M
+    innodb_buffer_pool_instances=1
+    innodb_log_file_size=64M
+    innodb_log_buffer_size=8M
+    innodb_io_capacity=100
+    tmp_table_size=16M
+    max_connections=30
+    thread_cache_size=32
+    table_open_cache=512
+    join_buffer_size=64K
+    sort_buffer_size=64K
+    read_rnd_buffer_size=128K
+
+elif [[ $svram -le 1300 ]]; then
+    # 1GB
+    innodb_buffer_pool_size=64M
+    innodb_buffer_pool_instances=1
+    innodb_log_file_size=128M
+    innodb_log_buffer_size=8M
+    innodb_io_capacity=150
+    tmp_table_size=64M
+    max_connections=40
+    thread_cache_size=64
+    table_open_cache=1024
+    join_buffer_size=128K
+    sort_buffer_size=128K
+    read_rnd_buffer_size=128K
+
+elif [[ $svram -le 2500 ]]; then
+    # 2GB
+    innodb_buffer_pool_size=128M
+    innodb_buffer_pool_instances=2
+    innodb_log_file_size=128M
+    innodb_log_buffer_size=8M
+    innodb_io_capacity=200
+    tmp_table_size=128M
+    max_connections=60
+    thread_cache_size=128
+    table_open_cache=2048
+    join_buffer_size=256K
+    sort_buffer_size=256K
+    read_rnd_buffer_size=256K
+
+elif [[ $svram -le 4500 ]]; then
+    # 4GB
+    innodb_buffer_pool_size=256M
+    innodb_buffer_pool_instances=2
+    innodb_log_file_size=256M
+    innodb_log_buffer_size=8M
+    innodb_io_capacity=300
+    tmp_table_size=256M
+    max_connections=80
+    thread_cache_size=256
+    table_open_cache=3072
+    join_buffer_size=256K
+    sort_buffer_size=512K
+    read_rnd_buffer_size=512K
+
+elif [[ $svram -le 8500 ]]; then
+    # 8GB
+    innodb_buffer_pool_size=512M
+    innodb_buffer_pool_instances=2
+    innodb_log_file_size=384M
+    innodb_log_buffer_size=8M
+    innodb_io_capacity=400
+    tmp_table_size=384M
+    max_connections=100
+    thread_cache_size=256
+    table_open_cache=4096
+    join_buffer_size=512K
+    sort_buffer_size=512K
+    read_rnd_buffer_size=512K
+
+elif [[ $svram -le 17000 ]]; then
+    # 16GB
+    innodb_buffer_pool_size=1024M
+    innodb_buffer_pool_instances=2
+    innodb_log_file_size=512M
+    innodb_log_buffer_size=8M
+    innodb_io_capacity=500
+    tmp_table_size=512M
+    max_connections=120
+    thread_cache_size=384
+    table_open_cache=6144
+    join_buffer_size=1M
+    sort_buffer_size=1M
+    read_rnd_buffer_size=512K
+
+elif [[ $svram -le 33000 ]]; then
+    # 32GB
+    innodb_buffer_pool_size=4096M
+    innodb_buffer_pool_instances=4
+    innodb_log_file_size=768M
+    innodb_log_buffer_size=16M
+    innodb_io_capacity=600
+    tmp_table_size=768M
+    max_connections=200
+    thread_cache_size=384
+    table_open_cache=8192
+    join_buffer_size=1M
+    sort_buffer_size=2M
+    read_rnd_buffer_size=512K
+
+elif [[ $svram -le 65000 ]]; then
+    # 64GB
+    innodb_buffer_pool_size=8192M
+    innodb_buffer_pool_instances=8
+    innodb_log_file_size=768M
+    innodb_log_buffer_size=16M
+    innodb_io_capacity=800
+    tmp_table_size=1024M
+    max_connections=250
+    thread_cache_size=384
+    table_open_cache=8192
+    join_buffer_size=2M
+    sort_buffer_size=2M
+    read_rnd_buffer_size=512K
+
+else
+    # >64GB
+    innodb_buffer_pool_size=16384M
+    innodb_buffer_pool_instances=16
+    innodb_log_file_size=1024M
+    innodb_log_buffer_size=32M
+    innodb_io_capacity=1000
+    tmp_table_size=2048M
+    max_connections=300
+    thread_cache_size=512
+    table_open_cache=12288
+    join_buffer_size=4M
+    sort_buffer_size=4M
+    read_rnd_buffer_size=1M
+fi
+
+# Tạo file cấu hình (giữ nguyên open_files_limit = 65535)
+cat > "/etc/my.cnf" <<END
+[mysqld]
+user                = mysql
+bind-address        = 127.0.0.1
+skip-name-resolve   = 1
+port                = 3306
+socket              = __DB_SOCKET__
+tmpdir              = /var/lib/mariadbtmp
+innodb_file_per_table = 1
+
+
+# Memory
+innodb_buffer_pool_size       = $innodb_buffer_pool_size
+innodb_buffer_pool_instances  = $innodb_buffer_pool_instances
+innodb_log_file_size          = $innodb_log_file_size
+innodb_log_buffer_size        = $innodb_log_buffer_size
+innodb_flush_log_at_trx_commit = 2
+
+# I/O & Threads
+innodb_io_capacity            = $innodb_io_capacity
+innodb_read_io_threads        = $cpucores
+innodb_write_io_threads       = $cpucores
+innodb_flush_method           = O_DIRECT
+innodb_thread_concurrency     = $innodb_thread_concurrency
+
+# Temporary Tables
+tmp_table_size                = $tmp_table_size
+max_heap_table_size           = $tmp_table_size
+query_cache_type              = 0
+query_cache_size              = 0
+
+# Connections
+max_connections               = $max_connections
+thread_cache_size             = $thread_cache_size
+table_open_cache              = $table_open_cache
+open_files_limit              = 65535
+interactive_timeout           = 180
+wait_timeout                  = 180
+connect_timeout               = 10
+
+# Buffers
+join_buffer_size              = $join_buffer_size
+sort_buffer_size              = $sort_buffer_size
+read_rnd_buffer_size          = $read_rnd_buffer_size
+
+# Logging
+slow_query_log                = 1
+slow_query_log_file           = /var/log/mysql-slow.log
+long_query_time               = 5
+log-error                     = /var/log/mysql/error.log
+END
+
+# Kiểm tra và khởi động lại MariaDB
+if [ $? -eq 0 ]; then
+    systemctl restart mariadb
+    if [ $? -eq 0 ]; then
+        echo "MariaDB restarted successfully."
+    else
+        echo "Failed to restart MariaDB. Check /var/log/mysql/error.log"
+    fi
+else
+    echo "Failed to write /etc/my.cnf"
+fi
+mkdir -p /var/log/mysql /run/mysqld
+chown -R mysql:mysql /var/log/mysql /run/mysqld 2>/dev/null || true
+if [ -d /run/mysqld ]; then
+    sed -i 's|__DB_SOCKET__|/run/mysqld/mysqld.sock|' /etc/my.cnf
+elif [ -d /var/lib/mysql ]; then
+    sed -i 's|__DB_SOCKET__|/var/lib/mysql/mysql.sock|' /etc/my.cnf
+fi
+# Detect SSD/NVMe for higher innodb_io_capacity
+if lsblk -d -o ROTA 2>/dev/null | grep -q '0'; then
+    sed -i 's/^innodb_io_capacity .*/innodb_io_capacity            = 2000/' /etc/my.cnf
+fi
+/etc/dsnvps/menu/optimize/dsnvps-opt-jemalloc >/dev/null 2>&1 || true

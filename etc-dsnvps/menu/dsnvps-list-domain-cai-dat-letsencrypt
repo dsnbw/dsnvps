@@ -1,0 +1,67 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /etc/dsnvps/.tmp ]; then
+mkdir -p /etc/dsnvps/.tmp
+fi
+rm -rf /etc/dsnvps/.tmp/list_domain_SSL
+rm -rf /etc/dsnvps/.tmp/check_lets*
+rm -rf /etc/dsnvps/.tmp/thanh_cong_SSL
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+domainlist=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/checksite-listSSL
+echo "========================================================================="
+echo "DSNVPS checking ..."; sleep 3
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/thanh_cong_SSL
+for domain in $domainlist; do
+if [ -f /etc/nginx/auth-acme/$domain/$domain.crt ]; then
+if [ "`grep "/etc/nginx/auth-acme/$domain/$domain.crt" /etc/nginx/conf.d/$domain.conf`" != "" ]; then
+echo "$domain" >> /etc/dsnvps/.tmp/thanh_cong_SSL
+fi
+fi
+done;
+
+if [ ! -f /etc/dsnvps/.tmp/thanh_cong_SSL ]; then
+clear
+echo "========================================================================="
+echo "Hien tai khong co website nao cai dat Free SSL."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+
+if [ -n /etc/dsnvps/.tmp/thanh_cong_SSL ]; then
+clear
+echo "========================================================================="
+echo "Danh sach website dang su dung Free SSL:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/thanh_cong_SSL | pr -2 -t
+rm -rf /etc/dsnvps/.tmp/list_domain_SSL
+rm -rf /etc/dsnvps/.tmp/check_lets*
+rm -rf /etc/dsnvps/.tmp/thanh_cong_SSL
+else
+clear
+echo "========================================================================="
+echo "Hien tai khong co website nao cai dat Free SSL."
+rm -rf /etc/dsnvps/.tmp/list_domain_SSL
+rm -rf /etc/dsnvps/.tmp/check_lets*
+rm -rf /etc/dsnvps/.tmp/thanh_cong_SSL
+fi
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu

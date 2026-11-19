@@ -1,0 +1,56 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Sử dụng chức năng này để tạo backup cho các file config và Vhost"
+echo "-------------------------------------------------------------------------"
+echo "Danh sách file và folder sẽ được backup: my.cnf, www.conf, php.ini"
+echo "-------------------------------------------------------------------------"
+echo "php-fpm.conf và Folder Nginx (chứa các file Vhost, SSL ...)"
+echo "========================================================================="
+read -r -p "Bạn muốn sao lưu các file config & vhost? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /home/$mainsite/private_html/Backupconfigandvhost*
+backupsys=`date |md5sum |cut -c '1-6'` 
+mkdir -p /usr/local/backup-system
+cp -r /etc/nginx /usr/local/backup-system/
+\cp -uf /etc/my.cnf /usr/local/backup-system/
+\cp -uf /etc/php.ini /usr/local/backup-system/
+\cp -uf /etc/php-fpm.conf /usr/local/backup-system/
+cp -r /etc/php-fpm.d/www.conf /usr/local/backup-system/
+cd /usr/local/backup-system/
+zip -r backupsys.zip *
+mv backupsys.zip /home/$mainsite/private_html/Backupconfigandvhost-$backupsys.zip
+cd
+rm -rf /usr/local/backup-system
+clear
+echo "========================================================================="
+echo "Liên kết Tải File Backup:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/Backupconfigandvhost-$backupsys.zip"
+/etc/dsnvps/menu/dsnvps-tien-ich
+
+
+;;
+    *)
+       clear
+echo "========================================================================= "
+echo "Huỷ bỏ."
+/etc/dsnvps/menu/dsnvps-tien-ich
+        ;;
+esac
+
+
+
+
+

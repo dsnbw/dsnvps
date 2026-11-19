@@ -1,0 +1,171 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+############################################################### Lay Phien Ban
+##Wordpress:
+rm -rf /etc/dsnvps/.tmp/pbwp
+urlwp="https://wordpress.org/download/releases/"
+content=$(curl -s "$urlwp")
+latest_version_wp=$(echo "$content" | grep -oP 'href="https://wordpress.org/wordpress-\K[0-9]+\.[0-9]+\.[0-9]+(?=\.zip)' | head -1)
+download_link="https://wordpress.org/wordpress-$latest_version.zip"
+echo "$latest_version_wp" > /etc/dsnvps/.tmp/pbwp
+
+# PHPbB
+rm -rf /etc/dsnvps/.tmp/pbphpbb
+rm -rf /etc/dsnvps/.tmp/linkphpbb
+#!/bin/bash
+rss=$(curl -s https://www.phpbb.com/feeds/rss/)
+latest_title=$(echo "$rss" | grep '<title>phpBB' | grep 'Release' | head -1 | sed -e 's/<\/\?title>//g')
+latest_version_phpbb=$(echo "$latest_title" | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
+major_minor=$(echo "$latest_version_phpbb" | cut -d '.' -f1,2)
+if [ -n "$latest_version_phpbb" ]; then
+    echo "$latest_version_phpbb" > /etc/dsnvps/.tmp/pbphpbb
+    download_link_phpbb="https://download.phpbb.com/pub/release/${major_minor}/${latest_version_phpbb}/phpBB-${latest_version_phpbb}.zip"
+    echo "$download_link_phpbb" > /etc/dsnvps/.tmp/linkphpbb
+else
+    echo ""
+fi
+
+
+#SMF forum:
+rm -rf /etc/dsnvps/.tmp/pbsmf
+rm -rf /etc/dsnvps/.tmp/linksmf
+
+latest_info_smf=$(curl -s https://github.com/SimpleMachines/SMF/releases)
+latest_version_smf=$(echo "$latest_info_smf" | grep -oP 'releases/tag/v\K[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+download_link_smf="https://github.com/SimpleMachines/SMF/archive/refs/tags/v$latest_version_smf.zip"
+
+if [ -z "$latest_version_smf" ]; then
+    echo ""
+else
+echo "$latest_version_smf" > /etc/dsnvps/.tmp/pbsmf 
+echo "$download_link_smf" > /etc/dsnvps/.tmp/linksmf
+fi
+
+#MyBB
+rm -rf /etc/dsnvps/.tmp/pbmybb
+rm -rf /etc/dsnvps/.tmp/linkmybb
+latest_info_mybb=$(curl -s https://mybb.com/download/)
+download_link_mybb=$(echo "$latest_info_mybb" | grep -oP 'https://resources.mybb.com/downloads/mybb_[0-9]{4}\.zip' | head -1)
+
+version_code=$(echo "$download_link_mybb" | grep -oP '[0-9]{4}')
+
+if [ -n "$version_code" ]; then
+    major_version=$(echo "$version_code" | cut -c1)
+    minor_version=$(echo "$version_code" | cut -c2)
+    patch_version=$(echo "$version_code" | cut -c3-4)
+    latest_version_mybb="$major_version.$minor_version.$patch_version"
+echo "$latest_version_mybb" > /etc/dsnvps/.tmp/pbmybb
+echo "$download_link_mybb" > /etc/dsnvps/.tmp/linkmybb
+else
+echo ""
+fi
+
+#Joomla
+rm -rf /etc/dsnvps/.tmp/pbjl
+rm -rf /etc/dsnvps/.tmp/linkjl
+
+latest_info_jl=$(curl -s -L https://github.com/joomla/joomla-cms/releases/latest)
+zip_link_jl=$(echo "$latest_info_jl" | grep -oP 'https://github\.com/joomla/joomla-cms/releases/download/[^"]+\.zip' | head -1)
+file_name_jl=$(basename "$zip_link_jl")
+version_jl=$(echo "$file_name_jl" | grep -oP 'Joomla_\K[0-9]+\.[0-9]+\.[0-9]+')
+if [ -z "$version_jl" ]; then
+    echo ""
+else
+echo "$zip_link_jl" > /etc/dsnvps/.tmp/linkjl
+echo "$version_jl" > /etc/dsnvps/.tmp/pbjl
+fi
+
+#Drupal
+rm -rf /etc/dsnvps/.tmp/pbdp
+urldp="https://www.drupal.org/project/drupal"
+latest_version_dp=$(curl -s "$urldp" | grep -oP 'https://www.drupal.org/project/drupal/releases/\d+\.\d+\.\d+' | sed 's|https://www.drupal.org/project/drupal/releases/||' | sort -V | tail -1)
+
+# Check if we found a version number
+if [[ -z "$latest_version_dp" ]]; then
+  echo ""
+else
+  echo "$latest_version_dp" > /etc/dsnvps/.tmp/pbdp
+ fi
+
+#Yours
+#################
+urlyour="https://github.com/YOURLS/YOURLS/releases"
+latest_versionyour=$(curl -s $urlyour | grep -oP '(?<=/YOURLS/YOURLS/releases/tag/)[^"]+' | head -n 1)
+download_link_yours="https://github.com/YOURLS/YOURLS/archive/refs/tags/$latest_version.zip"
+echo "$latest_versionyour" > /etc/dsnvps/.tmp/yourpb
+
+# Flarum
+rm -rf /etc/dsnvps/.tmp/pbflar
+latest_releaseflar=$(curl -s https://github.com/flarum/flarum/releases \
+    | grep -oP '(?<=/tag/v)1\.8\.\d+' \
+    | sort -Vr \
+    | head -n 1)
+if [ -z "$latest_releaseflar" ]; then
+echo ""
+else
+echo "$latest_releaseflar" > /etc/dsnvps/.tmp/pbflar
+php_version=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+if (( $(echo "$php_version >= 7.3" | bc -l) )) && (( $(echo "$php_version <= 8.0" | bc -l) )); then
+echo "(Use an EOL version instead of $latest_releaseflar)" > /etc/dsnvps/.tmp/pbflar
+fi
+fi
+
+#Laravel
+if ! command -v jq >/dev/null 2>&1; then
+    apt-get install -y -qq jq
+fi
+curl -s https://repo.packagist.org/p2/laravel/laravel.json | jq -r '.packages["laravel/laravel"][0].version' > /etc/dsnvps/.tmp/pblar
+if [ -f /etc/dsnvps/.tmp/pblar ]; then
+    sed -i 's/^v//' /etc/dsnvps/.tmp/pblar
+fi
+###### Cập nhật list check tên miền cấp 1
+# Cập nhật public_suffix_list.dat (chỉ chạy 1 lần/tuần)
+update_public_suffix() {
+    local TARGET_FILE="/etc/dsnvps/public_suffix_list.dat"
+    local TEMP_FILE="/tmp/public_suffix_list.dat"
+    local CHECK_FILE="/tmp/public_suffix_last_update"
+    local DOWNLOAD_URL="https://publicsuffix.org/list/public_suffix_list.dat"
+    
+    # Kiểm tra thời gian cập nhật cuối (1 tuần = 604800 giây)
+    local current_time=$(date +%s)
+    local last_update=0
+    if [ -f "$CHECK_FILE" ]; then
+        last_update=$(cat "$CHECK_FILE" 2>/dev/null || echo "0")
+    fi
+    
+    # Nếu chưa đến 1 tuần thì bỏ qua
+    if [ $((current_time - last_update)) -lt 604800 ]; then
+        return 0
+    fi
+    
+    # Tạo thư mục nếu chưa có
+    [ ! -d "$(dirname "$TARGET_FILE")" ] && mkdir -p "$(dirname "$TARGET_FILE")" 2>/dev/null
+    
+    # Tải file về thư mục tạm
+    if wget -q -O "$TEMP_FILE" "$DOWNLOAD_URL" 2>/dev/null; then
+        local temp_size=$(stat -c%s "$TEMP_FILE" 2>/dev/null || stat -f%z "$TEMP_FILE" 2>/dev/null || echo "0")
+        local target_size=$(stat -c%s "$TARGET_FILE" 2>/dev/null || stat -f%z "$TARGET_FILE" 2>/dev/null || echo "0")
+        
+        # Nếu file tạm hợp lệ và (file đích chưa có hoặc kích thước khác)
+        if [ "$temp_size" -gt 0 ] && ([ "$target_size" -eq 0 ] || [ "$temp_size" -ne "$target_size" ]); then
+            cp "$TEMP_FILE" "$TARGET_FILE" 2>/dev/null
+        fi
+        
+        # Cập nhật thời gian check
+        echo "$current_time" > "$CHECK_FILE" 2>/dev/null
+        
+        # Dọn dẹp file tạm
+        rm -f "$TEMP_FILE" 2>/dev/null
+    fi
+}
+
+# Gọi hàm
+update_public_suffix
+##############################################

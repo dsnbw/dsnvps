@@ -1,0 +1,110 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+#/etc/dsnvps/menu/dsnvps-find-files <<=== Check ban quyen khong hop ke thi xoa ban quyen
+# /etc/dsnvps/menu/dsnvps-sao-luu
+##Tao file kiem tra cac file check ban quyen
+echo "okie" > /etc/dsnvps/.tmp/sllokie
+####
+#####
+###Kiem tra cron tu dong xoa file check ban quyen
+/etc/dsnvps/menu/dsnvps-til-bal-qin
+########
+###########
+############
+### Check ma ban quyen 32 ky tu
+rm -rf /etc/dsnvps/.tmp/dsaetv.zxc
+rm -rf /etc/dsnvps/.tmp/dsaetvzas
+echo "ok" > /etc/dsnvps/.tmp/dsaetvzas
+if [ ! -f /etc/dsnvps/.tmp/dsaetvzas ]; then
+clear
+echo "========================================================================="
+echo "Không đủ dung lượng đĩa trống trên server của bạn để chạy DSNVPS."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng kiểm tra lại và thử lại !"
+exit
+fi
+#if [ -f /etc/dsnvps/.tmp/dsaetvzas ]; then
+#if [ -f /usr/bin/gxred ]; then
+#wc -c < /usr/bin/gxred > /etc/dsnvps/.tmp/dsaetv.zxc
+#kitucronpaid=`cat /etc/dsnvps/.tmp/dsaetv.zxc`
+#########################################
+#rm -rf /etc/dsnvps/.tmp/dsaetvzas
+#if [ "$kitucronpaid" != "33" ]; then
+#rm -rf /usr/bin/gxred
+#fi
+#fi
+#rm -rf /etc/dsnvps/.tmp/dsaetv.zxc
+#rm -rf /etc/dsnvps/.tmp/dsaetvzas
+#fi
+#################################
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+if [ ! -f /usr/bin/gxred ]; then
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/checkallwebsites
+sowebsite=$(cat /etc/dsnvps/.tmp/checkallwebsites | wc -l)
+sowebsite2=$(calc $sowebsite -1)
+if [ "$(cat /etc/dsnvps/.tmp/checkallwebsites | wc -l)" -gt "3" ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã thêm $sowebsite2 website vào server."
+echo "-------------------------------------------------------------------------"
+echo "Bản miễn phí của DSNVPS chỉ cho phép thêm tối đa 2 website."
+echo "-------------------------------------------------------------------------"
+echo "Để tiếp tục sử dụng chức năng này, hãy đăng ký phiên bản Pro."
+echo "-------------------------------------------------------------------------"
+echo "Mua mã nâng cấp tại:"
+echo "-------------------------------------------------------------------------"
+echo "http://go.dsnvps/6789"
+echo "-------------------------------------------------------------------------"
+echo "Nhập mã nâng cấp: DSNVPS Menu ==> Nâng Cấp/Dùng Thử DSNVPS PRO"
+/etc/dsnvps/menu/dsnvps-sao-luu
+exit
+fi
+fi
+if [ ! -f /usr/bin/gxred ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_db
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|sys|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/dsnvps_check_db
+listdbnumber=`cat /etc/dsnvps/.tmp/dsnvps_check_db`
+rm -rf /etc/dsnvps/.tmp/dsnvps_listdbf
+for database in $listdbnumber
+do
+echo "/var/lib/mysql/$database" >> /etc/dsnvps/.tmp/dsnvps_listdbf
+done
+if [ -f /etc/dsnvps/.tmp/dsnvps_listdbf ]; then
+numberdb=$(cat /etc/dsnvps/.tmp/dsnvps_listdbf | wc -l)
+if [ "$numberdb" -gt "3" ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã tạo $numberdb database trên server."
+echo "-------------------------------------------------------------------------"
+echo "Bản miễn phí của DSNVPS chỉ tạo được tối đa 2 database."
+echo "-------------------------------------------------------------------------"
+echo "Để tiếp tục sử dụng chức năng này, hãy đăng ký phiên bản Pro."
+echo "-------------------------------------------------------------------------"
+echo "Mua mã nâng cấp tại:"
+echo "-------------------------------------------------------------------------"
+echo "http://go.dsnvps/6789"
+echo "-------------------------------------------------------------------------"
+echo "Nhập mã nâng cấp: DSNVPS Menu ==> Nâng Cấp/Dùng Thử DSNVPS PRO"
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+fi
+fi
+
+
+
+
+
+
+
+
+
+
+
+
+

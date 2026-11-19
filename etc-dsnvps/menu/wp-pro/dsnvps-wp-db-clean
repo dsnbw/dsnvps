@@ -1,0 +1,16 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="${1:-}"
+[[ -z "$dom" ]] && dom="$(dsnvps_pick_domain wp)" || true
+[[ -z "$dom" ]] && exit 0
+
+prefix="$(dsnvps_wp "$dom" db prefix 2>/dev/null || echo 'wp_')"
+echo -e "${C_CYAN}Đang dọn rác Database WordPress cho ${dom} (prefix: ${prefix})...${C_RESET}"
+dsnvps_wp "$dom" transient delete --all 2>/dev/null || true
+dsnvps_wp "$dom" db query "DELETE FROM ${prefix}posts WHERE post_type = 'revision';" 2>/dev/null || true
+dsnvps_wp "$dom" db query "DELETE FROM ${prefix}posts WHERE post_status IN ('auto-draft','trash');" 2>/dev/null || true
+dsnvps_wp "$dom" db query "DELETE FROM ${prefix}comments WHERE comment_approved IN ('spam','trash','0');" 2>/dev/null || true
+dsnvps_wp "$dom" db query "DELETE pm FROM ${prefix}postmeta pm LEFT JOIN ${prefix}posts wp ON wp.ID = pm.post_id WHERE wp.ID IS NULL;" 2>/dev/null || true
+dsnvps_wp "$dom" db optimize 2>/dev/null || true
+echo -e "${C_GREEN}✔ Đã xóa Transients, Revisions, Auto-draft, Spam/Trash và Optimize toàn bộ bảng DB cho ${dom}!${C_RESET}"

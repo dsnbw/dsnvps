@@ -1,0 +1,277 @@
+#!/bin/bash 
+ranemail=$(cat /dev/urandom | tr -dc 'A-Za-z0-9' | head -c 4)
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+####################################################
+########## Check File check ban quyen. Khong hop le thi out
+rm -rf /etc/dsnvps/.tmp/sllokie
+mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+if [ ! -f /etc/dsnvps/.tmp/sllokie ]; then
+clear
+echo "========================================================================="
+echo "Vui lòng cập nhật DSNVPS lên phiên bản Pro để sử dụng chức năng này !"
+dsnvps
+fi
+rm -rf /etc/dsnvps/.tmp/sllokie
+############################################
+################################################
+kiemtraemail3="^(([-a-zA-Z0-9\!#\$%\&\'*+/=?^_\`{\|}~])+\.)*[-a-zA-Z0-9\!#\$%\&\'*+/=?^_\`{\|}~]+@\w((-|\w)*\w)*\.(\w((-|\w)*\w)*\.)*\w{2,24}$";
+echo "========================================================================="
+echo "Thêm Domain + Auto cài đặt Wordpress + Cấu hình Vhost cho WP Super Cache"
+echo "-------------------------------------------------------------------------"
+echo "sau khi thêm Domain vào server, Website của bạn sẵn sàng hoạt động ngay."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần cài đặt thủ công Wordpress nữa."
+echo "========================================================================="
+kiemtradomain3="^(([a-zA-Z0-9]|xn--[a-zA-Z0-9-]+)([-a-zA-Z0-9]{0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9-]+)$";
+while true; do
+echo -n "Nhập tên domain [0 -Thoát]: " 
+read website
+if [ -z "$website" ]; then
+    echo "========================================================================="
+    echo "Bạn không nhập giá trị, vui lòng nhập lại!"
+    sleep 4  
+    tput cuu 3 
+    tput ed
+    continue
+fi
+#################################################################
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+#################################################################
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$website/public_html ] && [ -f /etc/nginx/conf.d/www.$website.conf ]; then
+    website=www.$website
+fi
+if [ $(echo "$website" | cut -c 1-4) == "www." ]; then
+    website_redirect=$(echo "$website" | sed 's/....//')
+else
+    website_redirect=www.$website
+fi
+#################################################################
+if [ "$website" = "0" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-them-website-menu
+    exit
+elif [[ ! "$website" =~ $kiemtradomain3 ]] || [[ ! "$website_redirect" =~ $kiemtradomain3 ]]; then
+    echo "========================================================================="
+    echo "Bạn nhập sai, vui lòng nhập lại!"
+    sleep 4  
+    tput cuu 3 
+    tput ed
+elif [ -f /etc/nginx/conf.d/$website.conf ]; then     
+    echo "========================================================================="
+    echo "$website đã tồn tại trên hệ thống! Bạn hãy nhập domain khác !"
+    sleep 4  
+    tput cuu 3 
+    tput ed       
+elif [ -f /etc/nginx/conf.d/$website_redirect.conf ]; then
+    echo "========================================================================="
+    echo "$website đã tồn tại trên hệ thống! Bạn hãy nhập domain khác!"
+    sleep 4  
+    tput cuu 3 
+    tput ed 
+else
+    break
+fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ...";sleep 2 
+
+
+#################################################################
+## Check Park And Redirect Domain                              ##
+echo "$website" > /etc/dsnvps/.tmp/websitenhap.test
+/etc/dsnvps/menu/dsnvps-kiem-tra-domain-truoc-khi-them-vao-server
+#################################################################
+
+
+
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập tài khoản WordPress admin [ENTER]: " 
+read adminwp
+if [ "$adminwp" = "" ]; then
+echo "========================================================================="
+echo "Bạn phải nhập tài khoản WordPress admin."
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+checkuseradmin="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$";
+if [[ ! "$adminwp" =~ $checkuseradmin ]]; then
+clear
+echo "========================================================================="
+echo "Bạn chỉ được sử dụng chữ cái và số cho user admin"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại  !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi 
+if [[ ! ${#adminwp} -ge 5 ]]; then
+clear
+echo "========================================================================="
+echo "User admin tối thiểu phải có 5 ký tự "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi 
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu cho $adminwp tối thiểu phải có 8 kí tự"
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập mật khẩu cho user $adminwp [ENTER]: " 
+read passwp
+if [[ ! ${#passwp} -ge 8 ]]; then
+clear
+echo "========================================================================="
+echo "Mật khẩu cho $adminwp tối thiểu phải có 8 kí tự "
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi  
+
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini 
+ 
+#### Create Vhost ###########################################################
+rm -rf /etc/nginx/conf.d/$website.conf
+cp -r /etc/dsnvps/menu/inc/vhost-sample/domain.normal.wordpress.conf /etc/nginx/conf.d/$website.conf
+sed -i "s/main_domain/${website}/g" /etc/nginx/conf.d/$website.conf
+sed -i "s/redirect_domain/${website_redirect}/g" /etc/nginx/conf.d/$website.conf
+sed -i 's/.*supercache.conf.*/include \/etc\/nginx\/conf\/supercache.conf;/g' /etc/nginx/conf.d/$website.conf
+
+mkdir -p /home/$website/errorpage_html && cp -r /etc/dsnvps/menu/inc/errorpage_html/*.html /home/$website/errorpage_html
+echo "$website" > /etc/dsnvps/.tmp/databasename.txt
+#echo $website | sed "s/\./_/" | sed "s/\-/_/" | cut -c1-14  > /etc/dsnvps/.tmp/databasename.txt  
+sed -i 's/\./_/g' /etc/dsnvps/.tmp/databasename.txt
+sed -i 's/\-/_/g' /etc/dsnvps/.tmp/databasename.txt
+random=`date |md5sum |cut -c '1-4'`
+randomwp=`date |md5sum |cut -c '1-7'`
+dataname=`cat /etc/dsnvps/.tmp/databasename.txt | cut -c1-11`_$random
+username=`cat /etc/dsnvps/.tmp/databasename.txt | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | cut -c1-10`$random
+password=`date |md5sum |cut -c '1-29'`
+passworduseradmin=`date |md5sum |cut -c '1-28'`
+rm -rf /etc/dsnvps/.tmp/databasename.txt
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE $dataname CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE USER '$username'@'localhost' IDENTIFIED BY '$password';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+GRANT ALL PRIVILEGES ON $dataname . * TO '$username'@'localhost';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+FLUSH PRIVILEGES;
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -f /etc/dsnvps/.tmp/config.temp
+
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Database: $dataname - Created on: $(date +%d/%m/%Y) when add $website to VPS" >> /root/DBinfo.txt
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Data name: $dataname" >> /root/DBinfo.txt
+echo "Username: $username" >> /root/DBinfo.txt
+echo "password: $password" >> /root/DBinfo.txt
+echo "" >> /root/DBinfo.txt
+    mkdir -p /home/$website/public_html
+    mkdir -p /home/$website/logs
+    cd /home/$website/public_html
+    echo "========================================================================="
+    echo "Chuẩn bị tải code WordPress về và cài đặt..."
+    sleep 3
+    wget https://wordpress.org/latest.zip
+    unzip -q latest.zip
+    mv wordpress/* ./
+    rm -rf wordpress
+    rm -rf latest.zip
+    
+chown -R nginx:nginx /home/$website/public_html/
+chown -R nginx:nginx /home/$website/logs/
+find /home/$website/public_html/ -type d -exec chmod g+s {} \;
+\cp -uf /etc/dsnvps/menu/robots.txt /home/$website/public_html/
+#echo "define('FS_METHOD','direct');" >> /home/$website/public_html/wp-config-sample.php
+wp core config --dbname=$dataname --dbuser=$username --dbpass=$password --allow-root
+#perl -pi -e "s/= 'wp_';/= 'wp_${randomwp}_';/g" wp-config.php
+wp core install --url="http://$website" --title="$website"  --admin_user="$adminwp" --admin_password="$passwp" --admin_email="admin.$ranemail@$website" --allow-root
+wp plugin install wp-super-cache --activate --allow-root
+#wp plugin install wp-limit-login-attempts --allow-root
+#wp plugin install no-category-base-wpml --activate --allow-root
+#wp plugin install wp-reset --allow-root
+#wp plugin install wordfence --allow-root
+wp plugin install classic-editor --allow-root
+#wp plugin install imagify --allow-root
+
+sed -i "/.*DB_COLLATE*./a\//* Authentication Unique Keys and Salts." /home/$website/public_html/wp-config.php
+#echo "define('FS_METHOD','direct');" >> /home/$website/public_html/wp-config.php
+cd
+chown -R nginx:nginx /home/$website/public_html/
+find /home/$website/public_html/ -type d -exec chmod g+s {} \;
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini 
+
+####### Create Symlink For Vhost
+mkdir -p /home/$website/0-Vhost
+cd /home/$website/0-Vhost
+echo "$website.conf là shortcut (symlink) tới Vhost của $website (/etc/nginx/conf/$website.conf)
+Nếu bạn edit file này, File vhost của $website cũng sẽ được edit.
+
++ File /home/$website/0-Vhost/$website.conf chỉ có thể edit trên SSH. Nếu muốn edit bằng trình edit txt, bạn 
+phải download file này về máy tính, edit sau đó upload lên server. 
+(Upload vào /etc/nginx/conf/ hoặc /home/$website/0-Vhost/ đều được) 
+
++ File Vhost gốc (/etc/nginx/conf/$website.conf), bạn có thể edit trên SSH, edit bằng trình edit trực tiếp bằng
+các phần mềm edit txt trực tiếp khi sử dụng các trình upload sFTP.
+" > readme.txt
+ln -s /etc/nginx/conf.d/$website.conf /home/$website/0-Vhost/$website.conf
+cd
+####################
+
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+### Them website vào Zend Opcache"
+BLACKLIST_FILE="/etc/dsnvps/opcache.blacklist"
+if [ -f "$BLACKLIST_FILE" ]; then
+echo "/home/$website/" >> "$BLACKLIST_FILE"
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+fi
+#########
+clear
+echo "========================================================================="
+echo "Thêm $website và cài đặt WordPress thành công"
+echo "-------------------------------------------------------------------------"
+echo "Home Folder: /home/$website/public_html"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin tài khoản Admin:"
+echo "-------------------------------------------------------------------------"
+echo "User: $adminwp  ||  Password: $passwp"
+##############
+echo "=========================================================================" > /home/$website/$website.txt
+echo "Thêm $website và cài đặt WordPress thành công" >> /home/$website/$website.txt
+echo "-------------------------------------------------------------------------" >> /home/$website/$website.txt
+echo "Home Folder: /home/$website/public_html" >> /home/$website/$website.txt
+echo "-------------------------------------------------------------------------" >> /home/$website/$website.txt
+echo "Vhost File: /etc/nginx/conf.d/$website.conf" >> /home/$website/$website.txt
+echo "           --------------------------------------------------------------" >> /home/$website/$website.txt
+echo "Shortcut  : /home/$website/0-Vhost/$website.conf" >> /home/$website/$website.txt
+echo "-------------------------------------------------------------------------" >> /home/$website/$website.txt
+echo "Thông tin tài khoản Admin:" >> /home/$website/$website.txt
+echo "-------------------------------------------------------------------------" >> /home/$website/$website.txt
+echo "User: $adminwp  ||  Password: $passwp" >> /home/$website/$website.txt
+echo "-------------------------------------------------------------------------" >> /home/$website/$website.txt
+echo "Thông tin database: Wordpress Website Tools => Xem Thông Tin Database." >> /home/$website/$website.txt
+/etc/dsnvps/menu/dsnvps-them-website-menu

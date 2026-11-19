@@ -1,0 +1,86 @@
+#!/bin/bash
+set -e
+
+EXIM_VER="4.98.2"
+PREFIX="/usr"
+SRC_DIR="/usr/local/src"
+EXIM_USER="exim"
+EXIM_GROUP="exim"
+
+PKGS=(
+    "perl"
+    "pcre2-devel"
+    "db4-devel"
+    "gdbm-devel"
+)
+for pkg in "${PKGS[@]}"; do
+    if dnf list available "$pkg" >/dev/null 2>&1; then
+        dnf install -y "$pkg" || echo "⚠️ Không thể cài $pkg, bỏ qua"
+    else
+        echo "⚠️ Gói $pkg không có trong repo"
+    fi
+done
+
+
+if ! id -u $EXIM_USER >/dev/null 2>&1; then
+    groupadd -r $EXIM_GROUP
+    useradd -r -g $EXIM_GROUP -d /var/spool/exim -s /sbin/nologin $EXIM_USER
+fi
+
+
+if [ ! -f "exim-$EXIM_VER.tar.gz" ]; then
+    if [ -f "/etc/dsnvps/exim-$EXIM_VER.tar.gz" ]; then
+        cp -f "/etc/dsnvps/exim-$EXIM_VER.tar.gz" .
+    elif [ -f "/etc/dsnvps/exim-$EXIM_VER.tar.gz" ]; then
+        cp -f "/etc/dsnvps/exim-$EXIM_VER.tar.gz" .
+    fi
+fi
+tar xzf exim-$EXIM_VER.tar.gz
+cd exim-$EXIM_VER
+
+
+mkdir -p Local
+cp src/EDITME Local/Makefile
+
+
+sed -i 's|^# BIN_DIRECTORY.*|BIN_DIRECTORY=/usr/exim/bin|' Local/Makefile
+sed -i 's|^# CONFIGURE_FILE.*|CONFIGURE_FILE=/etc/exim/exim.conf|' Local/Makefile
+sed -i 's|^# EXIM_USER=.*|EXIM_USER=exim|' Local/Makefile
+sed -i 's|^# EXIM_GROUP=.*|EXIM_GROUP=exim|' Local/Makefile
+sed -i 's|^# HAVE_ICONV=yes|HAVE_ICONV=yes|' Local/Makefile
+sed -i 's|^# HAVE_PCRE2=yes|HAVE_PCRE2=yes|' Local/Makefile
+sed -i 's|^# SUPPORT_TLS=yes|SUPPORT_TLS=yes|' Local/Makefile
+
+
+make
+make install
+
+
+mkdir -p /etc/exim /var/spool/exim
+chown -R $EXIM_USER:$EXIM_GROUP /var/spool/exim
+[ ! -f /etc/exim/exim.conf ] && cp src/configure.default /etc/exim/exim.conf
+
+
+ln -sf /usr/exim/bin/exim /usr/sbin/exim
+
+
+cat > /etc/systemd/system/exim.service <<'EOF'
+[Unit]
+Description=Exim Mail Transport Agent
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/usr/exim/bin/exim -bd -q30m
+ExecReload=/bin/kill -HUP $MAINPID
+PIDFile=/var/spool/exim/exim-daemon.pid
+User=exim
+Group=exim
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+
+systemctl daemon-reexec
+systemctl enable --now exim

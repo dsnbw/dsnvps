@@ -1,0 +1,55 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/cauhinh_move_vps.info ]; then
+clear
+echo "========================================================================="
+echo "Server hiện tại chưa được kết nối với server Mới"
+echo "-------------------------------------------------------------------------"
+echo "Bạn không thể chạy chức năng này."
+
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+exit
+fi
+
+vpsimmoiip=$(grep "ipaddress" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')
+echo "========================================================================="
+echo "Chức năng này sẽ xóa mọi cấu hình trong [Chuyển Server Siêu Nhanh]. Sau "
+echo "-------------------------------------------------------------------------"
+echo "khi thực hiện xong, bạn có thể cấu hình lại để kết nối server mới."
+echo "========================================================================="
+read -r -p "Bạn muốn thực hiện chức năng này? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ... "
+    sleep 3
+pkill rync
+#rm -rf ~/.ssh/id_rsa.pub
+#rm -rf ~/.ssh/id_rsa
+echo "sed -i '/$vpsimmoiip/d' ~/.ssh/known_hosts" > /etc/dsnvps/.tmp/knownhost_sedit22
+chmod +x /etc/dsnvps/.tmp/knownhost_sedit22
+/etc/dsnvps/.tmp/knownhost_sedit22
+rm -rf /etc/dsnvps/.tmp/knownhost_sedit22
+rm -rf /etc/dsnvps/cauhinh_move_vps.info
+rm -rf /etc/dsnvps/.tmp/0klsa
+systemctl restart crond
+clear
+echo "========================================================================="
+echo "Ngắt kết nối với server mới thành công!"
+
+  /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+    ;;
+*)
+clear
+echo "========================================================================="
+echo "Hủy bỏ!"
+  /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+  exit
+;;
+esac

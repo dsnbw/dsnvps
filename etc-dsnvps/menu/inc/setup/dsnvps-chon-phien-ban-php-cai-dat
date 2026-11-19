@@ -1,0 +1,63 @@
+#!/bin/bash
+#lay noi dung file: /etc/dsnvps/.tmp/phpversionnsetup.txt
+rm -f /etc/dsnvps/.tmp/phpversionnsetup.txt
+rm -f /etc/dsnvps/.tmp/remichoose.txt
+
+
+# Lay danh sach phien ban PHP
+dnf module list php --quiet 2>/dev/null | grep -oP 'remi-\d\.\d' > /etc/dsnvps/.tmp/php_versions.txt
+
+# Kiem tra xem co phien ban PHP nao khong
+if [[ ! -s /etc/dsnvps/.tmp/php_versions.txt ]]; then
+    echo "Khong tim thay phien ban PHP ho tro" >&2
+    exit 1
+fi
+
+# Doc cac phien ban PHP vao mang
+mapfile -t php_versions < /etc/dsnvps/.tmp/php_versions.txt
+
+# Hien thi menu
+echo "====================================================================="
+echo "Voi server nay, DSNVPS ho tro cai dat cac phien ban PHP:"
+echo "====================================================================="
+for i in "${!php_versions[@]}"; do
+    php_version="${php_versions[i]/remi-/PHP }"
+    echo "$((i+1))) $php_version"
+done
+echo "====================================================================="
+echo "Nhap so thu tu tuong ung voi phien ban PHP ban muon cai:"
+echo "---------------------------------------------------------------------"
+if [[ ${#php_versions[@]} -ge 2 ]]; then
+    echo "(Vi du: Nhap 2 de cai ${php_versions[1]/remi-/PHP })"
+else
+    echo "(Vi du: Nhap 1 de cai ${php_versions[0]/remi-/PHP })"
+fi
+echo "---------------------------------------------------------------------"
+
+while true; do
+    echo -n "Nhap lua chon: "
+    read selection
+
+    # Kiem tra lua chon co hop le khong
+    if [[ "$selection" =~ ^[0-9]+$ && "$selection" -ge 1 && "$selection" -le "${#php_versions[@]}" ]]; then
+        chosen_version="${php_versions[$((selection-1))]}"
+        display_version="${chosen_version/remi-/PHP }"
+
+        # Xac nhan lua chon
+        echo "====================================================================="
+        read -p "Ban chac chan muon cai $display_version? (y/n): " confirm
+
+        if [[ "$confirm" =~ ^[yY]$ ]]; then
+            echo "$chosen_version" > /etc/dsnvps/.tmp/remichoose.txt
+            echo "$display_version" > /etc/dsnvps/.tmp/phpversionnsetup.txt
+            break
+        fi
+    else
+        # Hien thi thong bao loi, xoa sau 2 giay
+        echo "Lua chon khong hop le, vui long nhap lai." >&2
+        sleep 2
+        tput cuu1 && tput el
+    fi
+    # Xoa dong nhap cu va dat lai loi nhac
+    tput cuu1 && tput el
+done

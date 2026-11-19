@@ -1,0 +1,26 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+	if [ "`systemctl is-active php-fpm.service`" == "active" ]; then
+/etc/dsnvps/menu/dsnvps-php-suhosin-cai-dat-remove
+	else
+systemctl start php-fpm.service
+	if [ "`systemctl is-active php-fpm.service`" == "active" ]; then
+/etc/dsnvps/menu/dsnvps-php-suhosin-cai-dat-remove
+		else
+clear
+echo "========================================================================="
+echo "PHP-FPM khong the khoi dong !"
+echo "-------------------------------------------------------------------------"
+echo "Ban khong the install / Remove Suhosin"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+		fi
+fi
+

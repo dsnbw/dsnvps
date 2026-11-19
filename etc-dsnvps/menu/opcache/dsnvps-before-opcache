@@ -1,0 +1,137 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+#/etc/dsnvps/menu/dsnvps-check-zend-opcache-config-ini-file
+
+# #### #
+##
+# Đảm bảo chỉ tồn tại 1 file opcache.ini trong cấu hình:
+if [ -f /etc/php.d/opcache.bak ]; then
+if [ -f	/etc/php.d/*opcache.ini ]; then
+rm -rf /etc/php.d/*opcache.ini
+fi 
+fi
+if [ -f /etc/php.d/opcache.ini ]; then
+find /etc/php.d -name '*opcache.ini' > /etc/dsnvps/.tmp/dsnvpscheckopcache.tmp
+checkopcache=$(cat /etc/dsnvps/.tmp/dsnvpscheckopcache.tmp | wc -l)
+if [ ! "$checkopcache" == "1" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvpsopcache
+mkdir -p /etc/dsnvps/.tmp/dsnvpsopcache
+cp -r /etc/php.d/opcache.ini /etc/dsnvps/.tmp/dsnvpsopcache
+rm -rf /etc/php.d/*opcache.ini
+cp -r /etc/dsnvps/.tmp/dsnvpsopcache/opcache.ini /etc/php.d
+rm -rf /etc/dsnvps/.tmp/dsnvpsopcache
+rm -rf /etc/dsnvps/.tmp/dsnvpscheckopcache.tmp
+fi 
+fi
+##################
+
+
+
+
+
+
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+/home/$mainsite/private_html/*
+/home/*/public_html/wp-content/plugins/backwpup/*
+/home/*/public_html/wp-content/plugins/duplicator/*
+/home/*/public_html/wp-content/plugins/updraftplus/*
+END
+fi
+
+if [ "$(grep duplicator /etc/dsnvps/opcache.blacklist)" == "" ]; then
+cat /etc/dsnvps/menu/opcache/dsnvps-wp-plugin-blacklist >> /etc/dsnvps/opcache.blacklist
+echo "/home/$mainsite/private_html" >> /etc/dsnvps/opcache.blacklist
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+fi
+
+zen_opcache_run () {
+    local opcache_file="/etc/php.d/opcache.ini"
+    
+    if [ ! -f "$opcache_file" ]; then
+        clear
+        echo "========================================================================="
+        echo "DSNVPS không thể tìm thấy Zend Opcache trong hệ thống của bạn"
+        dsnvps
+        return
+    fi
+    
+    # Kiểm tra giá trị opcache.enable
+    local enable_status=$(grep "^opcache.enable=" "$opcache_file" | tail -1 | awk -F '=' '{print $2}' | tr -d ' "')
+    
+    # Nếu không có dòng opcache.enable hoặc =1 → coi là bật
+    if [ -z "$enable_status" ] || [ "$enable_status" = "1" ]; then
+        # Thêm blacklist nếu chưa có
+        if [ "$(grep opcache.blacklist_filename "$opcache_file")" = "" ]; then
+            echo "opcache.blacklist_filename=/etc/dsnvps/opcache.blacklist" >> "$opcache_file"
+            ####### Restart PHP-FPM
+            /etc/dsnvps/menu/inc/re-start-php-fpm-service
+        fi
+        /etc/dsnvps/menu/opcache/dsnvps-dang-bat-opcache-menu
+    else
+        # opcache.enable=0 → tắt
+        # Vẫn thêm blacklist vào file hiện tại nếu chưa có
+        if [ "$(grep opcache.blacklist_filename "$opcache_file")" = "" ]; then
+            echo "opcache.blacklist_filename=/etc/dsnvps/opcache.blacklist" >> "$opcache_file"
+            # Không cần restart vì đang tắt, nhưng có thể thêm nếu muốn
+        fi
+        /etc/dsnvps/menu/opcache/dsnvps-dang-tat-opcache-menu
+    fi
+}
+
+
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+if [ "$UPPHP" -eq 1 ]; then
+zen_opcache_run
+	else
+clear
+echo "========================================================================"
+echo "Dịch vụ PHP-FPM chưa chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+	echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/inc/start-php-fpm-service
+clear
+echo "========================================================================"
+echo "Check PHP-FPM service once again !"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+
+if [ "$UPPHP" -eq 1 ]; then
+zen_opcache_run
+		else
+		clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ PHP"
+sleep 4 ;
+phpsetup=`command -v php >/dev/null 2>&1 && echo php-common`
+    if [ -z "$phpsetup" ]; then
+    /etc/dsnvps/menu/dsnvps-fix-loi-chua-cai-php
+    else
+	clear
+	echo "========================================================================="
+echo "Xin lỗi, PHP-FPM đã dừng. Hãy khởi động nó trước khi sử dụng chức năng này!"
+	#echo "Xin lỗi, PHP-FPM đang dừng. Hãy Bật lên trước khi dùng chức năng này!"
+	dsnvps
+     fi
+fi
+fi
+
+
+
+
+

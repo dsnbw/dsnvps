@@ -1,0 +1,32 @@
+#!/bin/bash 
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+read -r -p "Bạn muốn xóa hết crontab hiện tại? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "Chuan bi xoa ... "
+sleep 3
+crontab -r
+(crontab -u root -l ; echo "*/5 * * * * auto-start-mysql") | crontab -u root -
+clear
+echo "========================================================================= "
+echo "DSNVPS hoàn thành xóa tất cả crontab."
+echo "-------------------------------------------------------------------------"
+echo "[Auto re-start MySQL Server] được kích hoạt lại."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+;;
+    *)
+        echo ""
+        ;;
+esac
+clear 
+echo "========================================================================="
+echo "Hủy bỏ yêu cầu xóa hết cronjob."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu

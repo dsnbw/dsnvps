@@ -1,0 +1,171 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+
+if [ -f /etc/csf/csf.conf ]; then
+show_phan_tren_menu()
+{
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+echo "                            Quản Lý CSF Firewall                                "
+printf "=========================================================================\n"
+
+
+if [ ! -f "/etc/csf/csf.conf" ]; then
+    echo "                          CSF Firewall: Chưa cài đặt"
+else
+export LANG=en_US.UTF-8
+export LC_ALL=en_US.UTF-8
+    csf -v > /etc/dsnvps/.tmp/dsnvpscheckcscfstatus
+    if [ "$(grep disabled /etc/dsnvps/.tmp/dsnvpscheckcscfstatus)" = "" ]; then
+echo "    CSF Firewall: installed | Status: Running | Version: $(csf -v | grep -o 'v[0-9]\+\.[0-9]\+' | sed 's/^v//' | xargs)"
+    else
+echo "                  CSF Firewall: Đã cài đặt nhưng đang Tắt"
+    fi
+fi
+
+
+if [ -f "/etc/csf/csf.conf" ]; then
+if [ ! -f /etc/csf/csf.deny ]; then
+cat > "/etc/csf/csf.deny" <<END
+END
+fi
+fi
+
+if [ -f /etc/csf/csf.deny ]; then
+if [ "$(cat /etc/csf/csf.deny | awk 'NR==2 {print $2}')" == "Copyright" ]; then
+rm -rf /etc/csf/csf.deny
+cat > "/etc/csf/csf.deny" <<END
+END
+fi
+fi
+
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1125 "
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-34s %s\n" " 1) Block (Chặn) IP" "8) Bỏ Chặn Tất Cả Quốc Gia"
+printf "%-32s %s\n" " 2) Block List IP" "9) Khởi Động Lại (Bật) CSF Firewall"
+printf "%-35s %s\n" " 3) Unblock (Bỏ Chặn) IP" "10) Tắt CSF Firewall"
+printf "%-35s %s\n" " 4) Unblock Tất Cả IP" "11) Gỡ Cài Đặt CSF Firewall"
+printf "%-33s %s\n" " 5) Thêm IP Vào WhiteList" "12) Xem Danh Sách IP Blocked"
+printf "%-34s %s\n" " 6) Xóa IP Khỏi WhiteList" "13) Xem Danh Sách Firewall Rules"
+printf "%-37s %s\n" " 7) Chặn Quốc Gia Truy Cập" "14) Nâng Cấp CSF Firewall"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in
+
+    1) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-chan-ip-ddos;;
+    2) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-chan-list-ip-ip-range;;
+    3) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-bo-chan-ip;;
+    4) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-bo-chan-tat-ca-ip;;
+    5) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-allow;;
+    6) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-remove-ip-khoi-csf-allow;;
+    7) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-block-country;;
+    8) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-un-block-country;;
+    9) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-restart-csf;;
+    10) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-befor-tat-csf;;
+    11) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-xoa-csf;;
+    12) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-download-csf-denny;;
+    13) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-download-csf-all-firewall-rules;;
+    14) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf-before;;
+    #13) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-tat-bat-canh-bao-cai-dat-csf;;
+0) clear; exit 0;;  
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 12; for ((i=0; i<12; i++)); do tput el; tput cud1; done; tput cuu 12;; esac; done
+ 
+
+else
+show_phan_tren_menu()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+echo "                            Quản Lý CSF Firewall                          "
+printf "=========================================================================\n"
+
+
+if [ ! -f "/etc/csf/csf.conf" ]; then
+    echo "                          CSF Firewall: Chưa cài đặt"
+else
+    csf -v > /etc/dsnvps/.tmp/dsnvpscheckcscfstatus
+    if [ "$(grep disabled /etc/dsnvps/.tmp/dsnvpscheckcscfstatus)" = "" ]; then
+echo "    CSF Firewall: installed | Status: Running | Version: $(csf -v | grep -o 'v[0-9]\+\.[0-9]\+' | sed 's/^v//' | xargs)"
+    else
+echo "                 CSF Firewall: Đã cài đặt nhưng đang Tắt"
+fi
+fi
+
+if [ -f "/etc/csf/csf.conf" ]; then
+if [ ! -f /etc/csf/csf.deny ]; then
+cat > "/etc/csf/csf.deny" <<END
+END
+fi
+fi
+
+if [ -f /etc/csf/csf.deny ]; then
+if [ "$(cat /etc/csf/csf.deny | awk 'NR==2 {print $2}')" == "Copyright" ]; then
+rm -rf /etc/csf/csf.deny
+cat > "/etc/csf/csf.deny" <<END
+END
+fi
+fi
+
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1125 "
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-34s %s\n" " 1) Block (Chặn) IP" "8) Bỏ Chặn Tất Cả Quốc Gia"
+printf "%-32s %s\n" " 2) Block List IP" "9) Khởi Động Lại (Bật) CSF Firewall"
+printf "%-35s %s\n" " 3) Unblock (Bỏ Chặn) IP" "10) Tắt CSF Firewall"
+printf "%-35s %s\n" " 4) Unblock Tất Cả IP" "11) Gỡ Cài Đặt CSF Firewall"
+printf "%-33s %s\n" " 5) Thêm IP Vào WhiteList" "12) Xem Danh Sách IP Blocked"
+printf "%-34s %s\n" " 6) Xóa IP Khỏi WhiteList" "13) Xem Danh Sách Firewall Rules"
+printf "%-37s %s\n" " 7) Chặn Quốc Gia Truy Cập" "14) Cài đặt CSF Firewall"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in
+
+    1) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-chan-ip-ddos;;
+    2) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-chan-list-ip-ip-range;;
+    3) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-bo-chan-ip;;
+    4) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-bo-chan-tat-ca-ip;;
+    5) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-allow;;
+    6) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-remove-ip-khoi-csf-allow;;
+    7) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-block-country;;
+    8) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-un-block-country;;
+    9) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-restart-csf;;
+    10) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-befor-tat-csf;;
+    11) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-xoa-csf;;
+    12) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-download-csf-denny;;
+    13) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-download-csf-all-firewall-rules;;
+    14) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf-before;;
+    #13) /etc/dsnvps/menu/CSF-Fiwall/dsnvps-tat-bat-canh-bao-cai-dat-csf;;
+0) clear; exit 0;;  
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 12; for ((i=0; i<12; i++)); do tput el; tput cud1; done; tput cuu 12;; esac; done
+
+fi

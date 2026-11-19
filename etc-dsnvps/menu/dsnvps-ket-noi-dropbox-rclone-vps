@@ -1,0 +1,168 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+if [ ! -f /bin/rclone ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt Rclone trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit 1
+fi
+if [ -f /etc/ssh/sshd_config ]; then
+if grep -q "#Port 22" /etc/ssh/sshd_config; then
+portcu=$(cat /etc/ssh/sshd_config | grep Port | awk 'END {print $2}')
+if [[ ! ${portcu} =~ ^[0-9]+$ ]] ;then
+portsshvps=22
+else
+portsshvps=$portcu
+fi
+fi
+fi
+if [ -f /root/.config/rclone/rclone.conf ]; then
+    rm -rf /etc/dsnvps/.tmp/checkrclonedropbox
+    awk '/^\[dropbox\]/ {print}' /root/.config/rclone/rclone.conf > /etc/dsnvps/.tmp/checkrclonedropbox
+    checka=`cat /etc/dsnvps/.tmp/checkrclonedropbox`
+    wc -l < /etc/dsnvps/.tmp/checkrclonedropbox > /etc/dsnvps/.tmp/checkrclonedropboxline
+    checkb=`cat /etc/dsnvps/.tmp/checkrclonedropboxline`
+    if [ "$checkb" -gt "0" ]; then
+        clear
+        echo "========================================================================="
+        echo "VPS đã kết nối với Dropbox. Hãy chạy [Cấu Hình Tự Động Sao Lưu] để "
+        echo "-------------------------------------------------------------------------"
+        echo "hoàn tất config. Hoặc [Xóa Tất Cả Cấu Hình] để kết nối lại !"
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+        exit 0
+    fi
+fi
+
+echo "========================================================================="
+echo "Dùng chức năng này để kết nối VPS với tài khoản Dropbox"
+echo "-------------------------------------------------------------------------"
+echo "Xem hướng dẫn tại: http://go.dsnvps/3856"
+echo "========================================================================="
+read -r -p "Bạn đã đọc xong hướng dẫn sử dụng chức năng này ? [y/N] " response
+if [[ ! $response =~ ^(y|Y|yes|Yes)$ ]]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn chưa xác nhận. Thoát!"
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit 1
+fi
+echo "-------------------------------------------------------------------------"; sleep 0.1
+echo "Bắt đầu cấu hình ..."; sleep 0.9
+echo "-------------------------------------------------------------------------"; sleep 0.1
+tput cuu 4 && tput ed
+
+# Đường dẫn file cấu hình cho root
+CONFIG_FILE="/root/.config/rclone/rclone.conf"
+PORT=53682
+TEMP_AUTH_FILE="/tmp/rclone_auth_$$.txt"
+TEMP_CONFIG_FILE="/tmp/rclone_config_$$.txt"
+
+# Kiểm tra và giải phóng port nếu bị chiếm dụng
+if lsof -i :$PORT &>/dev/null; then
+    echo "Port $PORT đang được sử dụng. VPSIM đang giành lại Port :D ..."
+    echo "-------------------------------------------------------------------------"
+    fuser -k $PORT/tcp || { echo "Lỗi: Không thể giải phóng port $PORT."; exit 1; }
+    sleep 3 && tput cuu 3 && tput ed
+    sleep 1
+fi
+
+# Lấy IP local và kiểm tra
+ip_local=$(ip route get 1.1.1.1 | awk '{print $7}' | head -n1)
+if [[ "$ip_local" == "$serverip" ]]; then
+    localcheck=0
+else
+    localcheck=1
+fi
+
+# Tạo remote và xác thực
+configure_rclone() {
+    echo "========================================================================="
+    echo "Đang tạo remote dropbox..." 
+    echo "-------------------------------------------------------------------------"
+    sleep 3 && tput cuu 10 && tput ed
+    echo "==> DSNVPS sẽ thoát nếu sau 10 phút không nhận được phản hồi...       <==|"
+    echo "========================================================================="
+    echo -e "\e[31mTrên Windows, macOS hoặc Linux, hãy chạy lệnh sau trong phần mềm SSH:\e[0m"
+    echo -e "\e[31m-------------------------------------------------------------------------\e[0m"
+    echo -e "\e[31mssh -N -L 53682:127.0.0.1:53682 root@$serverip -p$portsshvps\e[0m"
+    if [[ "$localcheck" == "1" ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Nếu chạy VPS tại nhà (Local): " 
+        echo "-------------------------------------------------------------------------"
+        echo "ssh -N -L 53682:127.0.0.1:53682 root@$ip_local -p$portsshvps"
+    fi
+    echo "========================================================================="
+    echo -e "\e[31mSau khi nhập mật khẩu tài khoản root VPS, cửa sổ SSH này sẽ ĐƠ KHÔNG CHẠY\e[0m"
+    echo "-------------------------------------------------------------------------"
+    echo "=> Tiếp theo bạn mở trình duyệt (Google Chrome, Firefox...) để truy cập:"
+    echo "-------------------------------------------------------------------------"
+    echo -e "\e[31mLink tương tự: http://127.0.0.1:53682/auth?state=XXX | ↓ Ở bên dưới ↓\e[0m"
+    echo -e "\e[31m-------------------------------------------------------------------------\e[0m"
+    echo -e "\e[31mSau đó đăng nhập bằng tài khoản Dropbox và cho phép kết nối.\e[0m"
+    echo "========================================================================="
+    sleep 3
+    if [ ! -f /usr/bin/gxred ]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    fi
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    timeout 600 rclone config create dropbox dropbox --config "$CONFIG_FILE" || {
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không thể tạo remote dropbox!"
+        echo "-------------------------------------------------------------------------"
+        echo "Hoặc quá thời gian 10 phút mà DSNVPS không nhận được phản hồi"
+        rm -f "$CONFIG_FILE"
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+        exit 1
+    }
+
+    echo "-------------------------------------------------------------------------"
+    echo "Đang khởi tạo xác thực OAuth..."
+    timeout 15 rclone authorize "dropbox" --config "$CONFIG_FILE" > "$TEMP_AUTH_FILE" 2>&1 &
+    sleep 2
+
+    URL=$(grep -o 'http://127.0.0.1:[0-9]*/auth?state=[^ ]*' "$TEMP_AUTH_FILE")
+
+    if [[ -n "$URL" ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Đang chờ xác thực từ Dropbox (tối đa 15 giây)..."
+    else
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Không tìm thấy URL xác thực!"
+        echo "-------------------------------------------------------------------------"
+        echo "Hãy [Xóa Tất Cả Cấu Hình] và thử lại." 
+        rm -f "$CONFIG_FILE" "$TEMP_AUTH_FILE"
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+        exit 1
+    fi
+
+    sleep 5
+
+    if rclone lsd dropbox: --config "$CONFIG_FILE" &>/dev/null; then
+        clear
+        echo "========================================================================="
+        echo "Kết nối VPS với Dropbox thành công!"
+        echo "-------------------------------------------------------------------------"
+        echo "Tiếp theo bạn hãy [ Cấu Hình Tự Động Sao Lưu ]"
+    else
+        clear
+        echo "========================================================================="
+        echo "Lỗi: Xác thực thất bại hoặc token không được lưu!"
+        echo "-------------------------------------------------------------------------"
+        echo "Hãy [Xóa Tất Cả Cấu Hình] và thử lại." 
+        rm -f "$CONFIG_FILE" "$TEMP_AUTH_FILE"
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+        exit 1
+    fi
+}
+
+configure_rclone
+
+rm -f "$TEMP_CONFIG_FILE" "$TEMP_AUTH_FILE"
+/etc/dsnvps/menu/dsnvps-rclone-dropbox-menu

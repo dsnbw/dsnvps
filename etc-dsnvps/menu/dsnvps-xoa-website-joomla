@@ -1,0 +1,365 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+cd
+website=`cat /etc/dsnvps/.tmp/removewebsite.txt`
+tendatabase=$(cat /home/$website/public_html/configuration.php | grep "public\ \$db\ =" | cut -d \' -f 2)
+websiteto=`echo $website | tr '[a-z]' '[A-Z]'`
+check_folder_protect_config()
+{
+if [ -d /etc/nginx/pwprotect/$website ]; then
+cd /etc/nginx/pwprotect/$website
+rm -rf * .??*
+cd
+rm -rf /etc/nginx/pwprotect/$website
+fi
+}
+delete_ssl_paidssl_config () {
+## Delete Free SSL Config
+if [ -d /etc/dsnvps/Backup.Vhost.SSL/$website ]; then
+rm -rf /etc/dsnvps/Backup.Vhost.SSL/$website
+fi
+## Het delete Free SSL config
+## Delete Paid SSL Config
+if [ -f /etc/nginx/paidssl/$website/$website.csr ]; then
+rm -rf /etc/nginx/paidssl/$website
+fi
+## Het delete Paid SSL config
+}
+
+deletedatabases () {
+	cat > "/etc/dsnvps/.tmp/config.temp" <<END
+drop database $tendatabase;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+## Delete database in /root/DBinfo.txt
+if [ -f /root/DBinfo.txt ]; then
+rm -rf /etc/dsnvps/.tmp/deltata
+    cat > "/etc/dsnvps/.tmp/deltata" <<END
+sed -i '/Database:\ $tendatabase/,+4d' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/deltata
+rm -rf /etc/dsnvps/.tmp/deltata
+fi
+### 
+}
+check_and_delete_auto_backup_website()
+{
+	if [  -f /bin/auto-backupcode-$website ]; then
+	if [ ! "$(grep auto-backupcode-$website /etc/cron.d/dsnvps.code.cron)" == "" ]; then
+echo "========================================================================="
+echo "Phát hiện $website đang BẬT tự động sao lưu code."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ TẮT cấu hình tự động sao lưu code cho website này."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5
+	rm -rf /bin/auto-backupcode-$website
+	cat > "/etc/dsnvps/.tmp/removebackupcode" <<END
+sed -i '/auto-backupcode-$website/d' /etc/cron.d/dsnvps.code.cron
+END
+chmod +x /etc/dsnvps/.tmp/removebackupcode
+/etc/dsnvps/.tmp/removebackupcode 
+rm -rf /etc/dsnvps/.tmp/removebackupcode
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true
+	fi
+	fi
+}
+check_ftp_account()
+{
+if [ ! -f /etc/dsnvps/FTP-Account.info ]; then
+echo "=========================================================================" > /etc/dsnvps/FTP-Account.info
+echo "Please Do Not Delete This File " >> /etc/dsnvps/FTP-Account.info
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/FTP-Account.info
+echo "If you delete this file, DSNVPS will not run !" >> /etc/dsnvps/FTP-Account.info
+echo "-------------------------------------------------------------------------" >> /etc/dsnvps/FTP-Account.info
+echo "All FTP User for all domain on VPS list below:" >> /etc/dsnvps/FTP-Account.info
+echo "=========================================================================" >> /etc/dsnvps/FTP-Account.info
+echo "" >> /etc/dsnvps/FTP-Account.info
+fi
+if [ -f /etc/pure-ftpd/pureftpd.passwd ]; then
+if [ ! "$(grep /home/$website/ /etc/pure-ftpd/pureftpd.passwd)" == "" ];then  
+rm -rf /etc/dsnvps/.tmp/abcd
+cat > "/etc/dsnvps/.tmp/abcd" <<END	
+sed -i '/\/home\/$website/d' /etc/pure-ftpd/pureftpd.passwd
+END
+chmod +x /etc/dsnvps/.tmp/abcd
+/etc/dsnvps/.tmp/abcd
+rm -rf /etc/dsnvps/.tmp/abcd
+pure-pw mkdb
+fi
+fi
+if [ ! "$(grep /home/$website/ /etc/dsnvps/FTP-Account.info)" == "" ];then 
+echo "========================================================================="
+echo "Tìm thấy tài khoản FTP: $(grep /home/$website/ /etc/dsnvps/FTP-Account.info | awk 'NR==1 {print $7}') cua $website  "
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa tài khoản FTP: $(grep /home/$website/ /etc/dsnvps/FTP-Account.info | awk 'NR==1 {print $7}')"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+sleep 6
+rm -rf /etc/dsnvps/.tmp/abcde
+cat > "/etc/dsnvps/.tmp/abcde" <<END	
+sed -i '/\/home\/$website/d' /etc/dsnvps/FTP-Account.info
+END
+chmod +x /etc/dsnvps/.tmp/abcde
+/etc/dsnvps/.tmp/abcde
+rm -rf /etc/dsnvps/.tmp/abcde
+fi
+}
+printf "=========================================================================\n"
+echo "$website su dung Joomla Code "
+echo "-------------------------------------------------------------------------"
+echo "Database đang được sử dụng.: $tendatabase "
+prompt="Nhập lựa chọn của bạn: "
+options=( "Xoa Ca Website + Database" "Chi Xoa Website, Giu Lai Database" "Sao Luu Website + Database Truoc Khi Xoa" "Huỷ bỏ")
+printf "=========================================================================\n"
+echo "LUA CHON CACH XOA $websiteto"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) cachxoa="xoacahai"; break;;
+    2) cachxoa="xoawebsite"; break;;
+    3) cachxoa="xoaantoan"; break;;
+    4) cachxoa="huybo"; break;;  
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#Xoacahai
+###################################
+if [ "$cachxoa" = "xoacahai" ]; then
+echo "Vui lòng chờ ..."
+cd /home/$website/public_html
+deletedatabases
+cd
+rm -rf /home/$website
+rm -rf /etc/nginx/conf.d/$website.conf
+### Remove website from Zend Opcache BlackList
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+END
+fi
+if [ ! "$(grep /home/$website /etc/dsnvps/opcache.blacklist)" == "" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trong Zend Opcache Blacklist"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $website trong blacklist này"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 6
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+cat > "/etc/dsnvps/.tmp/zendcacheblacklist" <<END
+sed --in-place '\/home\/$website/d' /etc/dsnvps/opcache.blacklist
+END
+chmod +x /etc/dsnvps/.tmp/zendcacheblacklist
+/etc/dsnvps/.tmp/zendcacheblacklist
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+fi
+check_ftp_account  ### Check FTP account
+check_and_delete_auto_backup_website ## Check auto backup code
+check_folder_protect_config ### Check Config Protect Folder & Files
+delete_ssl_paidssl_config  ### Delete SSL Config
+
+
+systemctl reload nginx
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+
+if [ -f /bin/auto-backupdb-$tendatabase ]; then
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện $tendatabase đang BẬT tự động sao lưu"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ TẮT cấu hình tự động sao cho database này."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 3
+rm -rf /bin/auto-backupdb-$tendatabase
+cat > "/etc/dsnvps/.tmp/removebackupdb" <<END
+sed --in-place '/auto-backupdb-$tendatabase/d' /etc/cron.d/dsnvps.db.cron
+END
+chmod +x /etc/dsnvps/.tmp/removebackupdb
+/etc/dsnvps/.tmp/removebackupdb 
+rm -rf /etc/dsnvps/.tmp/removebackupdb
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true
+fi
+
+  
+clear
+echo "========================================================================="
+echo "Xoá $website và database thành công."
+dsnvps
+###################################
+#xoawebsite
+###################################
+elif [ "$cachxoa" = "xoawebsite" ]; then
+cd
+echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /home/$website
+rm -rf /etc/nginx/conf.d/$website.conf
+rm -R /etc/nginx/pwprotect/$website
+### Remove website from Zend Opcache BlackList
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+END
+fi
+if [ ! "$(grep /home/$website /etc/dsnvps/opcache.blacklist)" == "" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trong Zend Opcache Blacklist"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $website trong blacklist này"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 6
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+cat > "/etc/dsnvps/.tmp/zendcacheblacklist" <<END
+sed --in-place '\/home\/$website/d' /etc/dsnvps/opcache.blacklist
+END
+chmod +x /etc/dsnvps/.tmp/zendcacheblacklist
+/etc/dsnvps/.tmp/zendcacheblacklist
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+fi
+############
+check_ftp_account  ### Check FTP account
+check_and_delete_auto_backup_website ## Check auto backup code
+check_folder_protect_config ### Check Config Protect Folder & Files
+delete_ssl_paidssl_config  ### Delete SSL Config
+
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+   
+cd
+clear
+echo "========================================================================="
+echo "Xóa $website thành công."
+echo "-------------------------------------------------------------------------"
+echo "Database $tendatabase  vẫn còn trên server."
+dsnvps
+
+#################################
+#Xoa an toan"
+################################
+elif [ "$cachxoa" = "xoaantoan" ]; then
+random123=`date |md5sum |cut -c '1-10'`
+echo "========================================================================="
+echo "Vui lòng chờ ..."
+sleep 2
+if [ -d /home/$mainsite/private_html/backup/$tendatabase ]; then
+rm -rf /home/$mainsite/private_html/backup/$tendatabase
+fi
+mkdir -p /home/$mainsite/private_html/backup/$tendatabase
+cd /home/$mainsite/private_html/backup/$tendatabase
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+if [ -z "$enginecheck" ]; then
+mysqldump -u root -p$mariadbpass $tendatabase --single-transaction | gzip -6 > $tendatabase_$random123.sql.gz
+else
+mysqldump -u root -p$mariadbpass $tendatabase --lock-tables=false | gzip -6 > $tendatabase_$random123.sql.gz
+fi
+
+if [ -d /home/$mainsite/private_html/backup/$website ]; then
+rm -rf /home/$mainsite/private_html/backup/$website
+fi
+cd /home/$website/public_html/
+deletedatabases
+zip -r $website.zip *
+mkdir -p /home/$mainsite/private_html/backup/$website/
+mv $website.zip /home/$mainsite/private_html/backup/$website/$website_$random123.zip
+rm -rf /home/$website
+rm -rf /etc/nginx/conf.d/$website.conf
+rm -R /etc/nginx/pwprotect/$website
+cd
+### Remove website from Zend Opcache BlackList
+if [ ! -f /etc/dsnvps/opcache.blacklist ]; then
+cat > "/etc/dsnvps/opcache.blacklist" <<END
+END
+fi
+if [ ! "$(grep /home/$website /etc/dsnvps/opcache.blacklist)" == "" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trong Zend Opcache Blacklist"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ xóa $website trong blacklist này"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ... "
+sleep 6
+sleep 2
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+cat > "/etc/dsnvps/.tmp/zendcacheblacklist" <<END
+sed --in-place '\/home\/$website/d' /etc/dsnvps/opcache.blacklist
+END
+chmod +x /etc/dsnvps/.tmp/zendcacheblacklist
+/etc/dsnvps/.tmp/zendcacheblacklist
+rm -rf /etc/dsnvps/.tmp/zendcacheblacklist
+fi
+############
+check_ftp_account  ### Check FTP account
+check_and_delete_auto_backup_website ## Check auto backup code
+check_folder_protect_config ### Check Config Protect Folder & Files
+delete_ssl_paidssl_config  ### Delete SSL Config
+
+#############################################
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service  
+############################################# 
+
+if [ -f /bin/auto-backupdb-$tendatabase ]; then
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện $tendatabase đang BẬT tự động sao lưu"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ TẮT cấu hình tự động sao cho database này."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 3
+rm -rf /bin/auto-backupdb-$tendatabase
+cat > "/etc/dsnvps/.tmp/removebackupdb" <<END
+sed --in-place '/auto-backupdb-$tendatabase/d' /etc/cron.d/dsnvps.db.cron
+END
+chmod +x /etc/dsnvps/.tmp/removebackupdb
+/etc/dsnvps/.tmp/removebackupdb 
+rm -rf /etc/dsnvps/.tmp/removebackupdb
+systemctl restart cron 2>/dev/null || service crond restart 2>/dev/null || true
+fi
+
+clear
+echo "========================================================================="
+echo "Xoá $website và database thành công."
+echo "-------------------------------------------------------------------------"
+echo "Link tải bản sao lưu database $tendatabase: "
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/$tendatabase/$tendatabase_$random123.sql.gz"
+echo "-------------------------------------------------------------------------"
+echo "Link tải bản sao lưu code:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/$website/$website_$random123.zip"
+dsnvps
+###################################
+#Huỷ bỏ
+###################################
+else 
+cd
+clear
+echo "========================================================================="
+echo "Hủy bỏ"
+dsnvps
+fi
+
+
+
+
+
+
+

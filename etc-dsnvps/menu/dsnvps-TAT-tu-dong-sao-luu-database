@@ -1,0 +1,42 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+dataname=$(cat /etc/dsnvps/.tmp/databaseautobackup)
+
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang BẬT tự động sao lưu: $dataname "
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT tự động sao lưu database này ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+sleep 2
+rm -rf /bin/auto-backupdb-$dataname
+if [ -f /etc/cron.d/dsnvps.db.cron ]; then
+cat > "/etc/dsnvps/.tmp/removebackupdb" <<END
+sed -i '/auto-backupdb-$dataname/d' /etc/cron.d/dsnvps.db.cron
+END
+chmod +x /etc/dsnvps/.tmp/removebackupdb
+/etc/dsnvps/.tmp/removebackupdb 
+rm -rf /etc/dsnvps/.tmp/removebackupdb
+systemctl restart crond
+fi
+clear
+echo "========================================================================="
+echo "TẮT tự động sao lưu Database $dataname thành công."
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+        ;;
+    *)
+        clear
+echo "========================================================================= "
+echo "Hủy bỏ !"
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+        ;;
+esac

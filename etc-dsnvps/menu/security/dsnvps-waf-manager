@@ -1,0 +1,67 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+NGINX_CONF="/etc/nginx/nginx.conf"
+
+toggle_global_nginx_conf() {
+    local conf_inc="$1"
+    local label="$2"
+    local vhosts=(/etc/nginx/conf.d/*.conf)
+    echo -e "${C_CYAN}1) BẬT ${label} cho 1 Website${C_RESET}"
+    echo -e "${C_CYAN}2) TẮT ${label} cho 1 Website${C_RESET}"
+    echo -e "${C_CYAN}3) BẬT ${label} cho TẤT CẢ Website${C_RESET}"
+    echo -e "${C_CYAN}4) TẮT ${label} cho TẤT CẢ Website${C_RESET}"
+    read -r -p "Chọn [0-4]: " act
+    case "$act" in
+        1|2)
+            local dom; dom="$(dsnvps_pick_domain all)" || return 0
+            local vfile="/etc/nginx/conf.d/${dom}.conf"
+            if [[ "$act" == "1" ]]; then
+                if ! grep -q "$conf_inc" "$vfile"; then
+                    cp -a "$vfile" "${vfile}.bak.waf"
+                    sed -i "s|server_name .*;|& \n\tinclude ${conf_inc};|" "$vfile"
+                    if nginx -t >/dev/null 2>&1; then
+                        systemctl reload nginx; rm -f "${vfile}.bak.waf"
+                        echo -e "${C_GREEN}[OK] Đã BẬT ${label} cho ${dom}.${C_RESET}"
+                    else
+                        mv -f "${vfile}.bak.waf" "$vfile"
+                        echo -e "${C_RED}[ERR] Nginx lỗi cú pháp, đã rollback!${C_RESET}"
+                    fi
+                else
+                    echo -e "${C_YELLOW}${dom} đã bật ${label} từ trước.${C_RESET}"
+                fi
+            else
+                sed -i "\|${conf_inc}|d" "$vfile"
+                nginx -t >/dev/null 2>&1 && systemctl reload nginx
+                echo -e "${C_YELLOW}[OK] Đã TẮT ${label} cho ${dom}.${C_RESET}"
+            fi
+            ;;
+        3)
+            local d vf
+            for d in $(dsnvps_list_domains); do
+                vf="/etc/nginx/conf.d/${d}.conf"
+                if ! grep -q "$conf_inc" "$vf"; then
+                    cp -a "$vf" "${vf}.bak.waf"
+                    sed -i "s|server_name .*;|& \n\tinclude ${conf_inc};|" "$vf"
+                    if nginx -t >/dev/null 2>&1; then rm -f "${vf}.bak.waf"; else mv -f "${vf}.bak.waf" "$vf"; fi
+                fi
+            done
+            nginx -t >/dev/null 2>&1 && systemctl reload nginx
+            echo -e "${C_GREEN}[OK] Đã BẬT ${label} cho tất cả website.${C_RESET}"
+            ;;
+        4)
+            local d vf
+            for d in $(dsnvps_list_domains); do
+                vf="/etc/nginx/conf.d/${d}.conf"
+                sed -i "\|${conf_inc}|d" "$vf"
+            done
+            nginx -t >/dev/null 2>&1 && systemctl reload nginx
+            echo -e "${C_YELLOW}[OK] Đã TẮT ${label} cho tất cả website.${C_RESET}"
+            ;;
+    esac
+}
+
+case "${1:-}" in
+    waf) toggle_global_nginx_conf "/etc/nginx/conf/7g-waf.conf" "7G WAF Firewall" ;;
+    aibots) toggle_global_nginx_conf "/etc/nginx/conf/block-ai-bots.conf" "Chặn Bot AI & Scraper" ;;
+esac

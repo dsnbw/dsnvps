@@ -1,0 +1,55 @@
+#!/bin/bash
+echo "-------------------------------------------------------------------------"
+echo "Please wait ..."
+#PHP version co the cai dat: /etc/dsnvps/.tmp/8hansh.txt
+#MariaDB version co the cai dat: /etc/dsnvps/.tmp/xx5tyff.txt
+#Nginx version mainline co the cai dat: /etc/dsnvps/.tmp/cuijhht
+#Nginx Stable: /etc/dsnvps/.tmp/9otgfgh
+
+
+
+vercheck=$(grep -oP 'VERSION_ID="\K[0-9]+' /etc/os-release)
+case "$vercheck" in
+  10)
+    dnf config-manager --set-enabled crb
+    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-10.noarch.rpm
+    dnf install -y http://rpms.remirepo.net/enterprise/remi-release-10.rpm
+    dnf update -y
+    apt-get install -y -qq jq
+    ;;
+  9)
+    dnf config-manager --set-enabled crb
+    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-9.noarch.rpm
+    dnf install -y http://rpms.remirepo.net/enterprise/remi-release-9.rpm
+    dnf update -y
+    apt-get install -y -qq jq
+    ;;
+  8)
+    dnf install -y dnf-plugins-core
+    dnf config-manager --set-enabled powertools
+    dnf install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+    dnf install -y http://rpms.remirepo.net/enterprise/remi-release-8.rpm
+    dnf update -y
+    apt-get install -y -qq jq
+    ;;
+  *)
+    echo "Unsupported OS version: $vercheck"
+    exit 1
+    ;;
+esac
+if [ -f /etc/dsnvps/.tmp/nginxversionsetup.txt ]; then
+rm -f /etc/dsnvps/.tmp/nginxversionsetup.txt
+fi
+if [ -f /etc/dsnvps/.tmp/9otgfgh ]; then
+rm -f /etc/dsnvps/.tmp/9otgfgh
+fi
+if [ -f /etc/dsnvps/.tmp/cuijhht ]; then
+rm -f /etc/dsnvps/.tmp/cuijhht
+fi
+
+echo "========================================================================="
+echo "Vui lòng chờ ... DSNVPS đang kiểm tra server ..."
+
+dnf module list php --quiet 2>/dev/null | grep -oP 'remi-\d\.\d' | sed 's/remi-//' | tr '\n' ',' | sed 's/,/, /g; s/, $//' > /etc/dsnvps/.tmp/8hansh.txt
+
+#############################################################

@@ -1,0 +1,131 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+
+domainlist=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+for wpsite in $domainlist; do
+    if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+        echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+    fi
+done
+
+if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+echo "========================================================================="
+echo "Mac dinh, WP-Config.php nam trong /home/domain.com/public_html/"
+echo "-------------------------------------------------------------------------"
+echo "De tang cuong bao mat, ban nen dua file nay ra khoi thu muc public_html"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2756"
+echo "========================================================================="
+echo "Danh sach cac website worpdress tren server:"
+echo "========================================================================="
+mapfile -t file_list < /etc/dsnvps/.tmp/wordpresslist
+for ((i = 0; i < ${#file_list[@]}; i+=2)); do
+    if ((i+1 < ${#file_list[@]})); then
+        printf "%-4s %-20s %-4s %-20s\n" "$((i+1))." "${file_list[i]}" "$((i+2))." "${file_list[i+1]}"
+    else
+        printf "%-4s %-20s\n" "$((i+1))." "${file_list[i]}"
+    fi
+done
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng website [0 -Thoát]:  "
+    read -r choice
+    if [[ $choice == "0" ]]; then
+        clear
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        exit 0 
+    fi
+
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+        website=${file_list[choice-1]} 
+        break 
+    else
+        echo "Bạn nhập sai, vui lòng nhập lại."
+    fi
+done
+
+if [[ ! -f /home/$website/wp-config.php && -f /home/$website/public_html/wp-config.php ]]; then
+    echo "========================================================================="
+    echo "$website hien tai chua dua WP-CONFIG.PHP ra ngoai Public_html"
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS se dua WP-CONFIG.PHP"
+    echo "-------------------------------------------------------------------------"
+    echo "Tu vi tri: /home/$website/public_html/wp-config.php"
+    echo "-------------------------------------------------------------------------" 
+    echo "toi vi tri moi: /home/$website/wp-config.php "
+    echo "-------------------------------------------------------------------------"
+    echo "va tao file WP-CONFIG.php moi link toi file WP-CONFIG.PHP cu."
+    echo "-------------------------------------------------------------------------"
+    read -p "Bat dau di chuyen wp-config.php? [y/N] " response
+    if [[ $response =~ ^[yY]$ ]]; then
+        echo "Vui lòng chờ..."
+        sleep 2
+        mv /home/$website/public_html/wp-config.php /home/$website/wp-config.php
+        echo "<?php include('/home/$website/wp-config.php');" > /home/$website/public_html/wp-config.php
+        chown -R nginx:nginx /home/$website
+        /etc/dsnvps/menu/inc/re-start-php-fpm-service 
+        clear
+        echo "========================================================================="
+        echo "Di chuyen WP-CONFIG.PHP cua $website thanh cong!"
+    else
+        clear
+        echo "========================================================================="
+        echo "Cancel!"
+    fi
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit 0
+fi
+if [[ -f /home/$website/wp-config.php && -f /home/$website/public_html/wp-config.php ]]; then
+    echo "========================================================================="
+    echo "WP-CONFIG.PHP hien da duoc dua ra ngoai public_html de tang bao mat."
+    echo "-------------------------------------------------------------------------"
+    echo "Chuc nang nay se dua WP-CONFIG.PHP ve vi tri cu."
+    echo "-------------------------------------------------------------------------"
+    read -p "Ban muon khoi phuc vi tri WP-CONFIG.PHP nhu luc dau? [y/N] " response
+    if [[ $response =~ ^[yY]$ ]]; then
+        echo "Vui lòng chờ..."
+        sleep 2
+        mv -f /home/$website/wp-config.php /home/$website/public_html/wp-config.php
+        chown -R nginx:nginx /home/$website
+        /etc/dsnvps/menu/inc/re-start-php-fpm-service 
+        clear
+        echo "========================================================================="
+        echo "Hoan thanh khoi phuc WP-CONFIG.PHP cua $website theo mac dinh!"
+    else
+        clear
+        echo "========================================================================="
+        echo "Cancel!"
+    fi
+    # Không thoát khỏi script sau khi hoàn thành, quay lại menu chính
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit 0
+fi

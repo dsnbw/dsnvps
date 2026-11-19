@@ -1,0 +1,101 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ ! -d /home/$mainsite/private_html/backup/AllDB ]; then
+mkdir -p /home/$mainsite/private_html/backup/AllDB
+fi
+if [ ! -f /home/$mainsite/private_html/backup/AllDB/*.gz ]; then
+clear
+echo "========================================================================="
+echo "Không phát hiện thấy file backup định dạng .GZ !"
+echo "-------------------------------------------------------------------------"
+echo "Hãy tạo backup trước hoặc upload file backup của bạn vào:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainsite/private_html/backup/AllDB"
+echo "-------------------------------------------------------------------------"
+echo "Sau đó chạy lại chức năng này."
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi
+
+if [ -d /home/$mainsite/private_html/backup/AllDB ]; then
+cd /home/$mainsite/private_html/backup/AllDB
+checknumberfile=$(ls -l | grep ^- | wc -l)
+if [ "$checknumberfile" -gt "1" ]; then
+cd
+clear
+echo "========================================================================="
+echo "Có $checknumberfile files trong /home/$mainsite/private_html/backup/AllDB"
+echo "-------------------------------------------------------------------------"
+echo "Trong thư mục AllDB chỉ được phép có 1 file backup duy nhất ! "
+echo "-------------------------------------------------------------------------"
+echo "Hãy xóa file không sử dụng và làm lại !"
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+ fi
+ fi
+
+clear
+echo "========================================================================="
+echo "            DSNVPS - Quản Lý VPS/Server by DSNVPS.VN                "
+echo "========================================================================="
+echo "                   Phục Hồi Tất Cả Database                             "
+echo "========================================================================="
+echo""
+echo "Dùng chức năng này để phục hồi Database từ bản backup gần nhất trên VPS"
+echo "Nếu bạn muốn phục hồi database từ file backup khác"
+echo "Hãy xóa file backup trong:"
+echo "-------------------------------------------------------------------------"
+echo "/home/$mainsite/private_html/backup/AllDB"
+echo "-------------------------------------------------------------------------"
+echo "Và upload file backup của bạn vào thư mục AllDB."
+echo "File Backup Database phải có đuôi mở rộng là .GZ"
+echo "Nếu định dạng khác, chức năng này sẽ không hoạt động !"
+
+echo "========================================================================="
+read -p "Nhấn [Enter] để tiếp tục ..."
+
+ clear
+ find /home/$mainsite/private_html/backup/AllDB/ -type f -exec basename {} \;  > /etc/dsnvps/.tmp/backupname
+filename=`cat /etc/dsnvps/.tmp/backupname`
+rm -rf /etc/dsnvps/.tmp/backupname
+echo "========================================================================="
+echo "            DSNVPS - Quản Lý VPS/Server by DSNVPS.VN                "
+echo "========================================================================="
+echo "                   Phục Hồi Tất Cả Database                             "
+echo "========================================================================="
+echo""
+
+echo "Nếu trên VPS chưa có database, sau khi restore, các database restore"
+echo "sẽ có user và mật khẩu như trong bản backup."
+echo "-------------------------------------------------------------------------"
+echo "Nếu trên VPS đã có database, khi sử dụng chức năng này, "
+echo "tất cả các database hiện tại sẽ bị thay thế bằng dữ liệu của file backup."
+echo "Bạn phải cẩn thận khi sử dụng chức năng này !"
+echo "========================================================================= "
+echo "Phát hiện bản backup: $filename"
+echo "--------------------------------------------------------------------------"
+echo "File được tạo (upload) vào: $(date -r /home/$mainsite/private_html/backup/AllDB/$filename +%H:%M/%F)"
+echo "========================================================================= "
+read -r -p "Bạn muốn phục hồi tất cả các database từ file backup này ? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/dsnvps-phuc-hoi-tat-ca-database
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Huỷ bỏ ! "
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi

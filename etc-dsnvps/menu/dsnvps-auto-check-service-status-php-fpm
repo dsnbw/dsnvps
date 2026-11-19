@@ -1,0 +1,48 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+curTime=$(date +%s)
+
+if [ ! -f /etc/dsnvps/.tmp/autophpfpm ]; then
+touch -a -m -t 201602180130.09 /etc/dsnvps/.tmp/autophpfpm  
+fi
+fileTimephpfpm=$(date -r /etc/dsnvps/.tmp/autophpfpm +%s);diffphp=$(($curTime-$fileTimephpfpm));
+
+###############################################################
+#################################################################
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+
+if [ "$UPPHP" -ne 1 ]; then
+if [ "$diffphp" -gt 3600 ]; then
+cat > "/etc/dsnvps/.tmp/guiemailphpdie1.sh" <<END
+#!/bin/bash 
+echo "
+Chu y: PHP-FPM service on $serverip Die.
+
+Hien tai dich vu PHP-FPM dang stop tren VPS IP $serverip .
+
+Ban nen dang nhap va kiem tra.
+
+
+ "
+END
+chmod +x /etc/dsnvps/.tmp/guiemailphpdie1.sh
+ cat > "/etc/dsnvps/.tmp/guiemailphpdie.sh" <<END
+#!/bin/bash 
+/etc/dsnvps/.tmp/guiemailphpdie1.sh | mail -s "Chu y: PHP-FPM service on $serverip Die" $emailmanage
+END
+chmod +x /etc/dsnvps/.tmp/guiemailphpdie.sh
+/etc/dsnvps/.tmp/guiemailphpdie.sh
+rm -f /etc/dsnvps/.tmp/guiemailphpdie*
+touch /etc/dsnvps/.tmp/autophp
+fi
+fi
+###############################################################
+#################################################################
+

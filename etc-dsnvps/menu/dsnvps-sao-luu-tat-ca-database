@@ -1,0 +1,93 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+enginecheck=`grep "default_storage_engine =" /etc/my.cnf | grep MyISAM`
+saoluudata ()
+{
+name=`date |md5sum |cut -c '1-18'` 
+echo "---------------------------------------------------------------------------"
+echo "Vui lòng không tắt màn hình ...!"
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+mkdir -p /home/$mainsite/private_html/backup
+fi
+if [ ! -d /home/$mainsite/private_html/backup/AllDB ]; then
+mkdir -p /home/$mainsite/private_html/backup/AllDB
+fi
+if [ ! -d /home/$mainsite/private_html/backup/AllDB/alldbdsnvps ]; then
+mkdir -p /home/$mainsite/private_html/backup/AllDB/alldbdsnvps
+fi
+rm -rf /home/$mainsite/private_html/backup/AllDB/*.sql.gz
+cd /home/$mainsite/private_html/backup/AllDB/alldbdsnvps
+rm -rf *.*
+echo "Khong chinh sua hoac thay doi bat ky gi o day neu khong DSNVPS se khong the khoi phuc tat ca database tren VPS moi" > readme.txt
+if [ -z "$enginecheck" ]; then
+mysqldump -u root -p$mariadbpass -A --single-transaction | gzip -6 > AllDB2.sql.gz
+else
+mysqldump -u root -p$mariadbpass -A --lock-tables=false | gzip -6 > AllDB2.sql.gz
+fi
+cd /home/$mainsite/private_html/backup/AllDB
+if [ ! -f /home/$mainsite/private_html/backup/AllDB/alldbdsnvps/AllDB2.sql.gz ]; then
+clear
+echo "========================================================================="
+echo "Sao lưu thất bại ! Bạn vui lòng thử lại."
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|sys|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)" > /home/$mainsite/private_html/backup/AllDB/alldbdsnvps/listdata.txt
+rm -rf /etc/dsnvps/.tmp/listdata.txt
+cp /home/$mainsite/private_html/backup/AllDB/alldbdsnvps/listdata.txt /etc/dsnvps/.tmp/
+zip -r -q AllDB_$name.zip *
+mv AllDB_$name.zip AllDB_$name.sql.gz
+rm -rf alldbdsnvps
+cd
+if [ ! -f /home/$mainsite/private_html/backup/AllDB/AllDB_$name.sql.gz ]; then
+clear
+echo "========================================================================="
+echo "Sao lưu thất bại! Bạn vui lòng thử lại."
+/etc/dsnvps/menu/dsnvps-sao-lưu-phục-hồi-tất-cả-database-menu
+else
+clear
+echo "========================================================================="
+echo "Link file backup Full database:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/backup/AllDB/AllDB_$name.sql.gz"
+echo "========================================================================="
+echo "Backup này phải phục hồi bằng chức năng [ Phục Hồi Full Database ] của"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS. Bạn không thể dùng lệnh để phục hồi database từ file này được."
+echo "========================================================================="
+echo "Danh sách database được sao lưu:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/listdata.txt | pr -2 -t  
+rm -rf /etc/dsnvps/.tmp/listdata.txt
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+}
+
+if [ -f /home/$mainsite/private_html/backup/AllDB/*.sql.gz ]; then
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện thay file sao luu cu !"
+echo "========================================================================="
+read -r -p "Bạn muốn xóa nó và tạo sao lưu mới? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "---------------------------------------------------------------------------"
+rm -rf /home/$mainsite/private_html/backup/AllDB/*.*
+echo "Đang sao lưu tất cả database ..."; sleep 2
+
+	saoluudata
+        ;;
+    *)
+        echo ""
+        ;;
+esac
+else
+echo "---------------------------------------------------------------------------"
+echo "Đang sao lưu tất cả database ..."; sleep 2
+	saoluudata
+fi

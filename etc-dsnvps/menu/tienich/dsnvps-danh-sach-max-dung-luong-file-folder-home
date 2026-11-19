@@ -1,0 +1,28 @@
+#!/bin/bash
+
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+    rm -rf /etc/dsnvps/.tmp/*list*
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 2
+   cd /home
+find . -type f -print0 | xargs -0 du | sort -n | tail -5 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfile
+find . -type d -print0 | xargs -0 du | sort -n | tail -5 | cut -f2 | xargs -I{} du -sh {} > /etc/dsnvps/.tmp/listfolder
+cd
+clear
+echo "========================================================================="
+echo "5 File lớn nhất trong /home:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/listfile
+echo "-------------------------------------------------------------------------"
+echo "5 Folder lớn nhất trong /home:"
+cat /etc/dsnvps/.tmp/listfolder
+rm -rf /etc/dsnvps/.tmp/*list*
+/etc/dsnvps/menu/dsnvps-tien-ich

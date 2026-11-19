@@ -1,0 +1,89 @@
+#!/bin/bash
+if [[ ! -f /etc/dsnvps/menu/inc/mainmenu/dsnvps ]]; then
+    echo "Khong tim thay tap tin thuc thi DSNVPS!"
+    exit 1
+fi
+
+case "${1:-}" in
+    ""|menu)
+        exec bash /etc/dsnvps/menu/inc/mainmenu/dsnvps
+        ;;
+    top)
+        shift
+        exec bash /etc/dsnvps/menu/dsnvps-wtop "$@"
+        ;;
+    status|info)
+        exec bash /etc/dsnvps/menu/dsnvps-wtop --once
+        ;;
+    optimize|turbo)
+        shift
+        if [[ "${1:-}" == "menu" ]]; then
+            exec bash /etc/dsnvps/menu/dsnvps-optimize-suite-menu
+        fi
+        exec bash /etc/dsnvps/menu/optimize/dsnvps-opt-all
+        ;;
+    clean-ram|don-rac)
+        sync && echo 3 > /proc/sys/vm/drop_caches
+        echo "Da xa bo nho dem RAM Linux (PageCache/Dentries/Inodes):"
+        free -h
+        ;;
+    restart|reboot-all)
+        . /etc/dsnvps/menu/inc/dsnvps-common.sh
+        systemctl restart nginx "$(dsnvps_php_service)" mariadb
+        echo "Da khoi dong lai Nginx, PHP-FPM va MariaDB!"
+        ;;
+    list|list-domain)
+        . /etc/dsnvps/menu/inc/dsnvps-common.sh
+        dsnvps_list_domains
+        ;;
+    ssl-check)
+        exec bash /etc/dsnvps/menu/security/dsnvps-ssl-expiry-check
+        ;;
+    scan-malware|yara)
+        shift
+        exec bash /etc/dsnvps/menu/security/dsnvps-yara-scan "$@"
+        ;;
+    preload)
+        shift
+        exec bash /etc/dsnvps/menu/optimize/dsnvps-preload-cache "$@"
+        ;;
+    wp-health)
+        shift
+        exec bash /etc/dsnvps/menu/wp-pro/dsnvps-wp-health "$@"
+        ;;
+    wp-clean)
+        shift
+        exec bash /etc/dsnvps/menu/wp-pro/dsnvps-wp-db-clean "$@"
+        ;;
+    fix-perm)
+        exec bash /etc/dsnvps/menu/dsnvps-sua-loi-chown
+        ;;
+    help|-h|--help)
+        cat <<'HELP'
+=========================================================================
+  DSNVPS v7.0.0 CLI (Ket hop VPSSIM + WPTangToc OLS)
+=========================================================================
+Su dung: dsnvps [lenh] [tham-so]
+
+Lenh quan tri nhanh (CLI):
+  dsnvps                  Mo Menu tuong tac chinh (44 nhom tinh nang)
+  dsnvps status           Xem nhanh thong so server & trang thai toi uu
+  dsnvps top              Giam sat tai nguyen Real-time (WTOP)
+  dsnvps optimize         Chay 1-Click toi uu toan dien (BBR, ZRAM, Jemalloc, JIT...)
+  dsnvps clean-ram        Xa bo nho dem RAM (PageCache/Dentries/Inodes)
+  dsnvps restart          Khoi dong lai Nginx, PHP-FPM, MariaDB
+  dsnvps list             Liet ke danh sach website tren server
+  dsnvps ssl-check        Kiem tra han chung chi SSL tat ca domain
+  dsnvps scan-malware [domain]  Quet ma doc WordPress bang YARA Engine
+  dsnvps preload [domain]       Preload cache tu sitemap XML
+  dsnvps wp-health [domain]     Kham suc khoe WordPress & kiem tra Autoload DB
+  dsnvps wp-clean [domain]      Don rac Database WordPress & Optimize Table
+  dsnvps fix-perm               Sua loi phan quyen Chown/Chmod
+  dsnvps help                   Hien thi huong dan nay
+=========================================================================
+HELP
+        ;;
+    *)
+        exec bash /etc/dsnvps/menu/inc/mainmenu/dsnvps "$@"
+        ;;
+esac

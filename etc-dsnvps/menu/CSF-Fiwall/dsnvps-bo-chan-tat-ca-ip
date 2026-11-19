@@ -1,0 +1,84 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+clear
+echo "========================================================================="
+echo "CSF Firewall đang tắt"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật CSF Firewall lên để chạy chức năng này."
+echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+fi
+
+
+if [ -f /etc/csf/csf.conf ]; then
+if [ "$(cat /etc/csf/csf.deny | awk 'NR==1 {print $1}')" == "" ]; then
+clear
+echo "========================================================================="
+echo "Hiện tại CSF Firewall chưa block IP nào."
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi
+fi
+if [ -f /etc/csf/csf.conf ]; then
+    
+echo "========================================================================="
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+if [ "$test_csf" == "enable" ]; then
+echo "Chức năng này sẽ bật CSF Firewall nếu bạn đang tắt nó."
+echo "-------------------------------------------------------------------------" 
+fi
+read -r -p "Bạn có chắc chắn muốn mở khóa tất cả IP? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+        echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ.."
+sleep 2
+if [ "$test_csf" == "enable" ]; then
+csf -e
+fi
+csf -df
+clear 
+echo "========================================================================= "
+echo "Tất cả các IP bị chặn bởi CSF hiện tại có thể truy cập vào VPS"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+    *)
+       clear 
+echo "========================================================================= "
+echo "Hủy bỏ"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+        ;;
+esac
+else
+echo "========================================================================= "
+echo "Chức năng này cần CSF Firewall để hoạt động"
+echo "-------------------------------------------------------------------------"
+echo "CSF Firewall chưa được cài đặt trên server!"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn có muốn cài đặt CSF Firewall vào server [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình thành công CSF Firewall"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Hủy bỏ"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+exit
+fi

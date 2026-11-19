@@ -1,0 +1,102 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+if pgrep -x "strace" > /dev/null; then
+    echo "DSNVPS không thể thực hiện chức năng này."
+    clear
+dsnvps
+exit 1
+fi
+if ! ping -q -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
+clear
+echo "========================================================================="
+echo "Server không có kết nối internet."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+fi
+
+# Đường dẫn thư mục
+#ddns_folder="/etc/dsnvps/ddns-cloudflare"
+#nginx_folder="/etc/nginx/conf.d"
+#tmp_folder="/etc/dsnvps/.tmp"
+#kalis_file="$tmp_folder/kalis"
+#kalis2_file="$tmp_folder/kalis2"
+#kalislo_file="$tmp_folder/kalislo"
+
+
+# Kiểm tra và xóa các file trong /etc/dsnvps/ddns-cloudflare không có trong /etc/nginx/conf.d
+#if [ "$(ls -A $ddns_folder)" ]; then
+  # Nếu thư mục ddns-cloudflare không rỗng
+ # for file in "$ddns_folder"/*.conf; do
+  #  domain_name=$(basename "$file" .conf)
+   # if [ ! -f "$nginx_folder/$domain_name.conf" ]; then
+     # echo "Xóa file: $file vì không có trong $nginx_folder"
+    #  rm -f "$file"
+    #fi
+  #done
+#else
+#clear
+#printf "=========================================================================\n"
+#echo "Chưa thiết lập DDNS Cloudflare cho website trên server."
+#/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+ # exit 0
+#fi
+# Folder paths
+ddns_folder="/etc/dsnvps/ddns-cloudflare"
+nginx_folder="/etc/nginx/conf.d"
+tmp_folder="/etc/dsnvps/.tmp"
+kalis_file="$tmp_folder/kalis"
+kalis2_file="$tmp_folder/kalis2"
+kalislo_file="$tmp_folder/kalislo"
+
+# Function to extract maindomain from subdomain
+get_maindomain() {
+    local domain=$1
+    echo "$domain" | awk -F. '{if (NF>2) print $(NF-1)"."$NF; else print $0}'
+}
+
+# Check and delete files in /etc/dsnvps/ddns-cloudflare that are not present in /etc/nginx/conf.d
+if [ "$(ls -A $ddns_folder)" ]; then
+    # If the ddns-cloudflare folder is not empty
+    for file in "$ddns_folder"/*.conf; do
+        domain_name=$(basename "$file" .conf)
+        maindomain=$(get_maindomain "$domain_name")
+        multisite_dir="/home/$maindomain/multisite.conf.d"
+
+        # Check conditions for deletion
+        if [ ! -f "$nginx_folder/$domain_name.conf" ] && \
+           { [ ! -d "$multisite_dir" ] || [ -z "$(ls -A $multisite_dir/*.conf 2>/dev/null)" ]; }; then
+            # echo "Deleting file: $file because it's not in $nginx_folder and no conf file in $multisite_dir"
+            rm -f "$file"
+        fi
+    done
+else
+    clear
+    printf "=========================================================================\n"
+    echo "Chưa thiết lập DDNS Cloudflare cho website trên server."
+    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+    exit 0
+fi
+
+
+
+echo "========================================================================="
+echo "Mặc định, 5 phút 1 lần DSNVPS gửi địa chỉ server tới CloudFlare."
+echo "-------------------------------------------------------------------------"
+echo "Dùng chức năng này để cập nhật DDNS cho Cloudflare ngay lập tức."
+echo "========================================================================="
+read -p "Nhấn [Enter] để bắt đầu cập nhật DDNS ngay bây giờ ..."
+echo "-------------------------------------------------------------------------";sleep 2
+echo "Vui lòng chờ ...";sleep 2
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-script-first
+sleep 4
+clear
+printf "=========================================================================\n"
+echo "Cập nhật thủ công DDNS xong."
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+exit

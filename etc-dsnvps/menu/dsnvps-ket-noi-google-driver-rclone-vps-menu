@@ -1,0 +1,38 @@
+#!/bin/bash
+echo "========================================================================="
+echo "Dùng chức năng này để kết nối VPS với tài khoản Google Drive"
+echo "-------------------------------------------------------------------------"
+echo "Xem hướng dẫn tại: http://go.dsnvps/1141"
+echo "========================================================================="
+echo "Bạn có thể kết nối VPS tới Google Drive theo hai cách."
+echo "========================================================================="
+echo "V1: Với VPS có dung lượng backup nhỏ, một ngày upload lên Google Drive "
+echo "-------------------------------------------------------------------------"
+echo "dưới 750 GB - Cấu hình kết nối đơn giản, dễ làm. Nhưng tốc độ upload có"
+echo "-------------------------------------------------------------------------"
+echo "thể không nhanh bằng V2."
+echo "========================================================================="
+echo "V2: Nếu Backup dung lượng lớn và muốn tốc độ upload có thể nhanh hơn, bạn  "
+echo "-------------------------------------------------------------------------"
+echo "nên tạo client id/secret của riêng bạn."
+echo "========================================================================="
+while true; do
+echo "1) Kết nối Tới G-Drive V1 (Thao tác đơn giản hơn)"
+echo "2) Kết nối Tới G-Drive V2 (Thao tác khó hơn nhưng tốc độ upload nhanh hơn)"
+echo "========================================================================="
+read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+case $choice in
+1)
+    /etc/dsnvps/menu/dsnvps-ket-noi-google-driver-rclone-vps-don-gian
+    ;;
+2)
+    /etc/dsnvps/menu/dsnvps-ket-noi-google-driver-rclone-vps
+    ;;
+0) clear; exit 0;;
+*)
+    echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"
+    sleep 2
+    ;;
+esac
+done

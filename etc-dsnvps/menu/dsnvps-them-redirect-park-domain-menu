@@ -1,0 +1,32 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/prdomain"
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Thêm Redirect Domain" "Thêm Park Domain")
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) choose="redirect"; break;;
+    2) choose="park"; break;;
+    0) choose="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+if [ "$choose" = "redirect" ]; then
+/etc/dsnvps/menu/dsnvps-redirect-domain
+elif [ "$choose" = "park" ]; then
+/etc/dsnvps/menu/dsnvps-park-domain
+else
+clear
+exit 0
+fi

@@ -1,0 +1,18 @@
+[aeris]
+name=Aeris Packages for Enterprise Linux 9 - stable - $basearch
+baseurl=https://repo.dsnvps.com/stable/el/9/$basearch
+        https://repo2.dsnvps.com/stable/el/9/$basearch
+enabled=1
+gpgcheck=1
+failovermethod=priority
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+
+[aeris-testing]
+name=Aeris Packages for Enterprise Linux 9 - testing - $basearch
+baseurl=https://repo.dsnvps.com/testing/el/9/$basearch
+        https://repo2.dsnvps.com/testing/el/9/$basearch
+enabled=0
+gpgcheck=1
+failovermethod=priority
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+

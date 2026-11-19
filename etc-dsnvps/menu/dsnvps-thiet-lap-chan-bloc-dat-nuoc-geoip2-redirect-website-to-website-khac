@@ -1,0 +1,1654 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+. /etc/dsnvps/pwprotect.default
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -r /etc/dsnvps/menu/inc/htpasswd.py /usr/local/bin/htpasswd.py
+chmod +x /usr/local/bin/htpasswd.py
+fi
+    if [ ! -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] && ! { [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] || nginx -V 2>&1 | grep -q "nginx-more"; }; then
+        echo "========================================================================="
+        echo "Chức năng này chỉ hoạt động trên Nginx-More."; sleep 3
+        echo "-------------------------------------------------------------------------"
+        echo "Kiểm Tra Phiên Bản Nginx ..."; sleep 3
+        clear
+        echo "========================================================================="
+        echo "Chức năng chỉ hỗ trợ Nginx-More !"
+        echo "-------------------------------------------------------------------------"
+        echo "Khuyến nghị: Hãy chuyển sang Nginx-More để sử dụng FULL chức năng DSNVPS."
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS menu => Thay Đổi/Cập Nhật Nginx => Nginx-More." 
+        /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+        exit
+    fi
+###Check Nginx service I
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ Nginx"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, Nginx đã dừng. Vui lòng bât lại trược khi sử dụng chức năng này !"
+	echo "-------------------------------------------------------------------------"
+	echo "Trạng thái Nginx:"
+	echo "-------------------------------------------------------------------------"
+	nginx -t
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+else
+clear
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+fi
+fi
+
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+clear
+echo "========================================================================="
+echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Nginx: "
+echo "-------------------------------------------------------------------------"
+nginx -t
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+fi
+fi
+if [ ! -d /etc/nginx/geoip2 ]; then
+mkdir -p /etc/nginx/geoip2
+fi
+if [ ! -f /etc/nginx/geoip2/GeoLite2-City.mmdb ]; then
+echo "========================================================================="
+echo "Đang tải GeoLite2-City.mmdb ..." ; sleep 3
+cd /etc/nginx/geoip2
+curl -sO https://cdn.jsdelivr.net/npm/geolite2-city/GeoLite2-City.mmdb.gz && gzip -d GeoLite2-City.mmdb.gz
+cd
+if [ ! -f /etc/nginx/geoip2/GeoLite2-City.mmdb ]; then
+cd /etc/nginx/geoip
+curl -sO https://dsnvps/script/dsnvps/GeoIP2_data/GeoLite2-City.mmdb.gz && gzip -d GeoLite2-City.mmdb.gz
+cd
+fi
+tput cuu 2 && tput ed
+fi
+
+if [ ! -f /etc/nginx/geoip2/GeoLite2-Country.mmdb ]; then
+echo "========================================================================="
+echo "Đang tải GeoLite2-Country.mmdb ..."; sleep 3
+cd /etc/nginx/geoip2
+curl -sO https://cdn.jsdelivr.net/npm/geolite2-country/GeoLite2-Country.mmdb.gz && gzip -d GeoLite2-Country.mmdb.gz
+cd
+if [ ! -f /etc/nginx/geoip2/GeoLite2-Country.mmdb ]; then
+cd /etc/nginx/geoip2
+curl -sO https://dsnvps/script/dsnvps/GeoIP2_data/GeoLite2-Country.mmdb.gz && gzip -d GeoLite2-Country.mmdb.gz
+cd
+fi
+tput cuu 2 && tput ed
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+if [ "$(cat /etc/dsnvps/.tmp/checkallwebsites | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa thêm website mới vào server !"
+        /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+vhost_dir="/etc/nginx/conf.d"
+home_dir="/home"
+output_file="/etc/dsnvps/.tmp/checkallwebsites"
+
+true > "$output_file"
+
+for vhost_file in "$vhost_dir"/*.conf; do
+    domainc=$(basename "$vhost_file" .conf)
+
+    # Bỏ qua domain dsnvps.demo
+    if [[ "$domainc" == "dsnvps.demo" ]]; then
+        continue
+    fi
+
+    # Kiểm tra nếu thư mục /home/domain tồn tại
+    if [[ -d "$home_dir/$domainc" ]]; then
+        echo "$domainc" >> "$output_file"
+    fi
+done
+
+# Kiểm tra nếu file output không có domain nào
+if [[ ! -s "$output_file" ]]; then
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa thêm Website mới vào server !"
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi
+
+########################################################################################################
+#Park Domains
+######################################################
+#lay Danh Sách Website Trên Server####################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+# Xóa file cũ nếu tồn tại
+true > "$output_file"
+# Duyệt qua tất cả các file .conf trong thư mục cấu hình Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+
+    # Kiểm tra nếu domain có thư mục public_html trong /home và vhost trong /etc/nginx/conf.d/
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+# Kiểm tra nếu không có domain nào được tìm thấy
+if [[ ! -s "$output_file" ]]; then
+clear
+echo "========================================================================= "
+echo "Không tìm thấy website trên server"
+echo "-------------------------------------------------------------------------"
+echo "Bạn cần thêm Website Vào Server trước khi chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi
+########################################################
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+nginx_conf_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+# Xóa file kết quả cũ nếu tồn tại
+true > "$output_file"
+
+if [[ -s "$klaoxcy_file" ]]; then
+    while IFS= read -r domain; do
+        domain_conf_folder="$nginx_conf_folder/$domain/conf.d"
+        if [[ "$domain" != "$mainsite" && -d "$domain_conf_folder" ]]; then
+            # Kiểm tra nếu thư mục có file .conf
+            if compgen -G "$domain_conf_folder"/*.conf > /dev/null; then
+                for vhost in "$domain_conf_folder"/*.conf; do
+                    subdomain=$(basename "$vhost" .conf)
+                    # Kiểm tra nếu subdomain không phải domain chính
+                    if [[ "$subdomain" != "$domain" ]]; then
+                        # Kiểm tra độ dài file vhost
+                        vhost_length=$(wc -c < "$vhost")
+                        if (( vhost_length > 200 )); then
+                            # Thêm park-domain với **
+                            echo "${subdomain}**" >> "$output_file"
+                        fi
+                    fi
+                done
+            fi
+        fi
+    done < "$klaoxcy_file"
+fi
+
+# Kiểm tra và thông báo kết quả
+if [[ -s "$output_file" ]]; then
+    cat "$output_file" >> /etc/dsnvps/.tmp/checkallwebsites
+fi
+#####################################################################
+
+
+if [ $(wc -l < "/etc/dsnvps/.tmp/checkallwebsites") -lt 2 ]; then
+clear
+echo "========================================================================="
+echo "Để chạy được chức năng này, bạn cần ít nhất 2 website trên Server"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy thêm Website để chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi
+
+
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/5261 "
+echo "========================================================================="
+echo "Sử dụng chức năng này để redirect một website sang website khác khi truy"
+echo "-------------------------------------------------------------------------"
+echo "cập đến từ một quốc gia cụ thể."
+echo "========================================================================="
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkallwebsites
+echo "Danh sach Website & Park domain tren server: | ** : Park domain"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+
+    left_db="${danh_sach_website[i]:- }"                    
+
+    if (( right_index <= total )); then           
+        right_db="${danh_sach_website[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        source_domain=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+clean_domain=$(echo "$source_domain" | sed 's/\*\+$//')
+source_domain=$clean_domain
+
+echo "========================================================================="
+echo "=> Bạn chọn domain gốc: $source_domain"; sleep 2
+
+
+#####################################################################################################################
+###################################################################################################################
+
+##
+##               PARK DOMAIN  #
+##
+####################################################################################################################
+###################################################################################################################
+rm -rf /etc/dsnvps/.tmp/klaoxcypark2
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]]; then
+    cp /etc/dsnvps/.tmp/klaoxcypark /etc/dsnvps/.tmp/klaoxcypark2
+    sed -i 's/\*\*$//' /etc/dsnvps/.tmp/klaoxcypark2
+fi
+
+
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -qE "^$source_domain(\s|$)" /etc/dsnvps/.tmp/klaoxcypark2; then
+rm -rf /etc/dsnvps/.tmp/klaoxcypark2
+home_folder="/home"
+for domain in "$home_folder"/*; do
+    domain_name=$(basename "$domain")
+    park_vhost="$domain/conf.d/$source_domain.conf"
+    if [[ -f "$park_vhost" ]]; then
+        echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+        break
+    fi
+done
+mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+echo "-------------------------------------------------------------------------"
+echo "Đây là Parkdomain của $mainwebsite"
+
+####################################################################################
+#
+# Check xem da thuc hien cau hinh cho domain chua, neu thuc hien roi thi thong bao nuoc
+#
+#####################################################################################
+# Biến cho thư mục cấu hình
+config_dir="/home/$mainwebsite/geoip2.conf.d/$source_domain/redirect.conf.d"
+
+# Kiểm tra thư mục cấu hình có tồn tại không
+if [[ -d "$config_dir" ]]; then
+  # Khởi tạo danh sách mã quốc gia từ tên file
+  matched_codes=()
+
+  # Tìm kiếm các file cấu hình có dạng geoip2_redirect_*.conf
+  for file in "$config_dir"/geoip2_redirect_*.conf; do
+    if [[ -f "$file" ]]; then
+      # Trích xuất mã quốc gia từ tên file
+      code=$(basename "$file" | sed -E 's/geoip2_redirect_(.*)\.conf/\1/')
+      matched_codes+=("$code")
+    fi
+  done
+
+  # Nếu tìm thấy ít nhất một mã quốc gia, hiển thị thông tin
+  if [[ ${#matched_codes[@]} -gt 0 ]]; then
+    echo "========================================================================="
+echo "Domain này đã được cài đặt chuyển hướng khi truy cập tại các nước:"; sleep 2
+    echo "-------------------------------------------------------------------------"
+
+    # Biến để chứa dòng hiện tại
+    current_line=""
+    total_codes=${#matched_codes[@]} # Tổng số mã quốc gia
+
+    for i in "${!matched_codes[@]}"; do
+      # Thêm mã quốc gia vào dòng hiện tại
+      if [[ ${#current_line} -gt 0 ]]; then
+        current_line+=", ${matched_codes[$i]}"
+      else
+        current_line="${matched_codes[$i]}"
+      fi
+      
+      # Nếu độ dài dòng vượt quá 70 ký tự, in dòng hiện tại và bắt đầu dòng mới
+      if [[ ${#current_line} -gt 68 && $i -lt $((total_codes - 1)) ]]; then
+        echo "$current_line"
+        current_line=""
+        echo "-------------------------------------------------------------------------"
+      fi
+    done
+
+    # In dòng còn lại nếu có
+    if [[ -n "$current_line" ]]; then
+      echo "$current_line"
+    fi
+  fi
+fi
+sleep 3
+
+
+#############################################################################
+#################################################################################################################
+## Neu Phát hiện co cau hinh roi, cho lua chon, mot cau hinh lai, hai la xoa cau hinh.
+####################################################################
+
+config_dir="/home/$mainwebsite/geoip2.conf.d/$source_domain/redirect.conf.d"
+
+# Kiểm tra xem thư mục có tồn tại và có file trong thư mục không
+if [ -d "$config_dir" ] && [ "$(ls -A $config_dir)" ]; then
+  # Hiển thị menu lựa chọn
+  while true; do
+    echo "========================================================================="
+ echo "Tiếp tục cấu hình HOẶC Xóa cấu hình hiện tại:"
+echo "========================================================================="
+echo "1. Xóa Cấu Hình Hiện Tại"
+echo "2. Tiếp Tục Cài Đặt"
+    echo "========================================================================="
+    read -p "Vui lòng chọn [0 -Thoát]: " choice
+
+    case $choice in
+      1)
+        # Xóa toàn bộ cấu hình
+          echo "========================================================================="
+ read -p "DSNVPS sẽ xóa cấu hình chuyển hướng của domain bạn chọn? (y/N): " choice
+[[ "$choice" == "y" || "$choice" == "Y" ]] || { 
+    echo "=========================================================================" 
+    echo "Hủy bỏ!"; sleep 2; clear; exit 0
+}
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."; sleep 3
+rm -rf $config_dir*
+
+# Xóa dòng include khỏi file cấu hình chính
+if [ -f "$config_file" ]; then
+    sed -i '/include.*redirect\.conf\.d.*\.conf;/d' "$config_file"
+fi
+
+clear
+echo "========================================================================="
+echo "Đã xóa cấu hình chuyển hướng hiện tại của:"
+echo "-------------------------------------------------------------------------"
+echo "$source_domain"
+echo "-------------------------------------------------------------------------"
+echo "Đang reload nginx để áp dụng thay đổi..."
+
+# Reload nginx để áp dụng thay đổi
+if nginx -t > /dev/null 2>&1; then
+    systemctl reload nginx
+    echo "Nginx đã được reload thành công!"
+else
+    echo "Lỗi cấu hình nginx, không thể reload!"
+fi
+
+sleep 2
+dsnvps
+exit
+                ;;
+      2)
+        # Cấu hình lại (không làm gì cả, tiếp tục thực hiện đoạn phía dưới)
+        echo "========================================================================="
+echo "Bạn có thể sửa chuyển hướng nếu nhập lại mã nước đã cài đặt."; sleep 2
+echo "-------------------------------------------------------------------------"; sleep 0.2
+echo "HOẶC: Thêm mới chuyển hướng nếu nhập mã nước chưa thiết lập."; sleep 2
+echo "========================================================================="
+read -p "Nhấn Enter để tiếp tục..."
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ ..."; sleep 2
+        tput cuu 15 && tput ed
+        break
+        ;;
+0) clear; exit 0;;
+      *)
+        # Nếu nhập không hợp lệ, yêu cầu nhập lại
+        echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+        sleep 3; tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+fi
+
+###########################################################################################
+
+echo "========================================================================="
+echo "=> Chọn Domain chuyển tới:"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+tput cuu 1 && tput ed
+
+
+
+##################
+
+## Neu da config roi thi 
+
+##################
+#if
+
+
+rm -f /etc/dsnvps/.tmp/90asx.txt
+rm -f /etc/dsnvps/.tmp/sub90sx.txt
+rm -f /etc/dsnvps/.tmp/80zzah.txt
+rm -f /etc/dsnvps/.tmp/290asx.txt
+#######################################################################
+##################################################################
+# Tạo thư mục tạm nếu chưa tồn tại
+mkdir -p /etc/dsnvps/.tmp
+
+# File đầu ra
+domain_list_file="/etc/dsnvps/.tmp/90asx.txt"
+subdomain_list_file="/etc/dsnvps/.tmp/sub90sx.txt"
+special_conf_list_file="/etc/dsnvps/.tmp/80zzah.txt"
+combined_file="/etc/dsnvps/.tmp/290asx.txt"
+
+# Xóa nội dung cũ trong các file
+true > "$domain_list_file"
+true > "$subdomain_list_file"
+true > "$special_conf_list_file"
+true > "$combined_file"
+
+# Lấy danh sách các domain
+for conf in /etc/nginx/conf.d/*.conf; do
+    if [[ -f "$conf" ]]; then
+        domain=$(basename "$conf" .conf)
+        if [[ -d "/home/$domain/public_html" && "$domain" != "$mainsite" ]]; then
+            echo "$domain" >> "$domain_list_file"
+        fi
+    fi
+done
+
+# Kiểm tra domain sử dụng WordPress và xử lý subdomain
+while read -r domain; do
+    wp_config="/home/$domain/public_html/wp-config.php"
+    multisite_dir="/home/$domain/multisite.conf.d"
+
+    if [[ -f "$wp_config" ]]; then
+        # Kiểm tra multisite.conf.d
+        if [[ -d "$multisite_dir" ]]; then
+            for subconf in "$multisite_dir"/*.conf; do
+                if [[ -f "$subconf" ]]; then
+                    subdomain=$(basename "$subconf" .conf)
+                    echo "$subdomain" >> "$subdomain_list_file"
+                fi
+            done
+        fi
+    fi
+done < "$domain_list_file"
+
+# Kiểm tra và xử lý các file đặc biệt trong conf.d
+while read -r domain; do
+    special_conf_dir="/home/$domain/conf.d"
+
+    if [[ -d "$special_conf_dir" ]]; then
+        for special_conf in "$special_conf_dir"/*.conf; do
+            if [[ -f "$special_conf" && $(wc -c < "$special_conf") -gt 290 ]]; then
+                special_name=$(basename "$special_conf" .conf)
+                echo "$special_name" >> "$special_conf_list_file"
+            fi
+        done
+    fi
+done < "$domain_list_file"
+
+
+# Gộp 3 file thành file cuối cùng
+cat "$domain_list_file" "$subdomain_list_file" "$special_conf_list_file" > "$combined_file"
+
+sed -i "/^\s*$source_domain\s*$/d" /etc/dsnvps/.tmp/290asx.txt
+
+if [ $(wc -l < "/etc/dsnvps/.tmp/290asx.txt") -lt 1 ]; then
+clear
+echo "========================================================================="
+echo "Bạn cần thêm nhiều hơn 1 website trên VPS để chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi
+##############################################################################
+################################################################################
+#echo "========================================================================="
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/290asx.txt
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+
+    left_db="${danh_sach_website[i]:- }"                    
+
+    if (( right_index <= total )); then           
+        right_db="${danh_sach_website[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon2
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon2" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon2" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+        break
+    elif [[ "$lua_chon2" =~ ^[0-9]+$ ]] && (( lua_chon2 >= 1 && lua_chon2 <= ${#danh_sach_website[@]} )); then
+        target_domain=${danh_sach_website[lua_chon2-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Nhập tên miền gốc và tên miền đích
+#read -p "Nhap ten mien nguon (vd: abc.com): " source_domain
+#read -p "Nhap ten mien dich (vd: cde.com): " target_domain
+
+
+
+
+# Đường dẫn tệp cấu hình Virtual Host
+config_file="/home/$mainwebsite/conf.d/$source_domain.conf"
+
+# Kiểm tra nếu tệp cấu hình tồn tại
+if [ ! -f "$config_file" ]; then
+  echo "Tep cau hinh $config_file khong ton tai."
+  exit 1
+fi
+
+# Kiểm tra thư viện GeoIP2 có được cài đặt không
+#if ! nginx -V 2>&1 | grep -q -- 'ngx_http_geoip2_module'; then
+ # echo "Nginx chua duoc cai voi module GeoIP2. Hay cai dat module GeoIP2 truoc."
+ # exit 1
+#fi
+
+country_code_file="/etc/dsnvps/menu/CSF-Fiwall/dsnvps-country-code"
+if [ ! -f "$country_code_file" ]; then
+  echo "Tệp $country_code_file không tồn tại."
+  exit 1
+fi
+
+# Hàm kiểm tra tính hợp lệ của các mã quốc gia
+check_country_codes() {
+  local input_codes="$1"
+  IFS=',' read -ra codes <<< "$input_codes"
+  for code in "${codes[@]}"; do
+    code="${code// /}"  # Loại bỏ khoảng trắng
+    if [[ ! "$code" =~ ^[A-Z]{2}$ ]] || ! grep -q "|$code|" "$country_code_file"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+# Hàm kiểm tra mã quốc gia có bị trùng lặp hay không
+check_duplicate_codes() {
+  local input_codes="$1"
+  IFS=',' read -ra codes <<< "$input_codes"
+  seen=()
+  for code in "${codes[@]}"; do
+    code="${code// /}"  # Loại bỏ khoảng trắng
+    if [[ " ${seen[*]} " =~ ${code} ]]; then
+      return 1  # Nếu mã quốc gia đã xuất hiện, trả về lỗi
+    fi
+    seen+=("$code")
+  done
+  return 0  # Không có trùng lặp
+}
+
+# Nhập các mã quốc gia
+echo "========================================================================="
+echo "=> Bạn chọn domain chuyển tới: $target_domain"
+echo "========================================================================="
+echo "===> Thiết lập Quốc gia sẽ thực hiện chuyển hướng truy cập:"
+echo "========================================================================="
+echo "Mã quốc gia là 2 chữ cái in hoa. Nếu muốn nhập nhiều nước thì các nước"
+echo "-------------------------------------------------------------------------"
+echo "cách nhau dấu [,]. Ví dụ: Muốn nhập China & Vietnam thì nhập: VN,CN"
+echo "-------------------------------------------------------------------------"
+echo "Xem danh sách mã quốc gia tại: http://go.dsnvps/5231"
+
+while true; do
+  echo "-------------------------------------------------------------------------"
+  read -p "Nhập các mã quốc gia (vd: VN,CN): " country_codes
+  # Kiểm tra mã quốc gia hợp lệ và không trùng lặp
+  if [[ "$country_codes" =~ ^[A-Z,]+$ ]] && check_country_codes "$country_codes" && check_duplicate_codes "$country_codes"; then
+    break
+  else
+    echo "-------------------------------------------------------------------------"
+echo "Nhập mã không chính xác hoặc có mã quốc gia trùng lặp. Bạn hãy nhập lại."
+    sleep 3 && tput cuu 4 && tput ed
+  fi
+done
+
+
+
+# Sao lưu tệp cấu hình trước khi chỉnh sửa
+mkdir -p /tmp/geoip2_vhostbackup
+backup_file="/tmp/geoip2_vhostbackup/$(basename "$config_file").bak.$(date +%Y%m%d%H%M%S)"
+cp "$config_file" "$backup_file"
+
+# Thêm cấu hình GeoIP2 và redirect vào tệp cấu hình nếu chưa tồn tại
+#if ! grep -q "geoip2 /etc/nginx/geoip2/GeoLite2-Country.mmdb" "$config_file"; then
+ # cat <<EOL >> "$config_file"
+
+# Cau hinh GeoIP2 cho redirect
+#geoip2 /etc/nginx/geoip2/GeoLite2-Country.mmdb {
+#    auto_reload 5m;
+#    \$geoip2_data_country_code country iso_code;
+#}
+#EOL
+#fi
+if [ ! -f /etc/nginx/conf/GeoLite2-Country.conf ]; then
+cp /etc/dsnvps/menu/inc/conf/GeoLite2-Country.conf /etc/nginx/conf/GeoLite2-Country.conf
+fi
+
+if ! grep -q GeoLite2-Country.conf /etc/nginx/nginx.conf; then
+sed -i '/include \/etc\/nginx\/conf\.d\/\*\.conf;/i include /etc/nginx/conf/GeoLite2-Country.conf;' /etc/nginx/nginx.conf
+fi
+
+###########
+
+#Cho hoi xac nhan vao day !
+
+
+echo "========================================================================="
+echo "Bạn nhập: $country_codes"
+echo "-------------------------------------------------------------------------"
+read -p "DSNVPS sẽ cài đặt chuyển hướng cho mã nước bạn nhập? (y/N): " choice
+[[ "$choice" == "y" || "$choice" == "Y" ]] || { echo "========================================================================="; echo "Huỷ bỏ !";sleep 2; clear; exit 0 }
+
+
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+ /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+fi
+
+
+###################################################################
+###################################################################
+
+
+
+
+if [ ! -f /home/$mainwebsite/geoip2.conf.d ]; then
+mkdir -p /home/$mainwebsite/geoip2.conf.d
+fi
+if [ ! -d /home/$mainwebsite/geoip2.conf.d/$source_domain ]; then
+mkdir -p /home/$mainwebsite/geoip2.conf.d/$source_domain
+fi
+if [ ! -d /home/$mainwebsite/geoip2.conf.d/$source_domain/redirect.conf.d ]; then
+mkdir -p /home/$mainwebsite/geoip2.conf.d/$source_domain/redirect.conf.d
+fi
+#xoa /home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect.conf
+#if [ -f /home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect.conf ]; then
+#rm -f /home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect.conf
+#fi
+# Khởi tạo IFS để phân tách danh sách mã quốc gia
+IFS=',' read -ra codes <<< "$country_codes"
+
+
+# Tiền xử lý: gom xung đột (PARK DOMAIN)
+conflict_codes=()
+conflict_files=()
+allowed_codes=()
+for code in "${codes[@]}"; do
+  conf_block="/home/$mainwebsite/geoip2.conf.d/$source_domain/countryblock.conf.d/geoip2_block_${code}.conf"
+  conf_allow="/home/$mainwebsite/geoip2.conf.d/$source_domain/allowlist.conf.d/geoip2_allow_${code}.conf"
+  conf_allow_merged="/home/$mainwebsite/geoip2.conf.d/$source_domain/allowlist.conf.d/geoip2_allowlist.conf"
+  # Kiểm tra xung đột với allowlist hợp nhất
+  allowlist_conflict=0
+  if [[ -f "$conf_allow_merged" ]]; then
+    # Parse regex từ file hợp nhất: lấy phần trong ngoặc (US|SG|VN)
+    merged_regex=$(grep -E 'if \(\$geoip2_data_country_code !~ ' "$conf_allow_merged" | sed -E 's/.*\^\(([^)]*)\)\$\"\) \{.*/\1/')
+    if [[ -n "$merged_regex" ]]; then
+      # Kiểm tra nếu mã quốc gia có trong danh sách cho phép bằng cách tách chuỗi
+      IFS='|' read -ra countries <<< "$merged_regex"
+      for country in "${countries[@]}"; do
+        if [[ "$country" == "$code" ]]; then
+          allowlist_conflict=1
+          break
+        fi
+      done
+    fi
+  fi
+  if [[ -f "$conf_block" || -f "$conf_allow" || "$allowlist_conflict" == "1" ]]; then
+    conflict_codes+=("$code")
+    [[ -f "$conf_block" ]] && conflict_files+=("$conf_block")
+    [[ -f "$conf_allow" ]] && conflict_files+=("$conf_allow")
+    [[ "$allowlist_conflict" == "1" ]] && conflict_files+=("$conf_allow_merged")
+  else
+    allowed_codes+=("$code")
+  fi
+done
+
+if (( ${#conflict_codes[@]} > 0 )); then
+  echo "========================================================================="
+  echo "=> Phát hiện xung đột cấu hình với các quốc gia: ${conflict_codes[*]}"
+  echo "-------------------------------------------------------------------------"
+  # Hiển thị chi tiết từng xung đột (PARK DOMAIN)
+  for code in "${conflict_codes[@]}"; do
+    f_block="/home/$mainwebsite/geoip2.conf.d/$source_domain/countryblock.conf.d/geoip2_block_${code}.conf"
+    f_allow="/home/$mainwebsite/geoip2.conf.d/$source_domain/allowlist.conf.d/geoip2_allow_${code}.conf"
+    if [[ -f "$f_block" ]]; then
+      echo "Truy cập $source_domain tại $code => Bị chặn (403)"
+    fi
+    if [[ -f "$f_allow" ]]; then
+      echo "Truy cập $source_domain tại $code => Được phép truy cập (Allow-only)"
+    fi
+  done
+  echo "========================================================================="
+  echo "1) Xóa cấu hình cũ và cài đặt cấu hình mới"
+  echo "2) Cài đặt cấu hình mới, bỏ qua các quốc gia đang xung đột"
+  echo "0) Thoát"
+  echo "========================================================================="
+  read -p "Vui lòng chọn [0-2]: " conflict_choice_all
+  case $conflict_choice_all in
+    1)
+      for f in "${conflict_files[@]}"; do rm -f "$f"; done
+      codes_to_process=("${codes[@]}")
+      ;;
+    2)
+      codes_to_process=("${allowed_codes[@]}")
+      # Kiểm tra xem có quốc gia nào để cấu hình không
+      if (( ${#codes_to_process[@]} == 0 )); then
+        echo "========================================================================="
+        if (( ${#codes[@]} == 1 )); then
+          echo "Quốc gia ${codes[0]} đang xung đột với cấu hình hiện tại!"
+          echo "-------------------------------------------------------------------------"
+          echo "Bạn chỉ nhập 1 quốc gia và quốc gia đó đã được cấu hình cho phép truy cập."
+        else
+          echo "Không có quốc gia nào khác để cấu hình!"
+          echo "-------------------------------------------------------------------------"
+          echo "Tất cả quốc gia đều đang xung đột với cấu hình hiện tại."
+        fi
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn có thể:"
+        echo "1) Chọn option 1 để xóa cấu hình cũ và cài đặt mới"
+        echo "2) Thoát và kiểm tra lại cấu hình"
+        echo "========================================================================="
+        read -p "Nhấn Enter để thoát: "; clear; exit 0
+      fi
+      ;;
+    0) clear; exit 0;;
+    *)
+      echo "Lựa chọn không hợp lệ. Chỉ cài cho quốc gia không xung đột."; codes_to_process=("${allowed_codes[@]}") ;;
+  esac
+else
+  codes_to_process=("${codes[@]}")
+fi
+
+for code in "${codes_to_process[@]}"; do
+echo "========================================================================="
+echo "Cau hinh chuyen huong ma nuoc: $code"; sleep 2
+  config_file_source_domain="/home/$mainwebsite/geoip2.conf.d/$source_domain/redirect.conf.d/geoip2_redirect_${code}.conf"
+
+  new_config_content=$(cat <<EOL
+    if (\$geoip2_data_country_code = "$code") {
+        return 301 http://$target_domain\$request_uri;
+    }
+EOL
+  )
+
+  if [[ -f "$config_file_source_domain" ]]; then
+    # Trích xuất domain hiện tại từ tệp cấu hình
+    current_redirect=$(grep -oP 'return 301 http://\K[^$]+' "$config_file_source_domain" | sed 's/\\request_uri;//')
+    echo "========================================================================="
+echo "==>> Phát hiện cấu hình cho chuyển hướng cho [ $code ] đã tồn tại!"; sleep 4
+if [ "$current_redirect" == "$target_domain" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Cấu hình mới giống cấu hình cũ => Giữ nguyên config"; sleep 4
+else
+    echo "-------------------------------------------------------------------------"
+    echo "$source_domain đang chuyển sang => $current_redirect"; sleep 5
+    #echo "-------------------------------------------------------------------------"
+    #echo "DSNVPS sẽ cấu hình lại theo config mới."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "=> $source_domain sẽ chuyển sang => $target_domain"; sleep 5
+    fi
+    #echo "========================================================================="
+  fi
+
+  # Kiểm tra xung đột với Block/Allow trước khi ghi file (PARK DOMAIN)
+  skip_current=0
+  conf_block="/home/$mainwebsite/geoip2.conf.d/$source_domain/countryblock.conf.d/geoip2_block_${code}.conf"
+  conf_allow="/home/$mainwebsite/geoip2.conf.d/$source_domain/allowlist.conf.d/geoip2_allow_${code}.conf"
+  conf_allow_merged="/home/$mainwebsite/geoip2.conf.d/$source_domain/allowlist.conf.d/geoip2_allowlist.conf"
+  # Kiểm tra xung đột với allowlist hợp nhất
+  allowlist_conflict=0
+  echo "DEBUG: Kiểm tra allowlist hợp nhất cho $code"
+  echo "DEBUG: Đường dẫn file: $conf_allow_merged"
+  if [[ -f "$conf_allow_merged" ]]; then
+    echo "DEBUG: Tìm thấy file allowlist hợp nhất"
+    # Parse regex từ file hợp nhất: lấy phần trong ngoặc (US|SG|VN)
+    merged_regex=$(grep -E 'if \(\$geoip2_data_country_code !~ ' "$conf_allow_merged" | sed -E 's/.*\^\(([^)]*)\)\$\"\) \{.*/\1/')
+    echo "DEBUG: Parsed regex: '$merged_regex'"
+    if [[ -n "$merged_regex" ]]; then
+      # Kiểm tra nếu mã quốc gia có trong danh sách cho phép bằng cách tách chuỗi
+      IFS='|' read -ra countries <<< "$merged_regex"
+      echo "DEBUG: Danh sách quốc gia: ${countries[*]}"
+      for country in "${countries[@]}"; do
+        echo "DEBUG: So sánh '$country' với '$code'"
+        if [[ "$country" == "$code" ]]; then
+          allowlist_conflict=1
+          echo "DEBUG: PHÁT HIỆN XUNG ĐỘT với allowlist hợp nhất!"
+          break
+        fi
+      done
+    else
+      echo "DEBUG: Không parse được regex từ file"
+    fi
+  else
+    echo "DEBUG: Không tìm thấy file allowlist hợp nhất"
+  fi
+  echo "DEBUG: Kết quả allowlist_conflict: $allowlist_conflict"
+  if [[ -f "$conf_block" || -f "$conf_allow" || "$allowlist_conflict" == "1" ]]; then
+    echo "========================================================================="
+    echo "Phát hiện xung đột cấu hình cho quốc gia: $code"
+    echo "-------------------------------------------------------------------------"
+    [[ -f "$conf_block" ]] && echo "Đang tồn tại: CHẶN TRUY CẬP (Block) => $conf_block"
+    [[ -f "$conf_allow" ]] && echo "Đang tồn tại: CHO PHÉP (Allow-only) => $conf_allow"
+    echo "========================================================================="
+    echo "1) Xóa cấu hình cũ và cài đặt cấu hình mới"
+    echo "2) Cài đặt cấu hình mới, bỏ qua quốc gia đang xung đột"
+    echo "0) Thoát"
+    echo "========================================================================="
+    read -p "Vui lòng chọn [0-2]: " conflict_choice
+    case $conflict_choice in
+      1)
+        [[ -f "$conf_block" ]] && rm -f "$conf_block"
+        [[ -f "$conf_allow" ]] && rm -f "$conf_allow"
+        ;;
+      2)
+        skip_current=1
+        ;;
+      0) clear; exit 0;;
+      *)
+        echo "Lựa chọn không hợp lệ. Bỏ qua quốc gia $code."; skip_current=1 ;;
+    esac
+  fi
+  [[ "$skip_current" = "1" ]] && continue
+
+  # Ghi đè cấu hình mới vào file
+ echo "-------------------------------------------------------------------------"
+  echo "$new_config_content" > "$config_file_source_domain"
+  echo "Config [ $code ] ==> Done !"; sleep 2
+done
+
+
+if ! grep -q "redirect.conf.d" "$config_file"; then
+  sed -i "$(grep -n '}' "$config_file" | tail -n 1 | cut -d: -f1)i\\
+include /home/${mainwebsite}/geoip2.conf.d/${source_domain}/redirect.conf.d/*.conf;" "$config_file"
+fi
+
+# Kiểm tra và tải lại Nginx, phục hồi nếu có lỗi
+if nginx -t > /dev/null 2>&1; then
+    rm -rf "$backup_file"
+    systemctl reload nginx
+    
+    # Lấy danh sách tất cả quốc gia hiện tại sau khi reload (an toàn)
+    mkdir -p "$config_dir"
+    all_countries=""
+    if compgen -G "$config_dir/geoip2_redirect_*.conf" > /dev/null; then
+      all_countries=$(ls "$config_dir"/geoip2_redirect_*.conf | sed -E 's/.*geoip2_redirect_([A-Za-z]{2})\.conf/\1/' | tr '\n' ',')
+      all_countries=${all_countries%,}
+    fi
+    
+    echo "========================================================================="
+    echo "Cấu hình chuyển hướng thành công."
+    clear
+    echo "========================================================================="
+    echo "Hoàn tất setup chuyển hướng cho $source_domain"; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Website sẽ chuyển sang: $target_domain"
+    echo "-------------------------------------------------------------------------"
+    echo "Khi truy cập tại: ${all_countries:-<chưa có>}"
+   /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+  exit
+else
+nginx -t > /etc/dsnvps/.tmp/a0paMLZa 2>&1
+echo "========================================================================="
+  echo "Cấu hình thất bại. Phục hồi cấu hình cũ"
+  cp "$backup_file" "$config_file"
+  rm -rf "$backup_file"
+  systemctl reload nginx
+  clear
+ echo "========================================================================="
+ echo "Cấu hình chuyển hướng thất bại !"
+ echo "-------------------------------------------------------------------------"
+ cat /etc/dsnvps/.tmp/a0paMLZa
+ rm -f /etc/dsnvps/.tmp/a0paMLZa
+ /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+fi
+fi
+###########################################################################################################################
+#
+#			HET PARK DOMAIN
+#
+#
+########################################################################################################################
+
+
+
+
+
+
+####################################################################################
+#
+# Check xem da thuc hien cau hinh cho domain chua, neu thuc hien roi thi thong bao nuoc
+#
+#####################################################################################
+# Biến cho thư mục cấu hình
+config_dir="/home/$source_domain/geoip2.conf.d/redirect.conf.d"
+
+# Kiểm tra thư mục cấu hình có tồn tại không
+if [[ -d "$config_dir" ]]; then
+  # Khởi tạo danh sách mã quốc gia từ tên file
+  matched_codes=()
+
+  # Tìm kiếm các file cấu hình có dạng geoip2_redirect_*.conf
+  for file in "$config_dir"/geoip2_redirect_*.conf; do
+    if [[ -f "$file" ]]; then
+      # Trích xuất mã quốc gia từ tên file
+      code=$(basename "$file" | sed -E 's/geoip2_redirect_(.*)\.conf/\1/')
+      matched_codes+=("$code")
+    fi
+  done
+
+  # Nếu tìm thấy ít nhất một mã quốc gia, hiển thị thông tin
+  if [[ ${#matched_codes[@]} -gt 0 ]]; then
+    echo "========================================================================="
+    echo "Domain này đã được cài đặt chuyển hướng khi truy cập tại các nước:"; sleep 2
+    echo "-------------------------------------------------------------------------"
+
+    # Biến để chứa dòng hiện tại
+    current_line=""
+    total_codes=${#matched_codes[@]} # Tổng số mã quốc gia
+
+    for i in "${!matched_codes[@]}"; do
+      # Thêm mã quốc gia vào dòng hiện tại
+      if [[ ${#current_line} -gt 0 ]]; then
+        current_line+=", ${matched_codes[$i]}"
+      else
+        current_line="${matched_codes[$i]}"
+      fi
+      
+      # Nếu độ dài dòng vượt quá 70 ký tự, in dòng hiện tại và bắt đầu dòng mới
+      if [[ ${#current_line} -gt 68 && $i -lt $((total_codes - 1)) ]]; then
+        echo "$current_line"
+        current_line=""
+        echo "-------------------------------------------------------------------------"
+      fi
+    done
+
+    # In dòng còn lại nếu có
+    if [[ -n "$current_line" ]]; then
+      echo "$current_line"
+    fi
+  fi
+fi
+sleep 3
+
+
+#############################################################################
+#################################################################################################################
+## Neu Phát hiện co cau hinh roi, cho lua chon, mot cau hinh lai, hai la xoa cau hinh.
+####################################################################
+
+config_dir="/home/$source_domain/geoip2.conf.d/redirect.conf.d/"
+
+# Kiểm tra xem thư mục có tồn tại và có file trong thư mục không
+if [ -d "$config_dir" ] && [ "$(ls -A $config_dir)" ]; then
+  # Hiển thị menu lựa chọn
+  while true; do
+    echo "========================================================================="
+echo "Tiếp tục cấu hình HOẶC Xóa cấu hình hiện tại:"
+echo "========================================================================="
+echo "1. Xóa Cấu Hình Hiện Tại"
+echo "2. Tiếp Tục Cài Đặt"
+    echo "========================================================================="
+    read -p "Vui lòng chọn [0 -Thoát]: " choice
+
+    case $choice in
+      1)
+        # Xóa toàn bộ cấu hình
+          echo "========================================================================="
+        read -p "DSNVPS sẽ xóa cấu hình chuyển hướng của domain bạn chọn ? (y/N): " choice
+[[ "$choice" == "y" || "$choice" == "Y" ]] || { echo "========================================================================="; echo "Huỷ bỏ !";sleep 2; clear; exit 0 }
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ..."; sleep 3
+        rm -rf $config_dir*
+        
+        # Xóa dòng include khỏi file cấu hình chính
+        if [ -f "$config_file" ]; then
+            sed -i '/include.*redirect\.conf\.d.*\.conf;/d' "$config_file"
+        fi
+        
+        clear
+        echo "========================================================================="
+        echo "Đã xóa cấu hình chuyển hướng hiện tại của:"
+        echo "-------------------------------------------------------------------------"
+        echo "$source_domain"
+        echo "-------------------------------------------------------------------------"
+        echo "Đang reload nginx để áp dụng thay đổi..."
+        
+        # Reload nginx để áp dụng thay đổi
+        if nginx -t > /dev/null 2>&1; then
+            systemctl reload nginx
+            echo "Nginx đã được reload thành công!"
+        else
+            echo "Lỗi cấu hình nginx, không thể reload!"
+        fi
+        
+        sleep 2
+        /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+        exit
+                ;;
+      2)
+        # Cấu hình lại (không làm gì cả, tiếp tục thực hiện đoạn phía dưới)
+        echo "========================================================================="
+echo "Bạn có thể sửa chuyển hướng nếu nhập lại mã nước đã cài đặt."; sleep 2
+echo "-------------------------------------------------------------------------"; sleep 0.2
+echo "HOẶC: Thêm mới chuyển hướng nếu nhập mã nước chưa thiết lập."; sleep 2
+echo "========================================================================="
+read -p "Nhấn Enter để tiếp tục..."
+
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ ..."; sleep 2
+        tput cuu 15 && tput ed
+        break
+        ;;
+0) clear; exit 0;;
+      *)
+        # Nếu nhập không hợp lệ, yêu cầu nhập lại
+        echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+        sleep 3; tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+fi
+
+###########################################################################################
+
+echo "========================================================================="
+echo "=> Chọn Domain chuyển tới:"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+tput cuu 1 && tput ed
+
+
+
+##################
+
+## Neu da config roi thi 
+
+##################
+#if
+
+
+rm -f /etc/dsnvps/.tmp/90asx.txt
+rm -f /etc/dsnvps/.tmp/sub90sx.txt
+rm -f /etc/dsnvps/.tmp/80zzah.txt
+rm -f /etc/dsnvps/.tmp/290asx.txt
+#######################################################################
+##################################################################
+# Tạo thư mục tạm nếu chưa tồn tại
+mkdir -p /etc/dsnvps/.tmp
+
+# File đầu ra
+domain_list_file="/etc/dsnvps/.tmp/90asx.txt"
+subdomain_list_file="/etc/dsnvps/.tmp/sub90sx.txt"
+special_conf_list_file="/etc/dsnvps/.tmp/80zzah.txt"
+combined_file="/etc/dsnvps/.tmp/290asx.txt"
+
+# Xóa nội dung cũ trong các file
+true > "$domain_list_file"
+true > "$subdomain_list_file"
+true > "$special_conf_list_file"
+true > "$combined_file"
+
+# Lấy danh sách các domain
+for conf in /etc/nginx/conf.d/*.conf; do
+    if [[ -f "$conf" ]]; then
+        domain=$(basename "$conf" .conf)
+        if [[ -d "/home/$domain/public_html" && "$domain" != "$mainsite" ]]; then
+            echo "$domain" >> "$domain_list_file"
+        fi
+    fi
+done
+
+# Kiểm tra domain sử dụng WordPress và xử lý subdomain
+while read -r domain; do
+    wp_config="/home/$domain/public_html/wp-config.php"
+    multisite_dir="/home/$domain/multisite.conf.d"
+
+    if [[ -f "$wp_config" ]]; then
+        # Kiểm tra multisite.conf.d
+        if [[ -d "$multisite_dir" ]]; then
+            for subconf in "$multisite_dir"/*.conf; do
+                if [[ -f "$subconf" ]]; then
+                    subdomain=$(basename "$subconf" .conf)
+                    echo "$subdomain" >> "$subdomain_list_file"
+                fi
+            done
+        fi
+    fi
+done < "$domain_list_file"
+
+# Kiểm tra và xử lý các file đặc biệt trong conf.d
+while read -r domain; do
+    special_conf_dir="/home/$domain/conf.d"
+
+    if [[ -d "$special_conf_dir" ]]; then
+        for special_conf in "$special_conf_dir"/*.conf; do
+            if [[ -f "$special_conf" && $(wc -c < "$special_conf") -gt 290 ]]; then
+                special_name=$(basename "$special_conf" .conf)
+                echo "$special_name" >> "$special_conf_list_file"
+            fi
+        done
+    fi
+done < "$domain_list_file"
+
+
+# Gộp 3 file thành file cuối cùng
+cat "$domain_list_file" "$subdomain_list_file" "$special_conf_list_file" > "$combined_file"
+
+sed -i "/^\s*$source_domain\s*$/d" /etc/dsnvps/.tmp/290asx.txt
+
+if [ $(wc -l < "/etc/dsnvps/.tmp/290asx.txt") -lt 1 ]; then
+clear
+echo "========================================================================="
+echo "Bạn cần thêm nhiều hơn 1 website trên server để chạy chức năng này."
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+exit
+fi 
+##############################################################################
+################################################################################
+#echo "========================================================================="
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/290asx.txt
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+
+    left_db="${danh_sach_website[i]:- }"                    
+
+    if (( right_index <= total )); then           
+        right_db="${danh_sach_website[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon2
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon2" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon2" == "0" ]]; then
+        clear
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+        break
+    elif [[ "$lua_chon2" =~ ^[0-9]+$ ]] && (( lua_chon2 >= 1 && lua_chon2 <= ${#danh_sach_website[@]} )); then
+        target_domain=${danh_sach_website[lua_chon2-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Nhập tên miền gốc và tên miền đích
+#read -p "Nhap ten mien nguon (vd: abc.com): " source_domain
+#read -p "Nhap ten mien dich (vd: cde.com): " target_domain
+
+# Đường dẫn tệp cấu hình Virtual Host
+config_file="/etc/nginx/conf.d/$source_domain.conf"
+
+# Kiểm tra nếu tệp cấu hình tồn tại
+if [ ! -f "$config_file" ]; then
+echo "Tệp cấu hình $config_file không tồn tại."
+  exit 1
+fi
+
+# Kiểm tra thư viện GeoIP2 có được cài đặt không
+#if ! nginx -V 2>&1 | grep -q -- 'ngx_http_geoip2_module'; then
+ # echo "Nginx chua duoc cai voi module GeoIP2. Hay cai dat module GeoIP2 truoc."
+ # exit 1
+#fi
+
+country_code_file="/etc/dsnvps/menu/CSF-Fiwall/dsnvps-country-code"
+if [ ! -f "$country_code_file" ]; then
+echo "Tệp $country_code_file không tồn tại."
+  exit 1
+fi
+
+# Hàm kiểm tra tính hợp lệ của các mã quốc gia
+check_country_codes() {
+  local input_codes="$1"
+  IFS=',' read -ra codes <<< "$input_codes"
+  for code in "${codes[@]}"; do
+    code="${code// /}"  # Loại bỏ khoảng trắng
+    if [[ ! "$code" =~ ^[A-Z]{2}$ ]] || ! grep -q "|$code|" "$country_code_file"; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+# Hàm kiểm tra mã quốc gia có bị trùng lặp hay không
+check_duplicate_codes() {
+  local input_codes="$1"
+  IFS=',' read -ra codes <<< "$input_codes"
+  seen=()
+  for code in "${codes[@]}"; do
+    code="${code// /}"  # Loại bỏ khoảng trắng
+    if [[ " ${seen[*]} " =~ ${code} ]]; then
+      return 1  # Nếu mã quốc gia đã xuất hiện, trả về lỗi
+    fi
+    seen+=("$code")
+  done
+  return 0  # Không có trùng lặp
+}
+
+# Nhập các mã quốc gia
+echo "========================================================================="
+echo "=> Bạn chọn domain chuyển tới: $target_domain"
+echo "========================================================================="
+echo "===> Thiết lập Quốc gia sẽ thực hiện chuyển hướng truy cập:"
+echo "========================================================================="
+echo "Mã quốc gia là 2 chữ cái in hoa. Nếu muốn nhập nhiều nước thì các nước"
+echo "-------------------------------------------------------------------------"
+echo "cách nhau dấu [,]. Ví dụ: Muốn nhập China & Vietnam thì nhập: VN,CN"
+echo "-------------------------------------------------------------------------"
+echo "Xem danh sách mã quốc gia tại: http://go.dsnvps/5231"
+
+while true; do
+  echo "-------------------------------------------------------------------------"
+  read -p "Nhập các mã quốc gia (vd: VN,CN): " country_codes
+  # Kiểm tra mã quốc gia hợp lệ và không trùng lặp
+  if [[ "$country_codes" =~ ^[A-Z,]+$ ]] && check_country_codes "$country_codes" && check_duplicate_codes "$country_codes"; then
+    break
+  else
+    echo "-------------------------------------------------------------------------"
+echo "Nhập mã không chính xác hoặc có mã quốc gia trùng lặp. Bạn hãy nhập lại."
+    sleep 3 && tput cuu 4 && tput ed
+  fi
+done
+
+
+
+# Sao lưu tệp cấu hình trước khi chỉnh sửa
+mkdir -p /tmp/geoip2_vhostbackup
+backup_file="/tmp/geoip2_vhostbackup/$(basename "$config_file").bak.$(date +%Y%m%d%H%M%S)"
+cp "$config_file" "$backup_file"
+
+# Thêm cấu hình GeoIP2 và redirect vào tệp cấu hình nếu chưa tồn tại
+#if ! grep -q "geoip2 /etc/nginx/geoip2/GeoLite2-Country.mmdb" "$config_file"; then
+ # cat <<EOL >> "$config_file"
+
+# Cau hinh GeoIP2 cho redirect
+#geoip2 /etc/nginx/geoip2/GeoLite2-Country.mmdb {
+#    auto_reload 5m;
+#    \$geoip2_data_country_code country iso_code;
+#}
+#EOL
+#fi
+if [ ! -f /etc/nginx/conf/GeoLite2-Country.conf ]; then
+cp /etc/dsnvps/menu/inc/conf/GeoLite2-Country.conf /etc/nginx/conf/GeoLite2-Country.conf
+fi
+
+if ! grep -q GeoLite2-Country.conf /etc/nginx/nginx.conf; then
+sed -i '/include \/etc\/nginx\/conf\.d\/\*\.conf;/i include /etc/nginx/conf/GeoLite2-Country.conf;' /etc/nginx/nginx.conf
+fi
+
+###########
+
+#Cho hoi xac nhan vao day !
+
+
+echo "========================================================================="
+echo "Bạn nhập: $country_codes" 
+echo "-------------------------------------------------------------------------"
+read -p "DSNVPS sẽ cài đặt chuyển hướng cho mã nước bạn nhập? (y/N): " choice
+[[ "$choice" == "y" || "$choice" == "Y" ]] || { echo "========================================================================="; echo "Huỷ bỏ !";sleep 2; clear; exit 0 }
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+fi
+###################################################################
+###################################################################
+
+
+#############
+
+
+
+if [ ! -f /home/$source_domain/geoip2.conf.d ]; then
+mkdir -p /home/$source_domain/geoip2.conf.d
+fi
+if [ ! -d /home/$source_domain/geoip2.conf.d/redirect.conf.d ]; then
+mkdir -p /home/$source_domain/geoip2.conf.d/redirect.conf.d
+fi
+#xoa /home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect.conf
+#if [ -f /home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect.conf ]; then
+#rm -f /home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect.conf
+#fi
+# Khởi tạo IFS để phân tách danh sách mã quốc gia
+IFS=',' read -ra codes <<< "$country_codes"
+
+# Tiền xử lý: gom xung đột (DOMAIN THƯỜNG)
+conflict_codes=()
+conflict_files=()
+allowed_codes=()
+for code in "${codes[@]}"; do
+  conf_block="/home/$source_domain/geoip2.conf.d/countryblock.conf.d/geoip2_block_${code}.conf"
+  conf_allow="/home/$source_domain/geoip2.conf.d/allowlist.conf.d/geoip2_allow_${code}.conf"
+  conf_allow_merged="/home/$source_domain/geoip2.conf.d/allowlist.conf.d/geoip2_allowlist.conf"
+  # Kiểm tra xung đột với allowlist hợp nhất
+  allowlist_conflict=0
+  if [[ -f "$conf_allow_merged" ]]; then
+    # Parse regex từ file hợp nhất: lấy phần trong ngoặc (US|SG|VN)
+    merged_regex=$(grep -E 'if \(\$geoip2_data_country_code !~ ' "$conf_allow_merged" | sed -E 's/.*\^\(([^)]*)\)\$\"\) \{.*/\1/')
+    if [[ -n "$merged_regex" ]]; then
+      # Kiểm tra nếu mã quốc gia có trong danh sách cho phép bằng cách tách chuỗi
+      IFS='|' read -ra countries <<< "$merged_regex"
+      for country in "${countries[@]}"; do
+        if [[ "$country" == "$code" ]]; then
+          allowlist_conflict=1
+          break
+        fi
+      done
+    fi
+  fi
+  if [[ -f "$conf_block" || -f "$conf_allow" || "$allowlist_conflict" == "1" ]]; then
+    conflict_codes+=("$code")
+    [[ -f "$conf_block" ]] && conflict_files+=("$conf_block")
+    [[ -f "$conf_allow" ]] && conflict_files+=("$conf_allow")
+    [[ "$allowlist_conflict" == "1" ]] && conflict_files+=("$conf_allow_merged")
+  else
+    allowed_codes+=("$code")
+  fi
+done
+
+if (( ${#conflict_codes[@]} > 0 )); then
+  echo "========================================================================="
+  echo "=> Phát hiện xung đột cấu hình với các quốc gia: ${conflict_codes[*]}"
+  echo "-------------------------------------------------------------------------"
+  # Hiển thị chi tiết từng xung đột (DOMAIN THƯỜNG)
+  for code in "${conflict_codes[@]}"; do
+    f_block="/home/$source_domain/geoip2.conf.d/countryblock.conf.d/geoip2_block_${code}.conf"
+    f_allow="/home/$source_domain/geoip2.conf.d/allowlist.conf.d/geoip2_allow_${code}.conf"
+    if [[ -f "$f_block" ]]; then
+      echo "Truy cập $source_domain tại $code => Bị chặn (403)"
+    fi
+    if [[ -f "$f_allow" ]]; then
+      echo "Truy cập $source_domain tại $code => Được phép truy cập (Allow-only)"
+    fi
+  done
+  echo "========================================================================="
+  echo "1) Xóa cấu hình cũ và cài đặt cấu hình mới"
+  echo "2) Cài đặt cấu hình mới, bỏ qua các quốc gia đang xung đột"
+  echo "0) Thoát"
+  echo "========================================================================="
+  read -p "Vui lòng chọn [0-2]: " conflict_choice_all
+  case $conflict_choice_all in
+    1)
+      for f in "${conflict_files[@]}"; do rm -f "$f"; done
+      codes_to_process=("${codes[@]}")
+      ;;
+    2)
+      codes_to_process=("${allowed_codes[@]}")
+      # Kiểm tra xem có quốc gia nào để cấu hình không
+      if (( ${#codes_to_process[@]} == 0 )); then
+        echo "========================================================================="
+        if (( ${#codes[@]} == 1 )); then
+          echo "Quốc gia ${codes[0]} đang xung đột với cấu hình hiện tại!"
+          echo "Bạn chỉ nhập 1 quốc gia và quốc gia đó đã được cấu hình cho phép truy cập."
+        else
+          echo "Không có quốc gia nào khác để cấu hình!"
+          echo "Tất cả quốc gia đều đang xung đột với cấu hình hiện tại."
+        fi
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn có thể:"
+        echo "1) Chọn option 1 để xóa cấu hình cũ và cài đặt mới"
+        echo "2) Thoát và kiểm tra lại cấu hình"
+        echo "========================================================================="
+        read -p "Nhấn Enter để thoát: "; clear;  /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu; exit
+      fi
+      ;;
+    0) clear; exit 0;;
+    *)
+      echo "Lựa chọn không hợp lệ. Chỉ cài cho quốc gia không xung đột."; codes_to_process=("${allowed_codes[@]}")
+      # Kiểm tra xem có quốc gia nào để cấu hình không
+      if (( ${#codes_to_process[@]} == 0 )); then
+        echo "========================================================================="
+        echo "Không có quốc gia nào khác để cấu hình!"
+        echo "Tất cả quốc gia đều đang xung đột với cấu hình hiện tại."
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn có thể:"
+        echo "1) Chọn option 1 để xóa cấu hình cũ và cài đặt mới"
+        echo "2) Thoát và kiểm tra lại cấu hình"
+        echo "========================================================================="
+        read -p "Nhấn Enter để thoát: "; clear;  /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu; exit
+      fi
+      ;;
+  esac
+else
+  codes_to_process=("${codes[@]}")
+fi
+
+for code in "${codes_to_process[@]}"; do
+echo "========================================================================="
+echo "Cấu hình chuyển hướng mã nước: $code"; sleep 2
+  config_file_source_domain="/home/$source_domain/geoip2.conf.d/redirect.conf.d/geoip2_redirect_${code}.conf"
+
+  new_config_content=$(cat <<EOL
+    if (\$geoip2_data_country_code = "$code") {
+        return 301 http://$target_domain\$request_uri;
+    }
+EOL
+  )
+
+  if [[ -f "$config_file_source_domain" ]]; then
+    # Trích xuất domain hiện tại từ tệp cấu hình
+    current_redirect=$(grep -oP 'return 301 http://\K[^$]+' "$config_file_source_domain" | sed 's/\\request_uri;//')
+    echo "========================================================================="
+echo "==>> Phát hiện cấu hình cho chuyển hướng cho [ $code ] đã tồn tại! "; sleep 4
+if [ "$current_redirect" == "$target_domain" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Cấu hình mới giống cấu hình cũ => Giữ nguyên config"; sleep 4
+else
+    echo "-------------------------------------------------------------------------"
+    echo "$source_domain đang chuyển sang => $current_redirect"; sleep 5
+    #echo "-------------------------------------------------------------------------"
+    #echo "DSNVPS sẽ cấu hình lại theo config mới."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "=> $source_domain sẽ chuyển sang => $target_domain"; sleep 5
+    fi
+    #echo "========================================================================="
+  fi
+
+  # Kiểm tra xung đột với Block/Allow trước khi ghi file (DOMAIN THƯỜNG)
+  skip_current=0
+  conf_block="/home/$source_domain/geoip2.conf.d/countryblock.conf.d/geoip2_block_${code}.conf"
+  conf_allow="/home/$source_domain/geoip2.conf.d/allowlist.conf.d/geoip2_allow_${code}.conf"
+  if [[ -f "$conf_block" || -f "$conf_allow" ]]; then
+    echo "========================================================================="
+    echo "Phát hiện xung đột cấu hình cho quốc gia: $code"
+    echo "-------------------------------------------------------------------------"
+    [[ -f "$conf_block" ]] && echo "Đang tồn tại: CHẶN TRUY CẬP (Block) => $conf_block"
+    [[ -f "$conf_allow" ]] && echo "Đang tồn tại: CHO PHÉP (Allow-only) => $conf_allow"
+    echo "========================================================================="
+    echo "1) Xóa cấu hình cũ và cài đặt cấu hình mới"
+    echo "2) Cài đặt cấu hình mới, bỏ qua quốc gia đang xung đột"
+    echo "0) Thoát"
+    echo "========================================================================="
+    read -p "Vui lòng chọn [0-2]: " conflict_choice
+    case $conflict_choice in
+      1)
+        [[ -f "$conf_block" ]] && rm -f "$conf_block"
+        [[ -f "$conf_allow" ]] && rm -f "$conf_allow"
+        ;;
+      2)
+        skip_current=1
+        ;;
+      0) clear; exit 0;;
+      *)
+        echo "Lựa chọn không hợp lệ. Bỏ qua quốc gia $code."; skip_current=1 ;;
+    esac
+  fi
+  [[ "$skip_current" = "1" ]] && continue
+
+  # Ghi đè cấu hình mới vào file
+ echo "-------------------------------------------------------------------------"
+  echo "$new_config_content" > "$config_file_source_domain"
+  echo "Config [ $code ] ==> Done !"; sleep 2
+done
+
+
+if ! grep -q "redirect.conf.d" "$config_file"; then
+  sed -i "$(grep -n '}' "$config_file" | tail -n 1 | cut -d: -f1)i\\
+include /home/${source_domain}/geoip2.conf.d/redirect.conf.d/*.conf;" "$config_file"
+fi
+
+# Kiểm tra và tải lại Nginx, phục hồi nếu có lỗi
+if nginx -t > /dev/null 2>&1; then
+    rm -rf "$backup_file"
+    systemctl reload nginx
+    
+    # Lấy danh sách tất cả quốc gia hiện tại sau khi reload
+    all_countries=$(ls $config_dir/geoip2_redirect_*.conf | sed -E 's/.*geoip2_redirect_([A-Za-z]{2})\.conf/\1/' | tr '\n' ',')
+    all_countries=${all_countries%,}  # Loại bỏ dấu phẩy cuối cùng nếu có
+    
+    echo "========================================================================="
+    echo "Cấu hình chuyển hướng thành công."
+    clear
+    echo "========================================================================="
+    echo "Hoàn tất setup chuyển hướng cho $source_domain"; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Website sẽ chuyển sang: $target_domain"
+    echo "-------------------------------------------------------------------------"
+    echo "Khi truy cập tại: $all_countries"
+   /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+  exit
+else
+nginx -t > /etc/dsnvps/.tmp/a0paMLZa 2>&1
+echo "========================================================================="
+echo "Cấu hình thất bại. Phục hồi cấu hình cũ"
+cp "$backup_file" "$config_file"
+rm -rf "$backup_file"
+systemctl reload nginx
+clear
+echo "========================================================================="
+echo "Cấu hình chuyển hướng thất bại!"
+ echo "-------------------------------------------------------------------------"
+ cat /etc/dsnvps/.tmp/a0paMLZa
+ rm -f /etc/dsnvps/.tmp/a0paMLZa
+ /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
+fi
+
+####################################################################################
+#
+# Check Allowlist hợp nhất (PARK DOMAIN) – xung đột với redirect
+#
+#####################################################################################
+allowlist_dir_pk="/home/$mainwebsite/geoip2.conf.d/$source_domain/allowlist.conf.d"
+allowlist_file_pk="$allowlist_dir_pk/geoip2_allowlist.conf"
+if [[ -f "$allowlist_file_pk" ]]; then
+  echo "========================================================================="
+  echo "Phát hiện whitelist hợp nhất đang hoạt động cho $source_domain"
+  echo "-------------------------------------------------------------------------"
+  echo "Whitelist đang quyết định quyền truy cập (return 403 nếu không thuộc danh sách)."
+  echo "========================================================================="
+  echo "1) Xóa các nước cho phép truy cập và tiếp tục cài đặt"
+  echo "0) Thoát"
+  echo "========================================================================="
+  read -p "Vui lòng chọn [0-1]: " choice_allow_pk
+  case $choice_allow_pk in
+    1)
+      rm -f "$allowlist_file_pk"
+      echo "Đã xóa cấu hình chỉ cho phép truy cập !";;
+0) clear; exit 0;;
+    *)
+      echo "Lựa chọn không hợp lệ. Thoát!"; sleep 2; clear;  /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu; exit;;
+  esac
+fi
+#####################################################################################

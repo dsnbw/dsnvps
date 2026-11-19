@@ -1,0 +1,219 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/dsnvps/cauhinh_move_vps.info ]; then
+if [ ! "$(grep "thanhcong" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')" == "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn đã hoàn thành cấu hình kết nối server hiện tại với server Mới"
+echo "-------------------------------------------------------------------------"
+echo "Server Mới có địa chỉ IP: $(grep "ipaddress" /etc/dsnvps/cauhinh_move_vps.info | awk '{print $3}')"
+echo "-------------------------------------------------------------------------"
+echo "Bạn có thể chạy chức năng [ Xóa Toàn Bộ Cấu Hình ] để thay địa chỉ IP khác."
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+exit
+fi
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để kết nối server hiện tại với server mới."
+echo "-------------------------------------------------------------------------"
+echo "Sau khi kết nối xong, chạy chức năng [ Chuyển Dữ Liệu Sang VPS Mới Ngay ]"
+echo "-------------------------------------------------------------------------"
+echo "Để bắt đầu quá trình copy dữ liệu."
+echo "-------------------------------------------------------------------------"
+echo "Thông tin Server mới cần nhập: IP và Mật khẩu tài khoản Root và SSH Port"
+echo "========================================================================="
+while true; do
+    echo -n "Nhập IP Server mới [0 -Thoát]: "
+    read ipvpsmoicopy
+
+    # Thoát nếu nhập 0
+    if [ "$ipvpsmoicopy" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+        exit
+    fi
+
+    # Kiểm tra định dạng IP
+    if [[ ! "$ipvpsmoicopy" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo "========================================================================="
+        echo "$ipvpsmoicopy không phải là IP hợp lệ!"
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng nhập lại."
+        sleep 4  
+        tput cuu 5 
+        tput ed
+        continue
+    fi
+
+    # Kiểm tra IP có ping được không
+    echo "-------------------------------------------------------------------------"
+    echo "Check IP $ipvpsmoicopy";sleep 5        
+    if ! ping -c 1 -W 2 "$ipvpsmoicopy" > /dev/null 2>&1; then
+        echo "========================================================================="
+        echo "$ipvpsmoicopy không phản hồi."
+        echo "-------------------------------------------------------------------------"
+        echo "IP này có thể không tồn tại hoặc không truy cập được! Vui lòng nhập lại."
+        sleep 6  
+        tput cuu 7 
+        tput ed
+        continue
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Check => OK"; sleep 4;tput cuu 4;  tput ed   
+    break
+done
+
+
+#echo -n "Nhap IP VPS Backup [ENTER]: " 
+#read ipvpsmoicopy
+#if [ -z "$ipvpsmoicopy" ]; then
+ #   clear
+  #  echo "========================================================================="
+   # echo "Bạn nhập sai, vui lòng nhập lại."
+    #/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+    #exit
+#fi
+
+while true; do
+    echo "-------------------------------------------------------------------------"
+    echo -n "Nhập SSH Port (Mặc định: 22): "
+    read sshport
+
+    if [ -z "$sshport" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo -n "Port SSH là 22 đúng không? (Y/N): "
+        read confirm
+        case "$confirm" in
+            [Yy]*) 
+                sshport=22
+                break
+                ;;
+            [Nn]*)
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng nhập lại port SSH."
+                sleep 4; tput cuu 4; tput ed
+                ;;
+            *) 
+                echo "-------------------------------------------------------------------------"
+                echo "Lựa chọn không hợp lệ, vui lòng nhập Y hoặc N."
+                sleep 4; tput cuu 4; tput ed
+                ;;
+        esac
+    elif [[ "$sshport" =~ ^[0-9]+$ ]] && [ "$sshport" -ge 1 ] && [ "$sshport" -le 65535 ]; then
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Port không hợp lệ, vui lòng nhập lại (1-65535)."
+        sleep 4; tput cuu 4; tput ed
+    fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Port SSH server mới: $sshport"   
+
+while true; do
+    echo "-------------------------------------------------------------------------"
+    echo -n "Nhập password tài khoản root [0 -Thoát]: "
+    read passrootbackupvps
+
+    if [ "$passrootbackupvps" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+        exit
+    elif [ -z "$passrootbackupvps" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 4  
+        tput cuu 4 
+        tput ed
+    else
+        break
+    fi
+done
+
+#if [ -f ~/.ssh/known_hosts ]; then
+ #   if grep -q "$ipvpsmoicopy" ~/.ssh/known_hosts; then
+  #      echo "-------------------------------------------------------------------------"
+   #     echo "Xoa khoa SSH cu truoc khi tao moi"
+    #    sed -i "/$ipvpsmoicopy/d" ~/.ssh/known_hosts
+    #fi
+#fi
+
+#cat > "/etc/dsnvps/.tmp/rsync_ketnoi" <<END
+#echo "-------------------------------------------------------------------------"
+#sshpass -p '$passrootbackupvps' ssh-copy-id -p $sshport -i ~/.ssh/id_rsa.pub root@$ipvpsmoicopy > /etc/dsnvps/.tmp/abc
+#END
+#chmod +x /etc/dsnvps/.tmp/rsync_ketnoi
+#/etc/dsnvps/.tmp/rsync_ketnoi
+#rm -rf /etc/dsnvps/.tmp/rsync_ketnoi
+#rm -rf /etc/dsnvps/.tmp/abc
+
+if [ -f ~/.ssh/known_hosts ]; then
+    grep -q "$ipvpsmoicopy" ~/.ssh/known_hosts && sed -i "/$ipvpsmoicopy/d" ~/.ssh/known_hosts
+fi
+if [ ! -f ~/.ssh/id_rsa.pub ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Chưa có SSH key, DSNVPS sẽ tạo SSH key ..."; sleep 2
+    ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa <<< y #>/dev/null 2>&1
+    echo "SSH key đã được tạo thành công!"
+fi
+echo "-------------------------------------------------------------------------"
+echo "Kết nối tới $ipvpsmoicopy..."; sleep 3
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+fi
+###################################################################
+###################################################################
+
+
+sshpass -p "$passrootbackupvps" scp -P $sshport -o StrictHostKeyChecking=no ~/.ssh/id_rsa.pub root@$ipvpsmoicopy:/root/temp_key
+#sshpass -p "$passrootbackupvps" scp -P $sshport ~/.ssh/id_rsa.pub root@$ipvpsmoicopy:/root/temp_key
+sshpass -p "$passrootbackupvps" ssh -p $sshport root@$ipvpsmoicopy "
+    mkdir -p ~/.ssh &&
+    touch ~/.ssh/authorized_keys &&
+    cat /root/temp_key >> ~/.ssh/authorized_keys &&
+    chmod 700 ~/.ssh &&
+    chmod 600 ~/.ssh/authorized_keys &&
+    rm -f /root/temp_key"
+#sshpass -p '$passrootbackupvps' ssh-copy-id -p $sshport -i ~/.ssh/id_rsa.pub root@$ipvpsmoicopy #>/dev/null 2>&1
+#echo "buoc 2"
+checkconnect=$(ssh -p $sshport -o BatchMode=yes -o ConnectTimeout=9 root@$ipvpsmoicopy echo connected 2>&1)
+if [[ "${checkconnect//[$'\t\r\n ']}" != "connected" ]]; then
+    clear
+    echo "========================================================================="
+echo "Kết nối thất bại"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại thông tin server mới"
+    /etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+    exit
+fi
+
+cat > "/etc/dsnvps/cauhinh_move_vps.info" <<END
+ipaddress = $ipvpsmoicopy
+sshport = $sshport
+ketnoistatus = thanhcong
+END
+echo "========================================================================="
+echo "Kết nối thành công"; sleep 2
+echo "-------------------------------------------------------------------------"
+ssh root@$ipvpsmoicopy dnf -y install rsync wget tar
+clear
+echo "========================================================================="
+echo "Kết nối tới server Mới $ipvpsmoicopy thành công ! "
+echo "-------------------------------------------------------------------------"
+echo "Bây giờ bạn có thể chạy chức năng [Chuyển Dữ Liệu Sang Server Mới Ngay]."
+echo "-------------------------------------------------------------------------"
+echo "Nếu gặp lỗi, hãy chạy chức năng [Xóa Toàn Bộ Cấu Hình] và thực hiện lại."
+/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
+exit

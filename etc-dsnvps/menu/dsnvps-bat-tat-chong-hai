@@ -1,0 +1,315 @@
+#!/bin/bash
+# Hàm unset_api
+unset_api() {
+    unset API_KEY >/dev/null 2>&1
+    unset API_URL >/dev/null 2>&1
+}
+# Chức năng: Cập nhật IP VPS lên server
+#touch /etc/dsnvps/.tmp/czzkla
+if [ ! -f "/etc/dsnvps/.tmp/czzkla" ]; then
+  unset_api
+  exit
+fi
+if [ -f "/etc/dsnvps/.tmp/czzkla" ]; then
+  rm -rf /etc/dsnvps/.tmp/czzkla
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Nguồn cấu hình
+. /root/dsnvps.conf
+
+
+
+# Hàm parse JSON
+parse_json() {
+    local json="$1" key="$2" value
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import json' 2>/dev/null; then
+        value=$(echo "$json" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"$key\", \"\"))" 2>/dev/null)
+        [ "$value" = "None" ] && value=""
+        echo "$value"
+    else
+        value=$(echo "$json" | sed -n "s/.*\"$key\":\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}.*/\\1/p" | head -1)
+        [ "$value" = "null" ] && value=""
+        echo "$value"
+    fi
+}
+
+# Định nghĩa biến
+CONFIG_FILE="/root/dsnvps.conf"
+CONFIG_A_FILE="/usr/bin/gxred"
+API_URL="https://vpro.dsnvps"
+API_KEY="HALINH-Dq1r68x4EHYgqmBphIKgZpw4Ka"
+TMP_DIR="/etc/dsnvps/.tmp"
+CACHE_FILE="$TMP_DIR/aerv1"
+KEY_INFO_CACHE="$TMP_DIR/aerv2"
+LAST_API_UPDATE="$TMP_DIR/aerv3"
+CACHE_TIMEOUT=300 # 5 phút
+FORCE_CHECK_TIMEOUT=900 # 15 phút
+
+# Tạo thư mục tạm
+mkdir -p "$TMP_DIR"
+
+# Hàm kiểm tra kết nối
+check_connectivity() {
+    local response
+    response=$(curl -s --max-time 15 "$API_URL/checkketnoi.txt")
+    if echo "$response" | grep -q "ok"; then
+        return 0
+    else
+        unset_api
+        return 1
+    fi
+}
+
+# Hàm lấy IP
+get_public_ip() {
+    local ip
+    ip=$(curl -4 -s --max-time 10 https://checkip.amazonaws.com || wget -4 -qO- http://ipecho.net/plain || curl -4 -s --max-time 10 https://ifconfig.me)
+    if [ -n "$ip" ]; then
+        echo "$ip"
+    else
+        unset_api
+        return 1
+    fi
+}
+
+# Hàm lấy CPU cores
+get_cpu_cores() {
+    local cores
+    cores=$(nproc 2>/dev/null || grep -c '^processor' /proc/cpuinfo || echo "Unknown")
+    echo "$cores"
+}
+
+# Hàm lấy RAM
+get_ram_mb() {
+    local ram
+    ram=$(free -m | awk '/^Mem:/ {print $2}' || echo "Unknown")
+    echo "$ram"
+}
+
+# Hàm lấy MAC
+get_mac_address() {
+    local iface mac
+    for dev in /sys/class/net/*; do
+        iface=$(basename "$dev")
+        [[ "$iface" == "lo" ]] && continue
+        [[ -f "$dev/address" ]] || continue
+        mac=$(cat "$dev/address" 2>/dev/null | tr '[:upper:]' '[:lower:]')
+        if [[ "$mac" != "00:00:00:00:00:00" && -n "$mac" ]]; then
+            #log "Got MAC from $iface: $mac"
+            echo "$mac"
+            return
+        fi
+    done
+
+    if command -v ifconfig >/dev/null; then
+        #log "Fallback: using ifconfig"
+        mac=$(ifconfig | grep -i ether | awk '{print $2}' | head -n 1 | tr '[:upper:]' '[:lower:]')
+        if [[ "$mac" != "00:00:00:00:00:00" && -n "$mac" ]]; then
+            #log "Got MAC from ifconfig: $mac"
+            echo "$mac"
+            return
+        fi
+        #log "Failed to get MAC from ifconfig"
+    fi
+
+    #log "Failed to get MAC"
+    echo ""
+    return 1
+}
+
+# Hàm kiểm tra key info
+check_key_info() {
+    local key="$1"
+    local response
+    local cache_time
+
+    if [ -f "$KEY_INFO_CACHE" ]; then
+        cache_time=$(stat -c %Y "$KEY_INFO_CACHE")
+        current_time=$(date +%s)
+        if [ $((current_time - cache_time)) -lt $CACHE_TIMEOUT ]; then
+            response=$(cat "$KEY_INFO_CACHE")
+            if [[ "$response" =~ "status\":\"success" ]]; then
+                echo "$response"
+                return 0
+            fi
+        fi
+    fi
+
+    response=$(curl -s --max-time 15 -X POST "$API_URL/?action=get_key_info" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"key\":\"$key\"}")
+    if [ -z "$response" ]; then
+        unset_api
+        return 1
+    fi
+    if [[ "$response" =~ "status\":\"success" ]]; then
+        echo "$response" > "$KEY_INFO_CACHE"
+        echo "$response"
+        return 0
+    else
+        unset_api
+        return 1
+    fi
+}
+
+# Hàm cập nhật VPS info
+update_vps_info() {
+    local key="$1"
+    local ip="$2"
+    local cpu="$3"
+    local ram="$4"
+    local mac="$5"
+    local response
+    response=$(curl -s --max-time 15 -X POST "$API_URL/?action=update_key_info" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{\"key\":\"$key\",\"ip\":\"$ip\",\"cpu\":\"$cpu\",\"ram\":\"$ram\",\"mac\":\"$mac\"}")
+    if [[ "$response" =~ "status\":\"updated" ]]; then
+        echo "$ip $cpu $ram $mac" > "$LAST_API_UPDATE"
+        return 0
+    else
+        unset_api
+        return 1
+    fi
+}
+
+# Hàm lấy VPS info, song song hóa
+get_vps_info() {
+    local cache_ip cache_cpu cache_ram cache_mac cache_time current_time
+    local last_ip last_cpu last_ram last_mac
+    local current_ip current_cpu current_ram current_mac
+    local ip_file cpu_file ram_file
+    local force_check=0
+
+    # Kiểm tra thời gian cache và last API update
+    current_time=$(date +%s)
+    if [ -f "$CACHE_FILE" ]; then
+        cache_time=$(stat -c %Y "$CACHE_FILE")
+        if [ $((current_time - cache_time)) -lt $CACHE_TIMEOUT ]; then
+            read cache_ip cache_cpu cache_ram cache_mac < "$CACHE_FILE"
+        fi
+    fi
+    if [ -f "$LAST_API_UPDATE" ]; then
+        last_update_time=$(stat -c %Y "$LAST_API_UPDATE")
+        if [ $((current_time - last_update_time)) -ge $FORCE_CHECK_TIMEOUT ]; then
+            force_check=1
+        fi
+        read last_ip last_cpu last_ram last_mac < "$LAST_API_UPDATE"
+    fi
+
+    # Nếu không cần force check và cache còn mới, so sánh với cache
+    if [ $force_check -eq 0 ] && [ -n "$cache_ip" ] && [ -n "$cache_cpu" ] && [ -n "$cache_ram" ] && [ -n "$cache_mac" ]; then
+        current_ip=$cache_ip
+        current_cpu=$cache_cpu
+        current_ram=$cache_ram
+        current_mac=$cache_mac
+    else
+        # Tạo file tạm cho kết quả
+        ip_file=$(mktemp)
+        cpu_file=$(mktemp)
+        ram_file=$(mktemp)
+
+        # Chạy song song các tác vụ
+        get_public_ip > "$ip_file" &
+        get_cpu_cores > "$cpu_file" &
+        get_ram_mb > "$ram_file" &
+        wait
+
+        # Đọc kết quả
+        current_ip=$(cat "$ip_file")
+        current_cpu=$(cat "$cpu_file")
+        current_ram=$(cat "$ram_file")
+        current_mac=$(get_mac_address)
+
+        # Dọn dẹp file tạm
+        rm -f "$ip_file" "$cpu_file" "$ram_file"
+
+        # Kiểm tra IP
+        if [ -z "$current_ip" ]; then
+            unset_api
+            return 1
+        fi
+    fi
+
+    # Lưu cache
+    echo "$current_ip $current_cpu $current_ram $current_mac" > "$CACHE_FILE"
+
+    # So sánh với last API update
+    if [ $force_check -eq 1 ] || [ "$current_ip" != "$last_ip" ] || [ "$current_cpu" != "$last_cpu" ] || [ "$current_ram" != "$last_ram" ] || [ "$current_mac" != "$last_mac" ]; then
+        echo "current_ip=$current_ip current_cpu=$current_cpu current_ram=$current_ram current_mac=$current_mac"
+    else
+        echo ""
+    fi
+}
+
+# Kiểm tra trạng thái Pro và key
+if [ ! -f "$CONFIG_A_FILE" ]; then
+    unset_api
+    exit 0
+fi
+
+if [ ! -f "$CONFIG_FILE" ]; then
+    unset_api
+    exit 1
+fi
+current_key=$(grep "Businesscode" "$CONFIG_FILE" | cut -d'"' -f2)
+if [ -z "$current_key" ]; then
+    unset_api
+    exit 0
+fi
+
+# Kiểm tra kết nối
+if ! check_connectivity; then
+    unset_api
+    exit 1
+fi
+
+# Lấy thông tin VPS
+vps_info=$(get_vps_info)
+if [ $? -ne 0 ]; then
+    unset_api
+    exit 1
+fi
+if [ -n "$vps_info" ]; then
+    eval "$vps_info"
+fi
+
+# Lấy thông tin key
+key_info=$(check_key_info "$current_key")
+if [ $? -ne 0 ]; then
+    unset_api
+    exit 1
+fi
+
+# Trích xuất MAC và trạng thái
+saved_mac=$(parse_json "$key_info" "mac_address")
+key_status=$(parse_json "$key_info" "key_status")
+
+# Kiểm tra trạng thái key
+if [ "$key_status" = "expired" ]; then
+    unset_api
+    exit 0
+fi
+
+# Kiểm tra MAC và cập nhật nếu cần
+if [ -z "$vps_info" ]; then
+    unset_api
+    exit 0
+elif [ -z "$saved_mac" ] || [ "$saved_mac" = "00:00:00:00:00:00" ]; then
+    update_vps_info "$current_key" "$current_ip" "$current_cpu" "$current_ram" "$current_mac"
+    ret_val=$?
+    unset_api
+    exit $ret_val
+elif [ "$saved_mac" = "$current_mac" ]; then
+    update_vps_info "$current_key" "$current_ip" "$current_cpu" "$current_ram" "$current_mac"
+    ret_val=$?
+    unset_api
+    exit $ret_val
+else
+    unset_api
+    exit 0
+fi

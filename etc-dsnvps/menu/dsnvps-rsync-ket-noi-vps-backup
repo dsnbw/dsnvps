@@ -1,0 +1,202 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Anti-debug removed
+
+if [ -f /etc/dsnvps/vps_backup_rsync.info ]; then
+    if [ ! "$(grep "thanhcong" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')" == "" ]; then
+        clear
+        echo "========================================================================="
+        echo "Bạn đã hoàn thành cấu hình kết nối server hiện tại với VPS backup"
+        echo "-------------------------------------------------------------------------"
+        echo "VPS Backup có địa chỉ IP: $(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')"
+        /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+        exit
+    fi
+fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để Kết Nối server hiện tại với VPS Backup"
+echo "-------------------------------------------------------------------------"
+echo "Sau khi kết nối thành công, sử dụng chức năng [Cấu Hình Thời Gian Đồng Bộ]"
+echo "-------------------------------------------------------------------------"
+echo "để thiết lập thời gian đồng bộ dữ liệu giữa server hiện tại và VPS backup"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin VPS Backup cần nhập: IP và Mật khẩu tài khoản Root và SSH Port"
+echo "========================================================================="
+while true; do
+    echo -n "Nhập IP VPS Backup [0 -Thoát]: "
+    read ipvpsbackup
+
+    # Thoát nếu nhập 0
+    if [ "$ipvpsbackup" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+        exit
+    fi
+
+    # Kiểm tra định dạng IP
+    if [[ ! "$ipvpsbackup" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]]; then
+        echo "========================================================================="
+        echo "$ipvpsbackup không phải là IP hợp lệ!"
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng nhập lại."
+        sleep 4  
+        tput cuu 5 
+        tput ed
+        continue
+    fi
+
+    # Kiểm tra IP có ping được không
+    echo "-------------------------------------------------------------------------"
+    echo "Check IP $ipvpsbackup";sleep 5        
+    if ! ping -c 1 -W 2 "$ipvpsbackup" > /dev/null 2>&1; then
+        echo "========================================================================="
+        echo "$ipvpsbackup không phản hồi."
+        echo "-------------------------------------------------------------------------"
+        echo "IP này có thể không tồn tại hoặc không truy cập được! Vui lòng nhập lại."
+        sleep 6  
+        tput cuu 7 
+        tput ed
+        continue
+    fi
+    echo "-------------------------------------------------------------------------"
+    echo "Check => OK"; sleep 4;tput cuu 4;  tput ed   
+    break
+done
+
+
+#echo -n "Nhap IP VPS Backup [ENTER]: " 
+#read ipvpsbackup
+#if [ -z "$ipvpsbackup" ]; then
+ #   clear
+  #  echo "========================================================================="
+   # echo "Bạn nhập sai, vui lòng nhập lại."
+    #/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+    #exit
+#fi
+
+while true; do
+    echo "-------------------------------------------------------------------------"
+    echo -n "Nhập SSH Port (Mặc định: 22): "
+    read sshport
+
+    if [ -z "$sshport" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo -n "Port SSH là 22 đúng không? (Y/N): "
+        read confirm
+        case "$confirm" in
+            [Yy]*) 
+                sshport=22
+                break
+                ;;
+            [Nn]*)
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng nhập lại port SSH."
+                sleep 4; tput cuu 4; tput ed
+                ;;
+            *) 
+                echo "-------------------------------------------------------------------------"
+                echo "Lựa chọn không hợp lệ, vui lòng nhập Y hoặc N."
+                sleep 4; tput cuu 4; tput ed
+                ;;
+        esac
+    elif [[ "$sshport" =~ ^[0-9]+$ ]] && [ "$sshport" -ge 1 ] && [ "$sshport" -le 65535 ]; then
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Port không hợp lệ, vui lòng nhập lại (1-65535)."
+        sleep 4; tput cuu 4; tput ed
+    fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Port SSH VPS Backup: $sshport"   
+
+while true; do
+    echo "-------------------------------------------------------------------------"
+    echo -n "Nhập password tài khoản root [0 -Thoát]: "
+    read passrootbackupvps
+
+    if [ "$passrootbackupvps" = "0" ]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+        exit
+    elif [ -z "$passrootbackupvps" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn nhập sai, vui lòng nhập lại!"
+        sleep 4  
+        tput cuu 4 
+        tput ed
+    else
+        break
+    fi
+done
+
+#if [ -f ~/.ssh/known_hosts ]; then
+ #   if grep -q "$ipvpsbackup" ~/.ssh/known_hosts; then
+  #      echo "-------------------------------------------------------------------------"
+   #     echo "Xoa khoa SSH cu truoc khi tao moi"
+    #    sed -i "/$ipvpsbackup/d" ~/.ssh/known_hosts
+    #fi
+#fi
+
+#cat > "/etc/dsnvps/.tmp/rsync_ketnoi" <<END
+#echo "-------------------------------------------------------------------------"
+#sshpass -p '$passrootbackupvps' ssh-copy-id -p $sshport -i ~/.ssh/id_rsa.pub root@$ipvpsbackup > /etc/dsnvps/.tmp/abc
+#END
+#chmod +x /etc/dsnvps/.tmp/rsync_ketnoi
+#/etc/dsnvps/.tmp/rsync_ketnoi
+#rm -rf /etc/dsnvps/.tmp/rsync_ketnoi
+#rm -rf /etc/dsnvps/.tmp/abc
+
+if [ -f ~/.ssh/known_hosts ]; then
+    grep -q "$ipvpsbackup" ~/.ssh/known_hosts && sed -i "/$ipvpsbackup/d" ~/.ssh/known_hosts
+fi
+if [ ! -f ~/.ssh/id_rsa.pub ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Chưa có SSH key, DSNVPS sẽ tạo SSH key ..."; sleep 2
+    ssh-keygen -t rsa -b 4096 -N "" -f ~/.ssh/id_rsa <<< y #>/dev/null 2>&1
+    echo "SSH key đã được tạo thành công!"
+fi
+echo "-------------------------------------------------------------------------"
+echo "Kết nối tới $ipvpsbackup..."; sleep 3
+sshpass -p "$passrootbackupvps" scp -P $sshport ~/.ssh/id_rsa.pub root@$ipvpsbackup:/root/temp_key
+sshpass -p "$passrootbackupvps" ssh -p $sshport root@$ipvpsbackup "
+    mkdir -p ~/.ssh &&
+    touch ~/.ssh/authorized_keys &&
+    cat /root/temp_key >> ~/.ssh/authorized_keys &&
+    chmod 700 ~/.ssh &&
+    chmod 600 ~/.ssh/authorized_keys &&
+    rm -f /root/temp_key"
+#sshpass -p '$passrootbackupvps' ssh-copy-id -p $sshport -i ~/.ssh/id_rsa.pub root@$ipvpsbackup #>/dev/null 2>&1
+#echo "buoc 2"
+checkconnect=$(ssh -p $sshport -o BatchMode=yes -o ConnectTimeout=9 root@$ipvpsbackup echo connected 2>&1)
+if [[ ! $checkconnect == connected ]] ; then
+    #clear
+    echo "========================================================================="
+echo "Kết nối thất bại"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kiểm tra lại thông tin VPS Backup"
+    /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+    exit
+fi
+
+cat > "/etc/dsnvps/vps_backup_rsync.info" <<END
+ipaddress = $ipvpsbackup
+sshport = $sshport
+ketnoistatus = thanhcong
+END
+
+clear
+echo "========================================================================="
+echo "Kết nối tới VPS backup $ipvpsbackup thành công !"
+echo "-------------------------------------------------------------------------"
+echo "Bây giờ bạn có thể cấu hình thời gian đồng bộ cho Server."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit

@@ -1,0 +1,18 @@
+#!/bin/bash 
+#/etc/dsnvps/menu/dsnvps-menu-all-function
+/etc/dsnvps/menu/dsnvps-dsnk-check-gioi-can-thiet    
+#################################
+
+#Kiem tra khong phải Pro thì xóa tất cả những ưu tiên của Pro:
+echo "12" > /etc/dsnvps/.tmp/ckla
+# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed) > /dev/null 2>&1
+#############################
+
+
+. /root/dsnvps.conf
+/etc/dsnvps/menu/menucheck/dsnvps-menu-check-dsnvps-update
+echo "========================================================================="
+echo -e "\e[1;91mdsnvps $(cat /etc/dsnvps/menu/inc/dsnvps.version)\e[0m | \e[1;91mQuản Lý VPS\e[0m - \e[1;91mReverse Proxy\e[0m - \e[1;91mVLess VPN\e[0m & \e[1;91mCloudFlare DDNS\e[0m\e[0m"          
+
+
+

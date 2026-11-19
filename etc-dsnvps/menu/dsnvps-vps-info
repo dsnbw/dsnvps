@@ -1,0 +1,125 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+nginx_version=$(nginx -v 2>&1 | awk -F/ '{print $2}')
+mariadb_version=$(mysql -V | awk '{print $5}' | sed 's/,//')
+/etc/dsnvps/menu/dsnvps-befor-vps-info
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                     Trạng Thái Server Hiện Tại \n"
+printf "=========================================================================\n"
+echo "IP: $serverip - Dung lượng đĩa trống: $(calc $(df $PWD | awk '/[0-9]%/{print $(NF-2)}')/1024) MB"
+echo "-------------------------------------------------------------------------"
+if [ -f /etc/csf/csf.deny ]; then
+if [ "$(cat /etc/csf/csf.deny | awk 'NR==2 {print $2}')" == "Copyright" ]; then
+rm -rf /etc/csf/csf.deny
+cat > "/etc/csf/csf.deny" <<END
+END
+fi
+fi
+echo "$(cat /etc/dsnvps/.tmp/dsnvps-php-info.txt)"
+echo "$(cat /etc/dsnvps/.tmp/dsnvps-nginx-info.txt)"
+echo "Phiên bản Nginx: $nginx_version"
+echo "$(cat /etc/dsnvps/.tmp/dsnvps-mysql-info.txt)"
+echo "Phiên bản MySQL: $(echo "${mariadb_version}" | sed 's/-//g; s/MariaDB//g')"
+if [ -f /home/$mainsite/private_html/index.php ]; then 
+echo "-------------------------------------------------------------------------"
+echo "PhpmyAdmin Link: BẬT"
+else
+echo "-------------------------------------------------------------------------"
+echo "PhpmyAdmin Link: TẮT"
+fi
+echo "$(cat /etc/dsnvps/.tmp/dsnvps-filemanager-info.txt)"
+echo "-------------------------------------------------------------------------"
+if [ -f "/etc/php.d/opcache.ini" ]; then
+ramzenduse=$(grep opcache.memory_consumption /etc/php.d/opcache.ini | grep -o '[0-9]*')
+cleartime=$(grep opcache.revalidate_freq /etc/php.d/opcache.ini | grep -o '[0-9]*')
+echo "Zend Opcache: On | Ram dùng: $ramzenduse MB | Thời gian xoá cache: $cleartime giây"
+else
+echo "Zend Opcache: TẮT"
+fi
+echo "$(cat /etc/dsnvps/.tmp/dsnvps-memcached-info.txt)"
+echo "Redis: $(cat /etc/dsnvps/.tmp/dsnvps-redis-info.txt)"
+echo "-------------------------------------------------------------------------"
+#CSF Stautus
+echo "$(cat /etc/dsnvps/.tmp/dsnvps-csf-firewall-info.txt)"
+if [ -f /root/.bash_profile ]; then
+if [ "$(grep "/bin/dsnvps" /root/.bash_profile)" == "" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Tự Động Chạy DSNVPS (Khi Login SSH): TẮT"
+else
+echo "-------------------------------------------------------------------------"
+echo "Tự Động Chạy DSNVPS (Khi Login SSH): BẬT"
+fi
+fi
+
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+###
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/checkallwebsites)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/checksiteempty
+for website in $sowebsitetrenserver 
+do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$website/public_html ]; then
+find /home/$website/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 4 ]; then
+echo "$website" >> /etc/dsnvps/.tmp/checksite-list
+else
+echo "$website" >> /etc/dsnvps/.tmp/checksiteempty
+fi
+fi
+ done
+ if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+ websitedulieu=0
+ else
+ websitedulieu=$(cat /etc/dsnvps/.tmp/checksite-list | wc -l)
+ fi
+ if [ -f /etc/dsnvps/.tmp/checksiteempty ]; then
+	websitedatabaseempty=$(cat /etc/dsnvps/.tmp/checksiteempty | wc -l)
+	sowebsitedatabaseempty=$(echo "| Chưa Có Dữ Liệu: $websitedatabaseempty")
+else
+websitedatabaseempty=0
+fi
+rm -rf /etc/dsnvps/.tmp/*check*
+rm -rf /etc/dsnvps/.tmp/checkallwebsites		
+total=$(calc $websitedulieu+$websitedatabaseempty)
+echo "-------------------------------------------------------------------------"
+echo "Tổng số Website: $total | Có dữ liệu: $websitedulieu $sowebsitedatabaseempty "
+echo "========================================================================="
+echo "Số kết nối tới cổng:  Cổng 80: $(ss -tan '( sport = :80 )' 2>/dev/null | tail -n +2 | wc -l) | Cổng 443: $(ss -tan '( sport = :443 )' 2>/dev/null | tail -n +2 | wc -l)"
+echo "========================================================================="
+echo "Server Uptime: $(uptime | awk '{print $3,$4}' | sed 's/,/ /g') - CPU Load Average: $(uptime | awk '{print $(NF-2),$(NF-1),$NF}' | sed 's/,/ /g')"
+echo "-------------------------------------------------------------------------"
+echo "RAM: $( free -m | grep Mem | awk '{print $2}') MB - Free: $( free -m | grep Mem | awk '{print $4}') MB - Cached: $( free -m | grep Mem | awk '{print $7}') MB"
+echo "-------------------------------------------------------------------------"
+echo "Swap: $(free -m | grep Swap | awk '{print $2}') MB - Swap free: $(free -m | grep Swap | awk '{print $4}') MB"
+echo "-------------------------------------------------------------------------"
+tcp_cc=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)
+zram_st="OFF"; grep -q '/dev/zram' /proc/swaps 2>/dev/null && zram_st="ON"
+mpid=$(systemctl show -p MainPID --value mariadb 2>/dev/null || echo 0)
+jem_st="OFF"; [ -n "$mpid" ] && [ "$mpid" -gt 1 ] 2>/dev/null && grep -q "libjemalloc" "/proc/${mpid}/maps" 2>/dev/null && jem_st="ON"
+jit_st=$(php-fpm$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null) -i 2>/dev/null | awk -F'=> ' '/opcache\.jit_buffer_size/ {print $2; exit}' | awk '{print $1}')
+[ -z "$jit_st" ] && jit_st="OFF"
+echo "Turbo: TCP=${tcp_cc} | ZRAM=${zram_st} | Jemalloc=${jem_st} | PHP JIT=${jit_st}"
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+dsnvps
+exit
+

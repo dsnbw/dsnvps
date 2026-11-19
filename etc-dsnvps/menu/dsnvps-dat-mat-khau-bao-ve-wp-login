@@ -1,0 +1,742 @@
+#!/bin/bash
+. /etc/dsnvps/pwprotect.default
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -r /etc/dsnvps/menu/inc/htpasswd.py /usr/local/bin/htpasswd.py
+chmod +x /usr/local/bin/htpasswd.py
+fi
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+clear
+echo "========================================================================="
+echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Nginx: "
+echo "-------------------------------------------------------------------------"
+nginx -t
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+fi
+if [ ! -d /etc/nginx/pwprotect ]; then
+mkdir -p /etc/nginx/pwprotect
+fi
+if [ ! -f /etc/nginx/.htpasswd ]; then
+clear
+echo "========================================================================="
+echo "Bạn phải tạo User và Mật khẩu trước khi chạy chức năng này. Tạo User và "
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu mac dinh: DSNVPS Menu => User & Password Mac Dinh."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+ exit
+ fi
+######################################################################################
+rm -rf /etc/dsnvps/.tmp/kland
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+rm -rf /etc/dsnvps/.tmp/check*
+mkdir -p /etc/dsnvps/.tmp/sitedangbatsqlinjecthostingaz
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist 
+sowebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+for website in $sowebsite 
+do
+if [ -f /etc/nginx/conf.d/$website.conf ]; then
+if [ "$(grep wp_login.conf /etc/nginx/conf.d/$website.conf)" == "include /etc/nginx/pwprotect/$website/wp_login.conf;" ]; then
+touch /etc/dsnvps/.tmp/sitedangbatsqlinjecthostingaz/$website
+fi
+fi
+done
+rm -rf /etc/dsnvps/.tmp/kland
+SOURCE_DIR="/etc/dsnvps/.tmp/sitedangbatsqlinjecthostingaz"
+OUTPUT_FILE="/etc/dsnvps/.tmp/kland"
+> "$OUTPUT_FILE"
+for file in "$SOURCE_DIR"/*; do
+    # Check if it is a file
+    if [ -f "$file" ]; then
+        # Extract the file name and append it to the output file
+        echo "$(basename "$file")" >> "$OUTPUT_FILE"
+    fi
+done
+###################################################################################
+
+ ##################################################################
+#Thêm *
+if [ -s "/etc/dsnvps/.tmp/kland" ]; then
+ALL_WEBSITES_FILE="/etc/dsnvps/.tmp/wordpresslist"
+KLAND_FILE="/etc/dsnvps/.tmp/kland"
+OUTPUT_FILE="/etc/dsnvps/.tmp/wordpresslist_with_status"
+> "$OUTPUT_FILE"
+while read -r domain; do
+    if grep -q "^$domain$" "$KLAND_FILE"; then
+        echo "$domain**" >> "$OUTPUT_FILE"
+    else
+        echo "$domain" >> "$OUTPUT_FILE"
+    fi
+done < "$ALL_WEBSITES_FILE"
+else
+mv /etc/dsnvps/.tmp/wordpresslist /etc/dsnvps/.tmp/wordpresslist_with_status
+fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để Bật/Tắt mật khẩu truy cập wp-login.php"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1111"
+echo "========================================================================="
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist_with_status
+echo "Danh sách các WordPress Website trên server:  | ** : Config đang BẬT"
+echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+ /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=$(echo "${danh_sach_website[lua_chon-1]}" | sed 's/**$//')
+        break  # Thoat vong lap neu lua chon hop le
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Cac doan ma xac nhan phia duoi se tiep tuc chay
+echo "$website" > /etc/dsnvps/.tmp/websitemk.txt
+sed -i '  s/\./_/g' /etc/dsnvps/.tmp/websitemk.txt
+sed -i 's/\-/_/g' /etc/dsnvps/.tmp/websitemk.txt
+username=`cat /etc/dsnvps/.tmp/websitemk.txt | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | cut -c1-30`
+
+#####################################################################################
+echo "========================================================================="
+echo "Ban chon $website"
+if [ -f /etc/nginx/pwprotect/$website/wp_login.conf ]; then
+ if [  "$(grep "/etc/nginx/.htpasswd" /etc/nginx/pwprotect/$website/wp_login.conf)" == "" ]; then
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Thay Mật Khẩu Truy Cập" "Sử Dụng Mật Khẩu Truy Cập Mặc Định" "Tắt Mật Khẩu Truy Cập")
+echo "========================================================================="
+echo "Wp-Admin đã được đặt mật khẩu truy cập"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) chooseacction="thaymktruycap"; break;;
+    2) chooseacction="sudungmkmacdinh"; break;;
+    3) chooseacction="tatmatkhautruycap"; break;;
+    0) chooseacction="cancel"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#Thay Mat Khau Truy Cap
+###################################
+if [ "$chooseacction" = "thaymktruycap" ]; then
+    echo "-------------------------------------------------------------------------"
+while true; do
+
+    echo -n "Nhập username [ENTER]: " 
+    read username
+    # Kiểm tra username rỗng
+    if [ "$username" = "" ]; then
+                echo "========================================================================="
+        echo "Bạn chưa nhập username, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Regex kiểm tra username: chỉ chữ cái, số và dấu gạch dưới
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$username" =~ $checkpass ]]; then
+        
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt Username."
+        sleep 3;tput cuu 3; tput ed
+          continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Nếu username hợp lệ, thoát vòng lặp
+    break
+done
+    echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Nhập mật khẩu: "
+    read matkhau
+    
+    # Kiểm tra mật khẩu rỗng
+    if [ "$matkhau" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập mật khẩu, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Regex kiểm tra mật khẩu: chỉ chữ cái, số và dấu gạch dưới
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$matkhau" =~ $checkpass ]]; then
+                echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt mật khẩu."
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Kiểm tra độ dài mật khẩu tối thiểu 6 ký tự
+    if [[ ${#matkhau} -lt 6 ]]; then
+                echo "========================================================================="
+        echo "Mật khẩu tối thiểu phải có 6 ký tự."
+        sleep 3;tput cuu 3; tput ed
+         continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Nếu mật khẩu hợp lệ, thoát vòng lặp
+    break
+done
+echo "-------------------------------------------------------------------------"
+echo "Thông tin bạn nhập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ thay thông tin đăng nhập cũ theo thông tin mới này "
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+
+
+
+rm -rf /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+htpasswd.py -c -b /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+if [ ! -f /etc/nginx/pwprotect/$website/.htpasswd_wp_login ]; then
+/etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+fi
+if [ ! -f /etc/nginx/pwprotect/$website/.htpasswd_wp_login  ]; then
+htpasswd -b -c /etc/nginx/pwprotect/$website/.htpasswd_wp_login  $username $matkhau
+fi
+
+chmod -R 644 /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+
+clear
+echo "========================================================================="
+echo "Thay thông tin bảo vệ wp-login.php thành công"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+###################################
+#Su Dung Mat Khau Truy Cap Mac Dinh
+###################################
+elif [ "$chooseacction" = "sudungmkmacdinh" ]; then
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn dùng đăng nhập mặc định cho wp_login.conf ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+sed -i 's/.*htpasswd.*/auth_basic_user_file\ \/etc\/nginx\/.htpasswd;/g' /etc/nginx/pwprotect/$website/wp_login.conf
+rm -rf /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+
+
+clear
+echo "========================================================================= "
+echo "Đặt mật khẩu bảo vệ wp-login.php của $website thành công"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+;;
+esac
+clear
+echo "========================================================================= "
+echo "Huỷ bỏ !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+###################################
+#tatmatkhautruycap
+###################################
+elif [ "$chooseacction" = "tatmatkhautruycap" ]; then
+echo "-------------------------------------------------------------------------"
+read -r -p "Ban muon tat mat khau truy cap wp-login.php ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i '/wp_login.conf/d' /etc/nginx/conf.d/$website.conf 
+END
+chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+/etc/dsnvps/.tmp/abcdfrfrf.sh
+rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+rm -rf /etc/nginx/pwprotect/$website/wp_login.conf
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+
+
+clear
+echo "========================================================================= "
+echo "Tat mat khau truy cap wp-login.php cua $website thanh cong"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+;;
+esac
+clear
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+else
+clear
+exit 0
+fi
+fi
+fi
+#####################################################################################
+
+if [ -f /etc/nginx/pwprotect/$website/wp_login.conf ]; then
+ if [ ! "$(grep "/etc/nginx/.htpasswd" /etc/nginx/pwprotect/$website/wp_login.conf)" == "" ]; then
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Sử Dụng Mật Khẩu Truy Cập Khác" "Tắt Mật Khẩu Truy Cập")
+echo "========================================================================="
+echo "wp-login.php của $website đã được đặt mật khẩu truy cập"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) chooseacction="thaymktruycap"; break;;
+    2) chooseacction="tatmatkhautruycap"; break;;
+    0) chooseacction="cancel"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#Thay Mat Khau Truy Cap
+###################################
+if [ "$chooseacction" = "thaymktruycap" ]; then
+    echo "-------------------------------------------------------------------------"
+while true; do
+
+    echo -n "Nhập username [ENTER]: " 
+    read username
+    # Kiểm tra username rỗng
+    if [ "$username" = "" ]; then
+                echo "========================================================================="
+        echo "Bạn chưa nhập username, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Regex kiểm tra username: chỉ chữ cái, số và dấu gạch dưới
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$username" =~ $checkpass ]]; then
+        
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt Username."
+        sleep 3;tput cuu 3; tput ed
+          continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Nếu username hợp lệ, thoát vòng lặp
+    break
+done
+    echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Nhập mật khẩu: "
+    read matkhau
+    
+    # Kiểm tra mật khẩu rỗng
+    if [ "$matkhau" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập mật khẩu, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Regex kiểm tra mật khẩu: chỉ chữ cái, số và dấu gạch dưới
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$matkhau" =~ $checkpass ]]; then
+                echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt mật khẩu."
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Kiểm tra độ dài mật khẩu tối thiểu 6 ký tự
+    if [[ ${#matkhau} -lt 6 ]]; then
+                echo "========================================================================="
+        echo "Mật khẩu tối thiểu phải có 6 ký tự."
+        sleep 3;tput cuu 3; tput ed
+         continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Nếu mật khẩu hợp lệ, thoát vòng lặp
+    break
+done
+echo "-------------------------------------------------------------------------"
+echo "Thông tin bạn nhập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ thay thông tin đăng nhập cũ theo thông tin mới này "
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+#
+
+if [ ! -d /etc/nginx/pwprotect/$website ]; then
+mkdir -p /etc/nginx/pwprotect/$website
+fi
+
+rm -rf /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+htpasswd.py -c -b /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+if [ ! -f /etc/nginx/pwprotect/$website/.htpasswd_wp_login ]; then
+/etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+fi
+if [ ! -f /etc/nginx/pwprotect/$website/.htpasswd_wp_login  ]; then
+htpasswd -b -c /etc/nginx/pwprotect/$website/.htpasswd_wp_login  $username $matkhau
+fi
+chmod -R 644 /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i 's/.*htpasswd.*/auth_basic_user_file\ \/etc\/nginx\/pwprotect\/$website\/.htpasswd_wp_login;/g' /etc/nginx/pwprotect/$website/wp_login.conf 
+END
+chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+/etc/dsnvps/.tmp/abcdfrfrf.sh
+rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+
+
+clear
+echo "========================================================================="
+echo "Thay thông tin bảo vệ wp-login.php cho $website thành công"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Tên đăng nhập: $username | Mật khẩu: $matkhau"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+###################################
+#tatmatkhautruycap
+###################################
+elif [ "$chooseacction" = "tatmatkhautruycap" ]; then
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn tắt mật khẩu truy cập wp-login.php ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i '/wp_login.conf/d' /etc/nginx/conf.d/$website.conf
+#sed -i '/Protect-Wp-login.php/d' /etc/nginx/conf.d/$website.conf
+ 
+END
+chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+/etc/dsnvps/.tmp/abcdfrfrf.sh
+rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+rm -rf /etc/nginx/pwprotect/$website/wp_login.conf
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+
+
+clear
+echo "========================================================================= "
+echo "Tat mat khau truy cap wp-login.php cua $website thanh cong"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+;;
+esac
+clear
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+else
+clear
+exit 0
+fi
+fi
+fi
+###############################################################################################
+prompt="Nhập lựa chọn của bạn: "
+echo "========================================================================="
+echo "Lua chon mat khau khi truy cap wp-login.php"
+echo "========================================================================="
+options=( "Su Dung Username Va Mat Khau Mac Dinh" "Dang Nhap Bang Username Va Mat Khau Moi" )
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+    case "$REPLY" in
+    1) chooseacction="dungmacdinh"; break;;
+    2) chooseacction="dungthongtinmoi"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#dungthongtinmoi
+###################################
+if [ "$chooseacction" = "dungmacdinh" ]; then
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+
+
+###################################################################
+###################################################################
+if [ ! -d /etc/nginx/pwprotect/$website ]; then
+mkdir -p /etc/nginx/pwprotect/$website
+fi
+
+cat > "/etc/nginx/pwprotect/$website/wp_login.conf" <<END
+    location ~ ^/(wp-login\\.php) {
+		include /etc/nginx/fastcgi_params;
+		fastcgi_pass 127.0.0.1:9000;
+		fastcgi_param SCRIPT_FILENAME /home/$website/public_html\$fastcgi_script_name;
+		auth_basic "Authorization Required";
+		auth_basic_user_file  /etc/nginx/.htpasswd;
+	}
+END
+
+##############################################################
+config_file="/etc/nginx/conf.d/$website.conf"
+if ! grep -q "wp_login.conf" "$config_file"; then
+    line_number=$(grep -n '/etc/nginx/conf/ddos2.conf' "$config_file" | cut -d: -f1 | tail -n 1)
+    if [ -n "$line_number" ]; then
+        sed -i "$((line_number+1))i\\
+include /etc/nginx/pwprotect/$website/wp_login.conf;" "$config_file"
+    fi
+fi
+#########################################################################
+#if [ "$(grep Protect-Wp-login.php /etc/nginx/conf.d/$website.conf)" == "" ]; then
+#sed -i "/.*block.conf*./a\#Config\ to\ Protect-Wp-login.php" /etc/nginx/conf.d/$website.conf
+#sed -i "s/.*Protect-Wp-login.php*./\n&/" /etc/nginx/conf.d/$website.conf
+#fi
+#sed -i "/.*Protect-Wp-login.php*./ainclude \/etc\/nginx\/pwprotect\/$website\/wp_login.conf;" /etc/nginx/conf.d/$website.conf
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+clear
+echo "========================================================================="
+echo "Đặt mật khẩu bảo vệ wp-login.php của $website thành công"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Password: $passdefault"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+
+else 
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+###################################################################
+###################################################################
+    echo "-------------------------------------------------------------------------"
+while true; do
+
+    echo -n "Nhập username [ENTER]: " 
+    read username
+    # Kiểm tra username rỗng
+    if [ "$username" = "" ]; then
+                echo "========================================================================="
+        echo "Bạn chưa nhập username, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Regex kiểm tra username: chỉ chữ cái, số và dấu gạch dưới
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$username" =~ $checkpass ]]; then
+        
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt Username."
+        sleep 3;tput cuu 3; tput ed
+          continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Nếu username hợp lệ, thoát vòng lặp
+    break
+done
+    echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Nhập mật khẩu: "
+    read matkhau
+    
+    # Kiểm tra mật khẩu rỗng
+    if [ "$matkhau" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập mật khẩu, vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Regex kiểm tra mật khẩu: chỉ chữ cái, số và dấu gạch dưới
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$matkhau" =~ $checkpass ]]; then
+                echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt mật khẩu."
+        sleep 3;tput cuu 3; tput ed
+        continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Kiểm tra độ dài mật khẩu tối thiểu 6 ký tự
+    if [[ ${#matkhau} -lt 6 ]]; then
+        echo "========================================================================="
+        echo "Mật khẩu tối thiểu phải có 6 ký tự."
+        sleep 3;tput cuu 3; tput ed
+         continue  # Quay lại vòng lặp để nhập lại
+    fi
+    
+    # Nếu mật khẩu hợp lệ, thoát vòng lặp
+    break
+done
+
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 2
+if [ ! -d /etc/nginx/pwprotect/$website ]; then
+mkdir -p /etc/nginx/pwprotect/$website
+fi
+rm -rf /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+htpasswd.py -c -b /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+if [ ! -f /etc/nginx/pwprotect/$website/.htpasswd_wp_login ]; then
+/etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+fi
+if [ ! -f /etc/nginx/pwprotect/$website/.htpasswd_wp_login  ]; then
+htpasswd -b -c /etc/nginx/pwprotect/$website/.htpasswd_wp_login $username $matkhau
+fi
+chmod -R 644 /etc/nginx/pwprotect/$website/.htpasswd_wp_login
+
+cat > "/etc/nginx/pwprotect/$website/wp_login.conf" <<END
+    location ~ ^/(wp-login\\.php) {
+		include /etc/nginx/fastcgi_params;
+		fastcgi_pass 127.0.0.1:9000;
+		fastcgi_param SCRIPT_FILENAME /home/$website/public_html\$fastcgi_script_name;
+		auth_basic "Authorization Required";
+		auth_basic_user_file  /etc/nginx/pwprotect/$website/.htpasswd_wp_login;
+	}
+END
+	
+#if [ "$(grep Protect-Wp-login.php /etc/nginx/conf.d/$website.conf)" == "" ]; then
+#sed -i "/.*block.conf*./a\#Config\ to\ Protect-Wp-login.php" /etc/nginx/conf.d/$website.conf
+#sed -i "s/.*Protect-Wp-login.php*./\n&/" /etc/nginx/conf.d/$website.conf
+#fi
+#sed -i "/.*Protect-Wp-login.php*./ainclude \/etc\/nginx\/pwprotect\/$website\/wp_login.conf;" /etc/nginx/conf.d/$website.conf
+
+##############################################################
+config_file="/etc/nginx/conf.d/$website.conf"
+if ! grep -q "wp_login.conf" "$config_file"; then
+    line_number=$(grep -n '/etc/nginx/conf/ddos2.conf' "$config_file" | cut -d: -f1 | tail -n 1)
+    if [ -n "$line_number" ]; then
+        sed -i "$((line_number+1))i\\
+include /etc/nginx/pwprotect/$website/wp_login.conf;" "$config_file"
+    fi
+fi
+
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+clear
+echo "========================================================================="
+echo "Đặt mật khẩu bảo vệ wp-login.php của $website thành công"
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+
+exit
+fi
+

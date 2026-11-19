@@ -1,0 +1,174 @@
+#!/bin/bash
+###/etc/dsnvps/menu/dsnvps-find-files <<===  Check Ban quyen. neu khong dung thi xoa.
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Phát hiện lỗi ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+echo "-------------------------------------------------------------------------"
+echo "Trạng thái Nginx: "
+echo "-------------------------------------------------------------------------"
+nginx -t
+dsnvps
+fi
+fi
+/etc/dsnvps/menu/dsnvps-check-thay-doi-so-luong-domain-tren-server
+if [ -f /etc/dsnvps/.tmp/pbphpbb ]; then
+phpbb=$(cat /etc/dsnvps/.tmp/pbphpbb)
+fi
+if [ -f /etc/dsnvps/.tmp/pbsmf  ]; then
+smfpb=$(cat /etc/dsnvps/.tmp/pbsmf )
+fi
+if [ -f /etc/dsnvps/.tmp/pbmybb ]; then
+mybbpb=$(cat /etc/dsnvps/.tmp/pbmybb)
+fi
+if [ -f /etc/dsnvps/.tmp/pbwp ]; then
+wppb=$(cat /etc/dsnvps/.tmp/pbwp)
+fi
+if [ -f /etc/dsnvps/.tmp/pbjl ]; then
+jlpb=$(cat /etc/dsnvps/.tmp/pbjl)
+fi
+if [ -f /etc/dsnvps/.tmp/pbdp ]; then
+dppb=$(cat /etc/dsnvps/.tmp/pbdp)
+fi
+if [ -f /etc/dsnvps/.tmp/yourpb ]; then
+yourpb=$(cat /etc/dsnvps/.tmp/yourpb)
+fi
+if [ -f /etc/dsnvps/.tmp/pbflar ]; then
+flarumpb=$(cat /etc/dsnvps/.tmp/pbflar)
+fi
+if [ -f /etc/dsnvps/.tmp/pblar ]; then
+larpb=$(cat /etc/dsnvps/.tmp/pblar)
+fi
+if [ ! -f /etc/cron.d/dsnvps.code.cron ]; then
+touch /etc/cron.d/dsnvps.code.cron
+fi
+
+if [ ! -f /etc/dsnvps/domainvts/domainvts.conf ]; then
+vtsdomainmenu=`echo "Thêm Domain VTS     "`
+else
+vtsdomainmenu=`echo "Xóa/Thay Domain VTS "`
+fi
+
+
+##############################################
+if [ -f /etc/cron.d/auto.backup.all.websites.cron ] && [ -f /etc/dsnvps/auto.backup.all.websites.conf ]; then
+autobackupwebsite=ON
+else
+autobackupwebsite=OFF
+fi
+
+if [ -f /etc/cron.d/auto.backup.all.databases.cron ] && [ -f /etc/dsnvps/auto.backup.all.databases.conf ]; then
+autobackupdata=ON
+else
+autobackupdata=OFF
+fi
+
+if [ "$autobackupdata" = "ON" ] && [ "$autobackupwebsite" = "ON" ]; then
+safe=`echo ""`
+else
+safe=`echo "|| OFF = Not Safe"`
+fi
+
+show_menu1()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+printf "                        Thêm Website Vào Server\n"
+echo "========================================================================="
+notice_file="/etc/dsnvps/.tmp/.backup_notice_shown"
+if [[ ! -f "$notice_file" ]]; then
+    echo "Để an toàn, bạn nên BẬT tự động sao lưu và lưu backup ở thêm 1 nơi khác."
+    echo "-------------------------------------------------------------------------"
+    echo "Code: Sao Lưu & Phục Hồi Website => Tự Động Sao Lưu Tất Cả Website."
+    echo "-------------------------------------------------------------------------"
+    echo "Database: Sao Lưu & Phục Hồi Database => Tự Động Sao Lưu Tất Cả Database."
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS sẽ lần lượt sao lưu tất cả Website/Database theo thời gian bạn đặt"
+    echo "========================================================================="
+    touch "$notice_file"
+fi
+#echo "========================================================================="
+echo "Lưu ý: Bạn nên cài chứng chỉ SSL cho website sau khi thêm vào VPS."
+echo "-------------------------------------------------------------------------"
+echo "Khuyến nghị: Cài Đặt CloudFlare SSL (15 Năm) => Cài đặt Free SSL"
+echo "-------------------------------------------------------------------------"
+printf "Phải đọc: http://go.dsnvps/6588 \n"
+printf "=========================================================================\n"
+}
+#"===> 16) Thêm Domain Nginx Vhost Traffic Status"
+while true; do
+clear
+show_menu1
+    printf "%-42s  %31s\n" "1) Thêm Website " "| 66) Thêm Redirect Domain   |"
+    printf "%-42s  %31s\n" "2) Thêm Website + WordPress $wppb" "| 77) Thêm Park Domain       |"
+    printf "%-42s  %3b\n" "3) Thêm Website + PhpBB Forum $phpbb" "| \e[31m88) $vtsdomainmenu <=|\e[0m"
+    printf "%-42s  %31s\n" "4) Thêm Website + SMF Forum $smfpb" "| 99) Thống Kê Website       |"
+    printf "%-41s  %31s\n" "5) Thêm Website + MyBB Forum $mybbpb" "|----------------------------|"
+    printf "%-35s  %s\n" "6) Thêm Website + Opencart" " "
+    printf "%-35s  %s\n" "7) Thêm Website + Joomla $jlpb"  ""
+    printf "%-35s  %s\n" "8) Thêm Website + Drupal $dppb"""
+    printf "%-35s  %s\n" "9) Thêm Website + YourLS $yourpb" ""
+    printf "%-35s  %s\n" "10) Thêm Website + Flarum $flarumpb" ""
+    printf "%-35s  %s\n" "11) Thêm Website + Laravel $larpb" ""
+    printf "%-35s  %s\n" "12) Thêm Website + Config Vhost Cho Laravel" ""
+    printf "%-35s  %s\n" "13) Thêm Website + Config Vhost For Wordpress Cache" ""
+    printf "%-35s  %s\n" "14) Nhân bản Website (WordPress & ...)" ""
+    echo "========================================================================="
+   #printf "%-43s  %30s\n" " 3) Thêm Website + WP $wppb (Tải code)" ""
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in
+
+    1) /etc/dsnvps/menu/dsnvps-them-website;;
+    2) /etc/dsnvps/menu/dsnvps-them-website-auto-setup-wordpress-menu;;
+ #   3) /etc/dsnvps/menu/dsnvps-them-website-wp;;
+	3) /etc/dsnvps/menu/dsnvps-them-website-va-forum-phpbb;;
+	4) /etc/dsnvps/menu/dsnvps-them-website-va-forum-smf;;
+	5) /etc/dsnvps/menu/dsnvps-them-website-va-forum-mybb;;
+    6) /etc/dsnvps/menu/dsnvps-them-website-va-opencart;;
+    7) /etc/dsnvps/menu/dsnvps-them-website-joomla;;
+    8) /etc/dsnvps/menu/dsnvps-them-website-drupal-v2;;
+    #12) /etc/dsnvps/menu/dsnvps-them-website-va-sypex-dumper;;
+    #13) /etc/dsnvps/menu/dsnvps-them-website-va-mysql-dumper;;
+    9) /etc/dsnvps/menu/dsnvps-them-website-va-yourls;;
+    10) /etc/dsnvps/menu/dsnvps-them-website-va-forum-flarum;;
+    11) /etc/dsnvps/menu/dsnvps-them-website-laravel-auto;;
+    12) /etc/dsnvps/menu/dsnvps-them-website-laravel-auto-vhost-only;;
+    13) /etc/dsnvps/menu/dsnvps-them-website-wp;;
+    14) /etc/dsnvps/menu/dsnvps-nhan-ban-website-menu;;
+    77) /etc/dsnvps/menu/dsnvps-park-domain;;
+    66) /etc/dsnvps/menu/dsnvps-redirect-domain;;
+    88) /etc/dsnvps/menu/dsnvps-them-thay-xoa-domain-vts-nginx-vhost-traffic-status-vts;;
+    99) /etc/dsnvps/menu/dsnvps-list-website-tren-vps;; 
+0) clear; exit 0;;
+        *)
+            #clear
+            echo "========================================================================="
+            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 2
+            ########## XOA 4 DONG PHIA TREN ################
+ tput cuu 18   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<18; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 18   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+continue
+##############################################################
+            #echo "You typed wrong, Please type in the ordinal number on the list."; sleep 2.3 
+            #show_menu1  
+
+    esac
+
+done
+
+
+

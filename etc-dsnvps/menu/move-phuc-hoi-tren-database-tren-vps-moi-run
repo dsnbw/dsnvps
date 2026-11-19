@@ -1,0 +1,147 @@
+#!/bin/bash
+# Đọc file cấu hình chứa thông tin root MySQL
+
+. /root/dsnvps.conf
+rm -rf /etc/dsnvps/.tmp/ketquaphuchoi.txt
+# Đường dẫn file danh sách database
+DATABASE_LIST="/tmp/9oakxl.txt"
+# Đường dẫn file ghi kết quả
+RESULT_FILE="/etc/dsnvps/.tmp/ketquaphuchoi.txt"
+# Đường dẫn file thông tin database
+DBINFO_FILE="/root/DBinfo.txt"
+# Đường dẫn thư mục backup
+BACKUP_DIR="/home/dsnvps.demo/private_html/backup"
+
+# Tạo file kết quả mới (xóa nội dung cũ nếu có)
+> "$RESULT_FILE"
+
+# Tạo file DBinfo.txt nếu chưa tồn tại
+if [ ! -f "$DBINFO_FILE" ]; then
+    touch "$DBINFO_FILE"
+fi
+
+# Hàm kiểm tra database đã tồn tại chưa
+check_database_exists() {
+    local db_name="$1"
+    mysql -u root -p"$mariadbpass" -e "SHOW DATABASES LIKE '$db_name';" | grep -q "$db_name"
+    return $?
+}
+
+# Hàm kiểm tra file backup có dữ liệu không
+check_backup_has_data() {
+    local backup_file="$1"
+    gunzip -c "$backup_file" | grep -q -E "INSERT INTO|CREATE TABLE.*VALUES"
+    return $?
+}
+
+# Hàm kiểm tra database có dữ liệu không
+check_database_has_data() {
+    local db_name="$1"
+    local row_count=$(mysql -u root -p"$mariadbpass" -N -e "SELECT SUM(TABLE_ROWS) FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '$db_name';")
+    # Xử lý trường hợp row_count là NULL hoặc rỗng
+    if [ -z "$row_count" ] || [ "$row_count" = "NULL" ]; then
+        return 1  # Database rỗng
+    elif [ "$row_count" -gt 0 ]; then
+        return 0  # Database có dữ liệu
+    else
+        return 1  # Database không có dữ liệu (row_count = 0)
+    fi
+}
+
+# Hàm xóa thông tin database cũ trong DBinfo.txt
+remove_old_db_info() {
+    local db_name="$1"
+    sed -i "/^Database: $db_name - Created on:/,+3d" "$DBINFO_FILE"
+}
+
+# Hàm thêm thông tin database vào DBinfo.txt
+add_db_info() {
+    local db_name="$1"
+    local username="$2"
+    local password="$3"
+    local create_date=$(date '+%d/%m/%Y')
+
+    echo "Database: $db_name - Created on: $create_date" >> "$DBINFO_FILE"
+    echo "=========================================================================" >> "$DBINFO_FILE"
+    echo "Data name: $db_name" >> "$DBINFO_FILE"
+    echo "Username: $username" >> "$DBINFO_FILE"
+    echo "password: $password" >> "$DBINFO_FILE"
+}
+
+# Hàm xử lý từng database
+process_database() {
+    local db_name="$1"
+    local username="$2"
+    local password="$3"
+    local website="dsnvps.demo"  # Giả định website từ đường dẫn
+
+    # Kiểm tra database chưa tồn tại
+    if ! check_database_exists "$db_name"; then
+        # Kiểm tra xem có file backup cho database này không
+        if [ -d "$BACKUP_DIR/$db_name" ] && [ -n "$(ls -A $BACKUP_DIR/$db_name/*.sql.gz 2>/dev/null)" ]; then
+            # Lấy file backup mới nhất
+            backup_file=$(ls -t "$BACKUP_DIR/$db_name"/*.sql.gz 2>/dev/null | head -n 1)
+
+            if [ -n "$backup_file" ]; then
+                # Kiểm tra file backup có dữ liệu không
+                local backup_has_data=0
+                if check_backup_has_data "$backup_file"; then
+                    backup_has_data=1
+                fi
+
+                # Tạo database
+                #mysql -u root -p"$mariadbpass" -e "CREATE DATABASE IF NOT EXISTS $db_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+                mysql -u root -p"$mariadbpass" -e "CREATE DATABASE IF NOT EXISTS $db_name CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci;"
+                #mysql -u root -p"$mariadbpass" -e "CREATE DATABASE IF NOT EXISTS $db_name;"
+                
+                # Tạo user và cấp quyền
+                mysql -u root -p"$mariadbpass" -e "CREATE USER IF NOT EXISTS '$username'@'localhost' IDENTIFIED BY '$password';"
+                mysql -u root -p"$mariadbpass" -e "GRANT ALL PRIVILEGES ON $db_name.* TO '$username'@'localhost';"
+                mysql -u root -p"$mariadbpass" -e "FLUSH PRIVILEGES;"
+
+                # Phục hồi database
+                if gunzip < "$backup_file" | mysql -u root -p"$mariadbpass" -f "$db_name"; then
+                    # Kiểm tra database sau khi phục hồi
+                    local db_has_data=0
+                    if check_database_has_data "$db_name"; then
+                        db_has_data=1
+                    fi
+
+                    # So sánh trạng thái backup và database
+                    if [ "$backup_has_data" -eq 1 ] && [ "$db_has_data" -eq 0 ]; then
+                        echo "Phục hồi thất bại $db_name - File backup có dữ liệu nhưng database rỗng" >> "$RESULT_FILE"
+                        # Xóa database và user nếu thất bại
+                        mysql -u root -p"$mariadbpass" -e "DROP DATABASE $db_name;"
+                        mysql -u root -p"$mariadbpass" -e "DROP USER '$username'@'localhost';"
+                    else
+                        echo "Phục hồi thành công: $db_name" >> "$RESULT_FILE"
+                        # Ghi thông tin vào DBinfo.txt bất kể có dữ liệu hay không
+                        remove_old_db_info "$db_name"
+                        add_db_info "$db_name" "$username" "$password"
+                    fi
+                else
+                    echo "Phục hồi thất bại $db_name - Lỗi khi phục hồi" >> "$RESULT_FILE"
+                    # Xóa database và user nếu lỗi
+                    mysql -u root -p"$mariadbpass" -e "DROP DATABASE $db_name;"
+                    mysql -u root -p"$mariadbpass" -e "DROP USER '$username'@'localhost';"
+                fi
+            else
+                echo "Phục hồi thất bại $db_name - Không tìm thấy file backup" >> "$RESULT_FILE"
+            fi
+        fi
+    fi
+}
+
+# Đọc file danh sách database và xử lý từng mục
+while IFS= read -r line; do
+    if [[ "$line" =~ ^Data\ name:\ (.*)$ ]]; then
+        db_name="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^Username:\ (.*)$ ]]; then
+        username="${BASH_REMATCH[1]}"
+    elif [[ "$line" =~ ^password:\ (.*)$ ]]; then
+        password="${BASH_REMATCH[1]}"
+        process_database "$db_name" "$username" "$password"
+    fi
+done < "$DATABASE_LIST"
+#rm -rf /tmp/9oakxl.txt
+exit 0

@@ -1,0 +1,287 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/yoursitelist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/yoursitelist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r YourLSsite
+    do
+if [ -f /home/$YourLSsite/public_html/yourls-api.php ]; then
+if [ -f /home/$YourLSsite/public_html/user/config.php ]; then
+echo "$YourLSsite" >> /etc/dsnvps/.tmp/yoursitelist
+fi
+fi
+ done < "$file1"
+
+
+echo "========================================================================="
+echo "Dùng chức năng này để tạo tài khoản admin mới cho YourLS website mà không"
+echo "-------------------------------------------------------------------------"
+echo "cần biết thông tin tài khoản cũ."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2184"
+
+echo "========================================================================="
+ if [ ! -f /etc/dsnvps/.tmp/yoursitelist ]; then
+echo "========================================================================="
+ echo "DSNVPS không tìm thấy website chạy YourLS Code trên Server."
+ echo "-------------------------------------------------------------------------"
+read -rp "Nhấn [Enter] để quay lại menu..."
+clear
+dsnvps
+ exit
+ fi
+ ####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+dsnvps  
+fi
+###################################################################
+###################################################################
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/yoursitelist
+echo "Danh sách website chạy YourLS code trên server:"
+echo "-------------------------------------------------------------------------"
+################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+    echo "========================================================================="
+while true; do
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+            sleep 3 && tput cuu 3 && tput ed
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+dsnvps
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+       echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+            sleep 3 && tput cuu 3 && tput ed
+    fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Bạn chọn: $website"; sleep 1
+echo "========================================================================="
+
+# Vòng lặp để nhập tài khoản admin cho đến khi hợp lệ
+checkuseradmin="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+
+while true; do
+  echo -n "Nhập tài khoản admin mới: " 
+  read adminwp
+
+  if [ -z "$adminwp" ]; then
+    echo "========================================================================="
+    echo "Bạn phải nhập tài khoản admin."
+                sleep 3 && tput cuu 3 && tput ed
+    continue
+  fi
+
+  if [[ ${#adminwp} -lt 5 ]]; then
+        echo "========================================================================="
+    echo "User admin tối thiểu phải có 5 ký tự "
+                sleep 3 && tput cuu 3 && tput ed
+    continue
+  fi
+
+  if [[ ! "$adminwp" =~ $checkuseradmin ]]; then
+        echo "========================================================================="
+    echo "Bạn chỉ được sử dụng chữ cái và số cho user admin"
+                sleep 3 && tput cuu 3 && tput ed
+    continue
+  fi
+
+  # Nếu hợp lệ thì thoát vòng lặp
+  break
+done
+
+# Vòng lặp để nhập mật khẩu
+  echo "-------------------------------------------------------------------------"
+while true; do
+  echo -n "Nhập mật khẩu cho $adminwp: " 
+  read passwp
+
+  if [[ ${#passwp} -lt 8 ]]; then
+        echo "========================================================================="
+    echo "Mật khẩu cho $adminwp tối thiểu phải có 8 kí tự "
+            sleep 3 && tput cuu 3 && tput ed
+    continue
+  fi
+
+  # Nếu hợp lệ thì thoát vòng lặp
+  break
+done
+rm -rf /etc/dsnvps/.tmp/yourconfig.php.bak
+cp /home/$website/public_html/user/config.php /etc/dsnvps/.tmp/yourconfig.php.bak
+# Đọc các giá trị define() từ file config.php cũ
+
+site_url=$(awk -F"'" '/define.*YOURLS_SITE/ {print $4}' /etc/dsnvps/.tmp/yourconfig.php.bak | sed 's|^[^/]*//||')
+db_user=$(awk -F"'" '/define.*YOURLS_DB_USER/ {print $4}' /etc/dsnvps/.tmp/yourconfig.php.bak)
+db_pass=$(awk -F"'" '/define.*YOURLS_DB_PASS/ {print $4}' /etc/dsnvps/.tmp/yourconfig.php.bak)
+db_name=$(awk -F"'" '/define.*YOURLS_DB_NAME/ {print $4}' /etc/dsnvps/.tmp/yourconfig.php.bak)
+db_prefix=$(awk -F"'" '/define.*YOURLS_DB_PREFIX/ {print $4}' /etc/dsnvps/.tmp/yourconfig.php.bak)
+cookie_key=$(awk -F"'" '/define.*YOURLS_COOKIEKEY/ {print $4}' /etc/dsnvps/.tmp/yourconfig.php.bak)
+#private_status=$(awk '/define.*YOURLS_PRIVATE/ {gsub(/.*define\(.*YOURLS_PRIVATE..|).*/, ""); print}' /etc/dsnvps/.tmp/yourconfig.php.bak)
+private_status=$(awk -F"[() ,']+" '/define.*YOURLS_PRIVATE/ {print $3}' /etc/dsnvps/.tmp/yourconfig.php.bak | xargs)
+# Tạo file mới config.php với các giá trị đã lấy từ file cũ
+cat > /home/$website/public_html/user/config.php << 'EOF'
+<?php
+/* This is a sample config file.
+ * Edit this file with your own settings and save it as "config.php"
+ *
+ * IMPORTANT: edit and save this file as plain ASCII text, using a text editor, for instance TextEdit on Mac OS or
+ * Notepad on Windows. Make sure there is no character before the opening <?php at the beginning of this file.
+ */
+
+/*
+ ** MySQL settings - You can get this info from your web host
+ */
+
+/** MySQL database username */
+define( 'YOURLS_DB_USER', 'database_username_yourls' );
+
+/** MySQL database password */
+define( 'YOURLS_DB_PASS', 'database_password_yourls' );
+
+/** The name of the database for YOURLS
+ ** Use lower case letters [a-z], digits [0-9] and underscores [_] only */
+define( 'YOURLS_DB_NAME', 'database_name_yourls' );
+
+/** MySQL hostname.
+ ** If using a non standard port, specify it like 'hostname:port', e.g. 'localhost:9999' or '127.0.0.1:666' */
+define( 'YOURLS_DB_HOST', 'localhost' );
+
+/** MySQL tables prefix
+ ** YOURLS will create tables using this prefix (eg `yourls_url`, `yourls_options`, ...)
+ ** Use lower case letters [a-z], digits [0-9] and underscores [_] only */
+define( 'YOURLS_DB_PREFIX', '123yourls_' );
+
+/*
+ ** Site options
+ */
+
+/** YOURLS installation URL
+ ** All lowercase, no trailing slash at the end.
+ ** If you define it to "http://sho.rt", don't use "http://www.sho.rt" in your browser (and vice-versa)
+ ** To use an IDN domain (eg http://héhé.com), write its ascii form here (eg http://xn--hh-bjab.com) */
+define( 'YOURLS_SITE', 'http://yourdomain.com' );
+
+/** YOURLS language
+ ** Change this setting to use a translation file for your language, instead of the default English.
+ ** That translation file (a .mo file) must be installed in the user/language directory.
+ ** See http://yourls.org/translations for more information */
+define( 'YOURLS_LANG', '' );
+
+/** Allow multiple short URLs for a same long URL
+ ** Set to true to have only one pair of shortURL/longURL (default YOURLS behavior)
+ ** Set to false to allow multiple short URLs pointing to the same long URL (bit.ly behavior) */
+define( 'YOURLS_UNIQUE_URLS', true );
+
+/** Private means the Admin area will be protected with login/pass as defined below.
+ ** Set to false for public usage (eg on a restricted intranet or for test setups)
+ ** Read http://yourls.org/privatepublic for more details if you're unsure */
+define( 'YOURLS_PRIVATE', private_status );
+
+/** A random secret hash used to encrypt cookies. You don't have to remember it, make it long and complicated
+ ** Hint: copy from http://yourls.org/cookie */
+define( 'YOURLS_COOKIEKEY', 'randomcokie' );
+
+/** Username(s) and password(s) allowed to access the site. Passwords either in plain text or as encrypted hashes
+ ** YOURLS will auto encrypt plain text passwords in this file
+ ** Read http://yourls.org/userpassword for more information */
+$yourls_user_passwords = [
+	'admin_yourls' => 'matkhau_yourls',
+	// 'username2' => 'password2',
+	// You can have one or more 'login'=>'password' lines
+];
+
+/** URL shortening method: either 36 or 62
+ ** 36: generates all lowercase keywords (ie: 13jkm)
+ ** 62: generates mixed case keywords (ie: 13jKm or 13JKm) 
+ ** For more information, see https://yourls.org/urlconvert */
+define( 'YOURLS_URL_CONVERT', 36 );
+
+/** Debug mode to output some internal information
+ ** Default is false for live site. Enable when coding or before submitting a new issue */
+define( 'YOURLS_DEBUG', false );
+
+/**
+* Reserved keywords (so that generated URLs won't match them)
+* Define here negative, unwanted or potentially misleading keywords.
+*/
+$yourls_reserved_URL = [
+	'porn', 'faggot', 'sex', 'nigger', 'fuck', 'cunt', 'dick',
+];
+
+/*
+ ** Personal settings would go after here.
+ */
+EOF
+randomcokie=`date |md5sum |cut -c '1-32'`
+sed -i "s/database_username_yourls/${db_user}/g" /home/$website/public_html/user/config.php
+sed -i "s/database_password_yourls/${db_pass}/g" /home/$website/public_html/user/config.php
+sed -i "s/database_name_yourls/${db_name}/g" /home/$website/public_html/user/config.php
+sed -i "s/yourdomain.com/${site_url}/g" /home/$website/public_html/user/config.php
+sed -i "s/randomcokie/${randomcokie}/g" /home/$website/public_html/user/config.php
+sed -i "s/admin_yourls/${adminwp}/g" /home/$website/public_html/user/config.php
+sed -i "s#matkhau_yourls#$(printf '%q' "${passwp}")#g" /home/$website/public_html/user/config.php
+sed -i "s/private_status/${private_status}/g" /home/$website/public_html/user/config.php
+chown -R nginx:nginx /home/$website/public_html
+rm -rf /etc/dsnvps/.tmp/yourconfig.php.bak
+# Thông báo thành công
+echo "-------------------------------------------------------------------------"
+echo "Chờ xíu ..."
+sleep 3
+
+clear
+echo "========================================================================="
+echo "Thay thông tin đăng nhập cho tài khoản admin thành công."
+echo "-------------------------------------------------------------------------"
+echo "User: $adminwp"
+echo "-------------------------------------------------------------------------"
+echo "Mật khẩu: $passwp"
+dsnvps

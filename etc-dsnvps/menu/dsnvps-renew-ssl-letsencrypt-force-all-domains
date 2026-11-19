@@ -1,0 +1,5 @@
+#!/bin/bash
+echo "=========================================================================" 
+"/root/.acme.sh"/acme.sh --cron --home "/root/.acme.sh" > /dev/null
+/root/.acme.sh/acme.sh --cron --force
+/etc/dsnvps/menu/dsnvps-list-domain-cai-dat-letsencrypt

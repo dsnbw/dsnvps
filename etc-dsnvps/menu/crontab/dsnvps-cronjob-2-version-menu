@@ -1,0 +1,47 @@
+#!/bin/bash
+clear
+echo "========================================================================="
+echo "Bạn có thể quản lý 2 loại Cronjob:"
+echo "========================================================================="
+echo -e "\033[31m==> Quản Lý Cronjob Mặc Định:\033[0m Cronjob theo cơ chế mặc định của Linux."
+echo "-------------------------------------------------------------------------"
+echo "Chu kỳ tối thiểu của cronjob mặc định là 1 phút."
+echo "========================================================================="
+echo -e "\033[31m==> Quản Lý Micro Cronjob (Cronjob hoạt động theo giây):\033[0m Được xây dựng"
+echo "-------------------------------------------------------------------------"
+echo "riêng cho VPS chạy DSNVPS. Với chức năng này, bạn có thể tạo, xóa..."
+echo "-------------------------------------------------------------------------"
+echo "Các cronjob có chu kỳ tối thiểu 1 giây. Phù hợp với DEV cần Cronjob"
+echo "-------------------------------------------------------------------------"
+echo "ngắn hoặc cronjob đòi hỏi thời gian hoạt động tính bằng giây."
+echo "========================================================================="
+echo "========================================================================="
+while true; do
+echo ""
+printf "%-49s %s\n" "1) Quản Lý Cronjob Mặc Định" "2) Quản Lý Micro Cronjob"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in   
+    1) clear && /etc/dsnvps/menu/crontab/dsnvps-cronjob-menu;;
+    2) clear && /etc/dsnvps/menu/crontab/dsnvps-cronjob-theo-giay-menu;; 
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+
+
+

@@ -1,0 +1,252 @@
+#!/bin/bash
+
+# Đường dẫn file cấu hình Nginx và file sao lưu
+NGINX_CONF="/etc/nginx/nginx.conf"
+BACKUP_CONF="/tmp/nginx.conf.bak"
+
+# Kiểm tra sự tồn tại của file cấu hình Nginx
+if [ ! -f "$NGINX_CONF" ]; then
+    echo "Không tìm thấy file cấu hình Nginx: $NGINX_CONF, bỏ qua phần tối ưu Nginx."
+    exit 1
+fi
+
+# Lấy thông tin RAM (tính bằng MB) và số lượng CPU cores
+TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+CPU_CORES=$(nproc)
+
+# Giá trị mặc định cho các thông số Nginx
+WORKER_PROCESSES=1
+WORKER_CONNECTIONS=1024
+CACHE_MAX=130000
+CACHE_INACTIVE="20s"
+KEEPALIVE_REQUESTS=1000
+GZIP_BUFFERS="32 8k"
+GZIP_COMP_LEVEL=5
+SERVER_NAMES_HASH_MAX=1024
+LARGE_CLIENT_HEADER_BUFFERS="4 256k"
+
+# Điều chỉnh thông số dựa trên dung lượng RAM
+if [ "$TOTAL_RAM" -ge 31000 ]; then
+    CACHE_MAX=200000
+    CACHE_INACTIVE="60s"
+    KEEPALIVE_REQUESTS=2000
+    GZIP_BUFFERS="16 32k"
+    GZIP_COMP_LEVEL=6
+    SERVER_NAMES_HASH_MAX=4096
+    LARGE_CLIENT_HEADER_BUFFERS="4 512k"
+    WORKER_CONNECTIONS=2048
+elif [ "$TOTAL_RAM" -ge 15800 ]; then
+    CACHE_MAX=130000
+    CACHE_INACTIVE="40s"
+    KEEPALIVE_REQUESTS=1500
+    GZIP_BUFFERS="16 16k"
+    GZIP_COMP_LEVEL=5
+    SERVER_NAMES_HASH_MAX=2048
+    LARGE_CLIENT_HEADER_BUFFERS="4 256k"
+    WORKER_CONNECTIONS=1024
+elif [ "$TOTAL_RAM" -ge 7800 ]; then
+    CACHE_MAX=100000
+    CACHE_INACTIVE="30s"
+    KEEPALIVE_REQUESTS=1200
+    GZIP_BUFFERS="32 8k"
+    GZIP_COMP_LEVEL=5
+    SERVER_NAMES_HASH_MAX=1024
+    LARGE_CLIENT_HEADER_BUFFERS="4 128k"
+    WORKER_CONNECTIONS=1024
+elif [ "$TOTAL_RAM" -ge 3800 ]; then
+    CACHE_MAX=50000
+    CACHE_INACTIVE="25s"
+    KEEPALIVE_REQUESTS=1000
+    GZIP_BUFFERS="16 8k"
+    GZIP_COMP_LEVEL=4
+    SERVER_NAMES_HASH_MAX=512
+    LARGE_CLIENT_HEADER_BUFFERS="4 64k"
+    WORKER_CONNECTIONS=1024
+elif [ "$TOTAL_RAM" -ge 1980 ]; then
+    CACHE_MAX=25000
+    CACHE_INACTIVE="20s"
+    KEEPALIVE_REQUESTS=850
+    GZIP_BUFFERS="8 8k"
+    GZIP_COMP_LEVEL=3
+    SERVER_NAMES_HASH_MAX=512
+    LARGE_CLIENT_HEADER_BUFFERS="4 32k"
+    WORKER_CONNECTIONS=768
+elif [ "$TOTAL_RAM" -ge 800 ]; then
+    # RAM từ 800MB đến dưới 1980MB (~1GB)
+    CACHE_MAX=15000
+    CACHE_INACTIVE="15s"
+    KEEPALIVE_REQUESTS=300
+    GZIP_BUFFERS="4 8k"
+    GZIP_COMP_LEVEL=2
+    SERVER_NAMES_HASH_MAX=256
+    LARGE_CLIENT_HEADER_BUFFERS="4 8k"
+    WORKER_CONNECTIONS=512
+elif [ "$TOTAL_RAM" -ge 400 ]; then
+    # RAM từ 400MB đến dưới 800MB (~512MB)
+    CACHE_MAX=1000
+    CACHE_INACTIVE="10s"
+    KEEPALIVE_REQUESTS=100
+    GZIP_BUFFERS="4 4k"
+    GZIP_COMP_LEVEL=1
+    SERVER_NAMES_HASH_MAX=128
+    LARGE_CLIENT_HEADER_BUFFERS="2 4k"
+    WORKER_CONNECTIONS=128
+else
+    # RAM dưới 490MB
+    CACHE_MAX=500
+    CACHE_INACTIVE="5s"
+    KEEPALIVE_REQUESTS=50
+    GZIP_BUFFERS="2 4k"
+    GZIP_COMP_LEVEL=1
+    SERVER_NAMES_HASH_MAX=64
+    LARGE_CLIENT_HEADER_BUFFERS="1 4k"
+    WORKER_CONNECTIONS=64
+fi
+
+# Điều chỉnh worker_processes dựa trên số CPU cores
+if [ "$CPU_CORES" -ge 2 ]; then
+    WORKER_PROCESSES="$CPU_CORES"
+else
+    WORKER_PROCESSES=1
+fi
+
+# Sao lưu file cấu hình hiện tại
+cp "$NGINX_CONF" "$BACKUP_CONF"
+
+# Tạo file tạm để chỉnh sửa
+TEMP_CONF="/tmp/nginx.conf.temp"
+cp "$NGINX_CONF" "$TEMP_CONF"
+
+# Cập nhật worker_processes ở cấp cao nhất
+if grep -q "worker_processes" "$TEMP_CONF"; then
+    sed -i "s/worker_processes .*/worker_processes $WORKER_PROCESSES;/" "$TEMP_CONF"
+else
+    sed -i "/^events {/i worker_processes $WORKER_PROCESSES;" "$TEMP_CONF"
+fi
+
+# Cập nhật worker_connections trong khối events
+if grep -q "events {" "$TEMP_CONF"; then
+    if grep -q "worker_connections" "$TEMP_CONF"; then
+        sed -i "/events {/,/}/ s/worker_connections .*/    worker_connections $WORKER_CONNECTIONS;/" "$TEMP_CONF"
+    else
+        sed -i "/events {/a\    worker_connections $WORKER_CONNECTIONS;" "$TEMP_CONF"
+    fi
+else
+    sed -i "$ a events {\n    worker_connections $WORKER_CONNECTIONS;\n}" "$TEMP_CONF"
+fi
+
+# Danh sách các tham số trong khối http
+HTTP_PARAMS=(
+    "open_file_cache max=$CACHE_MAX inactive=$CACHE_INACTIVE"
+    "keepalive_requests $KEEPALIVE_REQUESTS"
+    "gzip_buffers $GZIP_BUFFERS"
+    "gzip_comp_level $GZIP_COMP_LEVEL"
+    "server_names_hash_max_size $SERVER_NAMES_HASH_MAX"
+    "large_client_header_buffers $LARGE_CLIENT_HEADER_BUFFERS"
+)
+
+# Cập nhật hoặc thêm các tham số vào khối http
+if grep -q "http {" "$TEMP_CONF"; then
+    for param in "${HTTP_PARAMS[@]}"; do
+        KEY=$(echo "$param" | cut -d' ' -f1)
+        VALUE=$(echo "$param" | cut -d' ' -f2-)
+        if grep -q "$KEY" "$TEMP_CONF"; then
+            sed -i "/http {/,/}/ s|$KEY .*|$KEY $VALUE;|" "$TEMP_CONF"
+        else
+            sed -i "/http {/a\    $KEY $VALUE;" "$TEMP_CONF"
+        fi
+    done
+else
+    sed -i "$ a http {\n$(printf "    %s;\n" "${HTTP_PARAMS[@]}")\n}" "$TEMP_CONF"
+fi
+
+# Ghi đè file cấu hình chính bằng file tạm
+mv "$TEMP_CONF" "$NGINX_CONF"
+
+# Kiểm tra cấu hình và reload Nginx
+if ! nginx -t &>/dev/null; then
+    echo "Cấu hình Nginx lỗi, khôi phục bản sao lưu."
+    cp "$BACKUP_CONF" "$NGINX_CONF"
+else
+    systemctl reload nginx 2>/dev/null || nginx -s reload 2>/dev/null
+    echo "Cấu hình Nginx đã được tối ưu và reload thành công."
+fi
+
+##########
+# Tối ưu Brotli
+##########
+
+#!/bin/bash
+
+# Tối ưu Brotli
+BROTLI_CONF="/etc/nginx/conf/brotli.conf"
+BACKUP_CONF="/tmp/brotli.conf.bak"
+
+# Kiểm tra file cấu hình Brotli có tồn tại không
+if [ ! -f "$BROTLI_CONF" ]; then
+   echo "" # echo "File cấu hình Brotli ($BROTLI_CONF) không tồn tại, thoát."
+    #exit 1
+fi
+
+# Lấy thông tin RAM và CPU nếu chưa được định nghĩa
+if [ -z "$TOTAL_RAM" ]; then
+    TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')  # RAM tổng trong MB
+fi
+if [ -z "$CPU_CORES" ]; then
+    CPU_CORES=$(nproc)  # Số lõi CPU
+fi
+
+# Sao lưu cấu hình trước khi chỉnh sửa
+if ! cp "$BROTLI_CONF" "$BACKUP_CONF"; then
+  echo ""   echo "Không thể sao lưu $BROTLI_CONF, thoát."
+    exit 1
+fi
+
+# Điều chỉnh cấp độ nén theo RAM
+if [ "$TOTAL_RAM" -ge 32000 ]; then
+    BROTLI_COMP_LEVEL=11
+elif [ "$TOTAL_RAM" -ge 16000 ]; then
+    BROTLI_COMP_LEVEL=10
+elif [ "$TOTAL_RAM" -ge 8000 ]; then
+    BROTLI_COMP_LEVEL=8
+elif [ "$TOTAL_RAM" -ge 4000 ]; then
+    BROTLI_COMP_LEVEL=6
+elif [ "$TOTAL_RAM" -ge 2000 ]; then
+    BROTLI_COMP_LEVEL=4
+else
+    BROTLI_COMP_LEVEL=3
+fi
+
+# Nếu CPU thấp hơn RAM, hạ mức nén để tránh tải cao
+case "$CPU_CORES" in
+    6|7) [ "$BROTLI_COMP_LEVEL" -gt 8 ] && BROTLI_COMP_LEVEL=8 ;;
+    4|5) [ "$BROTLI_COMP_LEVEL" -gt 6 ] && BROTLI_COMP_LEVEL=6 ;;
+    3) [ "$BROTLI_COMP_LEVEL" -gt 4 ] && BROTLI_COMP_LEVEL=4 ;;
+    2) [ "$BROTLI_COMP_LEVEL" -gt 3 ] && BROTLI_COMP_LEVEL=3 ;;
+    1) BROTLI_COMP_LEVEL=2 ;;
+    *) : ;;  # Không thay đổi nếu CPU >= 8
+esac
+
+# Cập nhật file cấu hình Brotli (chỉ thay đổi giá trị, không dùng ">>")
+sed -i "s|^\s*brotli_comp_level\s*[0-9]\+;|brotli_comp_level $BROTLI_COMP_LEVEL;|" "$BROTLI_CONF"
+
+# Kiểm tra và reload Nginx
+if nginx -t &>/dev/null; then
+    if ! systemctl reload nginx 2>/dev/null && ! nginx -s reload 2>/dev/null; then
+       echo ""  #echo "Không thể reload Nginx, kiểm tra dịch vụ."
+        #exit 1
+    else
+       echo "" # echo "Cấu hình Brotli đã được cập nhật và Nginx reload thành công."
+    fi
+else
+echo ""
+    #echo "Cấu hình Nginx lỗi, khôi phục bản sao lưu."
+    cp "$BACKUP_CONF" "$BROTLI_CONF"
+   # exit 1
+fi
+
+
+
+
+
+

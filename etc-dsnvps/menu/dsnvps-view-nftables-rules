@@ -1,0 +1,98 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra xem strace có đang chạy không
+if pgrep -x "strace" > /dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Tiến trình strace đang chạy. Vui lòng dừng strace trước khi tiếp tục."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra xem nftables có được cài đặt không
+if ! command -v nft &> /dev/null; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: nftables không được cài đặt trên hệ thống này!"
+    echo "Vui lòng cài đặt nftables trước khi sử dụng chức năng này."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra biến mainsite
+if [ -z "$mainsite" ]; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Biến mainsite không được định nghĩa trong /root/dsnvps.conf."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra thư mục private_html
+private_html_dir="/home/$mainsite/private_html"
+if [ ! -d "$private_html_dir" ]; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Thư mục $private_html_dir không tồn tại."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+# Kiểm tra quyền ghi thư mục
+if [ ! -w "$private_html_dir" ]; then
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Không có quyền ghi vào thư mục $private_html_dir."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+fi
+
+
+clear
+printf "=========================================================================\n"
+echo "Nftables Firewall Rules:"
+printf "=========================================================================\n"
+
+# Xóa các tệp nftablesRules cũ
+rm -f "$private_html_dir/nftablesRules"* 2>/dev/null
+
+# Tạo mã ngẫu nhiên dài hơn
+randomcode=$(cat /dev/urandom | tr -dc 'a-z0-9' | head -c 8)
+
+# Tạo tệp quy tắc
+output_file="$private_html_dir/nftablesRules-$randomcode.txt"
+{
+    echo "============================================================================"
+    echo "Rules cua nftables tren VPS: ${serverip:-unknown} - tao boi DSNVPS"
+    echo "============================================================================"
+    echo ""
+    echo "Thoi gian tao: $(date)"
+    echo ""
+    nft list ruleset
+} > "$output_file" || {
+    clear
+    echo "========================================================================="
+    echo "Lỗi: Không thể ghi quy tắc nftables vào $output_file."
+    /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
+    exit 1
+}
+
+# Đặt quyền tệp và chủ sở hữu
+chmod 640 "$output_file"
+chown nginx:nginx "$output_file"
+cat $output_file
+echo "========================================================================="
+echo "Link xem Nftables Firewall Rules:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/nftablesRules-$randomcode.txt"
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại menu DSNVPS ..."
+clear
+/etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu

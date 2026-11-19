@@ -1,0 +1,80 @@
+#!/bin/bash
+if [ ! -d /home/dsnvps.demo/private_html/tmp ]; then
+mkdir -p /home/dsnvps.demo/private_html/tmp
+chmod -R 777 /home/dsnvps.demo/private_html/tmp
+fi
+
+####### phpMyadmin###############
+cd /home/dsnvps.demo/private_html/
+mkdir -p status
+cp -r /etc/dsnvps/menu/inc/phpsys/status/index.zip /home/dsnvps.demo/private_html/index.html
+cp -r /etc/dsnvps/menu/inc/phpsys/status/ocp.zip /home/dsnvps.demo/private_html/status/ocp.php
+cp -r /etc/dsnvps/menu/inc/phpsys/status/php_info.zip /home/dsnvps.demo/private_html/status/php_info.php
+cp -r /etc/dsnvps/menu/inc/phpsys/status/status.zip /home/dsnvps.demo/private_html/status/status.php
+cp -r /etc/dsnvps/menu/inc/phpsys/status/adminer.zip /home/dsnvps.demo/private_html/status/adminer.php
+wget -q https://www.phpmyadmin.net/downloads/phpMyAdmin-latest-all-languages.zip
+unzip -q phpMyAdmin-*.zip
+rm -rf phpMyAdmin-*.zip
+mv phpMyAdmin-* phpmyadmin
+randomblow=`date |md5sum |cut -c '1-32'`;
+cd phpmyadmin
+sed -e "s|cfg\['blowfish_secret'\] = ''|cfg['blowfish_secret'] = '$randomblow'|" config.sample.inc.php > config.inc.php
+cd
+unzip /etc/dsnvps/menu/inc/phpsys/myoosdumper.zip -d /home/dsnvps.demo/private_html
+
+
+##########################
+# Thông tin đăng nhập cho File Manager 
+######################################################
+matkhau=`date |md5sum |cut -c '1-32'`
+matkhaumahoa=$(php -r "echo password_hash('$matkhau', PASSWORD_DEFAULT);")
+rm -rf /home/dsnvps.demo/private_html/vsupload
+cp -r /etc/dsnvps/menu/inc/phpsys/vsupload /home/dsnvps.demo/private_html/
+####
+target_file="/home/dsnvps.demo/private_html/vsupload/index.php"
+# Thay thế chính xác chuỗi 'matkhaumahoa' trong file PHP
+sed -i "s|'matkhaumahoa'|'$matkhaumahoa'|" "$target_file"
+chown -R nginx:nginx /home/dsnvps.demo/private_html
+rm -rf /etc/dsnvps/vsupload.conf
+echo "uservsupload=\"dsnvps\"" | sudo tee -a /etc/dsnvps/vsupload.conf > /dev/null
+echo "passvsupload=\"$matkhau\"" | sudo tee -a /etc/dsnvps/vsupload.conf > /dev/null
+
+############################################
+
+####################
+
+
+echo "/home/dsnvps.demo/*" >> /etc/dsnvps/opcache.blacklist
+
+########################
+unzip /etc/dsnvps/menu/inc/phpsys/phpsysinfo.zip -d /home/dsnvps.demo/private_html
+
+#####################################################
+# Tu dong chinh htpasswd.py va dsnvps-tien-trinh-dang-chay-ram-use
+
+# /etc/dsnvps/menu/inc/htpasswd.py   |   /etc/dsnvps/menu/tienich/dsnvps-tien-trinh-dang-chay-ram-use
+
+# Đường dẫn đến file script Python cần chỉnh sửa
+script_file1="/etc/dsnvps/menu/inc/htpasswd.py"
+script_file2="/etc/dsnvps/menu/tienich/dsnvps-tien-trinh-dang-chay-ram-use"
+script_file3="/etc/dsnvps/menu/dsnvps-tao-mat-khau-bao-ve-folder.py"
+
+# Kiểm tra phiên bản Python
+python_version=$(python3 --version 2>/dev/null || python --version 2>/dev/null)
+
+# Xác định đường dẫn Python phù hợp
+if command -v python3 &>/dev/null; then
+    python_path=$(command -v python3)
+elif command -v python &>/dev/null; then
+    python_path=$(command -v python)
+else
+    echo ""
+fi
+# Thay thế shebang trong file script
+if [ -n "$python_path" ]; then
+    sed -i "1s|^#!.*|#!$python_path|" "$script_file1"
+    sed -i "1s|^#!.*|#!$python_path|" "$script_file2"
+    sed -i "1s|^#!.*|#!$python_path|" "$script_file3"
+else
+    echo "" >&2
+fi

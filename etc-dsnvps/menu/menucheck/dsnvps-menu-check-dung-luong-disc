@@ -1,0 +1,168 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+curTime=$(date +%d)
+checktruenumber='^[0-9]+$'
+
+# ===================================================================
+# PHẦN ĐÃ SỬA HOÀN CHỈNH - TỰ ĐỘNG LẤY ĐÚNG DUNG LƯỢNG /home TRÊN MỌI SERVER
+# ===================================================================
+if mountpoint -q /home 2>/dev/null; then
+    FREE_SPACE=$(df -h /home | awk 'NR==2 {print $4}')
+else
+    FREE_SPACE=$(df -h / | awk 'NR==2 {print $4}')
+fi
+NUMBER=$(echo "$FREE_SPACE" | sed 's/[^0-9.]//g')
+UNIT=$(echo "$FREE_SPACE" | sed 's/[0-9.]//g')
+case "$UNIT" in
+    "G") FULL_UNIT="GB" ;;
+    "T") FULL_UNIT="TB" ;;
+    "M") FULL_UNIT="MB" ;;
+    "K") FULL_UNIT="KB" ;;
+    *) FULL_UNIT="$UNIT" ;;
+esac
+HOME_FREE="$NUMBER $FULL_UNIT"
+
+# Chuyển về MB để kiểm tra (dùng cho phần cảnh báo < 30MB và minfreedisc)
+if mountpoint -q /home 2>/dev/null; then
+    disfreecheck=$(df /home | awk 'NR==2 {print $4}')  # dung lượng trống ở KiB
+else
+    disfreecheck=$(df / | awk 'NR==2 {print $4}')      # dung lượng trống ở KiB
+fi
+disfreecheck=$(calc $disfreecheck/1024)  # chuyển sang MB
+
+if [ "$disfreecheck" -lt 30 ]; then
+clear
+echo "========================================================================="
+echo "========================================================================="
+echo "Dung lượng đĩa hiện tại ít hơn 30 MB. DSNVPS phải thoát."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng xóa tất cả các file không cần thiết để có thêm dung lượng."
+echo "-------------------------------------------------------------------------"
+echo "Nhấn Ctrl + C để Thoát."
+echo "========================================================================="
+echo "========================================================================="
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+killall -g dsnvps
+sleep 10000000000000000000000000000000000000000000000
+exit
+fi
+
+if [ ! -f /etc/dsnvps/minfreedisc.info ]; then
+echo "1000" > /etc/dsnvps/minfreedisc.info
+fi
+minfreedisc=`cat /etc/dsnvps/minfreedisc.info`
+if ! [[ $minfreedisc =~ $checktruenumber ]] ; then
+echo "1000" > /etc/dsnvps/minfreedisc.info
+fi 
+if [ ! -f /etc/dsnvps/.tmp/checkdiscsize ]; then
+touch -a -m -t 201602180130.09 /etc/dsnvps/.tmp/checkdiscsize 
+fi
+fileTime3=$(date -r /etc/dsnvps/.tmp/checkdiscsize +%d)
+if [ ! "$fileTime3" == "$curTime" ]; then
+touch /etc/dsnvps/.tmp/checkdiscsize
+
+# Tính lại dung lượng trống (ở MB) để cảnh báo hàng ngày
+if mountpoint -q /home 2>/dev/null; then
+    disfree=$(df /home | awk 'NR==2 {print $4}')  # KiB
+else
+    disfree=$(df / | awk 'NR==2 {print $4}')      # KiB
+fi
+disfree=$(calc $disfree/1024)  # chuyển sang MB
+
+	if [[ $disfree =~ $checktruenumber ]] ; then  
+	  if [ "$disfree" -lt "$minfreedisc" ]; then
+echo "========================================================================="
+echo "CẢNH BÁO: Hiện tại server còn $disfree MB dung lượng trống!"
+echo "========================================================================="
+echo "Dung lượng trống hiện tại trên /home: $HOME_FREE"
+	  fi
+   fi
+fi

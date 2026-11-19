@@ -1,0 +1,891 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+. /etc/dsnvps/pwprotect.default
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+    cp -r /etc/dsnvps/menu/inc/htpasswd.py /usr/local/bin/htpasswd.py
+    chmod +x /usr/local/bin/htpasswd.py
+fi
+
+### Check Nginx service I
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l)
+if [ "$UP" -ne 1 ]; then
+    clear
+    echo "========================================================================"
+    echo "Dịch vụ Nginx không chạy"
+    echo "------------------------------------------------------------------------"
+    echo "DSNVPS đang cố gắng khởi động nó"
+    echo "------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 5 ; clear
+    /etc/dsnvps/menu/inc/start-nginx-service
+    clear
+    echo "========================================================================"
+    echo "Kiểm tra lại dịch vụ Nginx!"
+    echo "------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 5 ; clear
+    UP=$(systemctl status nginx | grep running | grep -v not | wc -l)
+    if [ "$UP" -ne 1 ]; then
+        clear
+        echo "========================================================================"
+        echo "DSNVPS không thể khởi động dịch vụ Nginx"
+        sleep 4 ; clear
+        echo "========================================================================="
+        echo "Xin lỗi, Nginx đã dừng. Vui lòng bật lại trước khi sử dụng chức năng này !"
+        echo "-------------------------------------------------------------------------"
+        echo "Trạng thái Nginx:"
+        echo "-------------------------------------------------------------------------"
+        nginx -t
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    else
+        clear
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    fi
+fi
+
+###### Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+    awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+    if [ "$(cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word)" != "oksuccessful" ]; then
+        rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+        echo "-------------------------------------------------------------------------"
+        echo "Phát hiện lỗi ..."; sleep 3
+        clear
+        echo "========================================================================="
+        echo "Nginx gặp lỗi. DSNVPS không thể chạy chức năng này !"
+        echo "-------------------------------------------------------------------------"
+        echo "Trạng thái Nginx: "
+        echo "-------------------------------------------------------------------------"
+        nginx -t
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    fi
+fi
+
+if [ ! -d /etc/nginx/pwprotect ]; then
+    mkdir -p /etc/nginx/pwprotect
+fi
+if [ ! -f /etc/nginx/.htpasswd ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn phải tạo User và Mật khẩu mặc định trước khi chạy chức năng này. "
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+if [ "$(cat /etc/dsnvps/.tmp/checkallwebsites | wc -l)" -lt "1" ]; then
+    rm -rf /etc/dsnvps/.tmp/checkallwebsites
+    clear
+    echo "========================================================================="
+    echo "Hiện tại bạn chưa thêm Website mới vào server !"
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+vhost_dir="/etc/nginx/conf.d"
+home_dir="/home"
+output_file="/etc/dsnvps/.tmp/checkallwebsites"
+
+> "$output_file"
+
+for vhost_file in "$vhost_dir"/*.conf; do
+    domainc=$(basename "$vhost_file" .conf)
+    if [[ "$domainc" == "dsnvps.demo" ]]; then
+        continue
+    fi
+    if [[ -d "$home_dir/$domainc" ]]; then
+        echo "$domainc" >> "$output_file"
+    fi
+done
+
+if [[ ! -s "$output_file" ]]; then
+    rm -rf /etc/dsnvps/.tmp/checkallwebsites
+    clear
+    echo "========================================================================="
+    echo "Hiện tại bạn chưa thêm Website Vào Server !"
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi
+
+########################################################################################################
+# Park Domains
+######################################################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+> "$output_file"
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+if [[ ! -s "$output_file" ]]; then
+    clear
+    echo "========================================================================= "
+    echo "Không tìm thấy website trên server"
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn cần thêm Website Vào Server trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+nginx_conf_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+> "$output_file"
+
+if [[ -s "$klaoxcy_file" ]]; then
+    while IFS= read -r domain; do
+        domain_conf_folder="$nginx_conf_folder/$domain/conf.d"
+        if [[ "$domain" != "$mainsite" && -d "$domain_conf_folder" ]]; then
+            if compgen -G "$domain_conf_folder"/*.conf > /dev/null; then
+                for vhost in "$domain_conf_folder"/*.conf; do
+                    subdomain=$(basename "$vhost" .conf)
+                    if [[ "$subdomain" != "$domain" ]]; then
+                        vhost_length=$(wc -c < "$vhost")
+                        if (( vhost_length > 200 )); then
+                            echo "${subdomain}**" >> "$output_file"
+                        fi
+                    fi
+                done
+            fi
+        fi
+    done < "$klaoxcy_file"
+fi
+
+if [[ -s "$output_file" ]]; then
+    cat "$output_file" >> /etc/dsnvps/.tmp/checkallwebsites
+fi
+#####################################################################
+
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1131 "
+echo "========================================================================="
+echo "Dùng chức năng này để BẬT/TẮT Mật Khẩu Truy Cập vào folder cho website."
+echo "========================================================================="
+echo "Danh sách Website & Park Domain trên server: | ** : Park domain"
+echo "-------------------------------------------------------------------------"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkallwebsites
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+    left_db="${danh_sach_website[i]:- }"                    
+    if (( right_index <= total )); then           
+        right_db="${danh_sach_website[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Remove ** from website
+clean_website=$(echo "$website" | sed 's/\*\*$//')
+
+###############################################################################################################
+# Park Domains
+################################################################################################################
+rm -f /etc/dsnvps/.tmp/kl0zx
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fx "$clean_website**" /etc/dsnvps/.tmp/klaoxcypark > /dev/null 2>&1; then
+    home_folder="/home"
+    mainwebsite=""
+    for domain in "$home_folder"/*; do
+        domain_name=$(basename "$domain")
+        park_vhost="$domain/conf.d/$clean_website.conf"
+        if [[ -f "$park_vhost" ]]; then
+            echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+            mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+            break
+        fi
+    done
+    if [[ -z "$mainwebsite" ]]; then
+        clear
+        echo "========================================================================="
+        echo "Không tìm thấy domain chính cho park domain $clean_website"
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS không thể thực hiện chức năng này."
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        exit
+    fi
+else
+    mainwebsite="$clean_website"
+fi
+
+echo "$clean_website" > /etc/dsnvps/.tmp/websitemk.txt
+sed -i 's/\./_/g' /etc/dsnvps/.tmp/websitemk.txt
+sed -i 's/\-/_/g' /etc/dsnvps/.tmp/websitemk.txt
+username=$(cat /etc/dsnvps/.tmp/websitemk.txt | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | cut -c1-30)
+###############################################################################
+echo "========================================================================="
+echo "Danh sách folder có thể bảo vệ của $clean_website:"
+echo "-------------------------------------------------------------------------"
+if [[ -d "/home/$mainwebsite/public_html" ]]; then
+    cd /home/$mainwebsite/public_html
+else
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy thư mục public_html của $mainwebsite"
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS không thể thực hiện chức năng này."
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi
+rm -rf /etc/dsnvps/.tmp/zadilade*
+ls -d */ > /etc/dsnvps/.tmp/zadilade 2>/dev/null
+sed -ri "s|/||" /etc/dsnvps/.tmp/zadilade
+sed -i '/wp-content/d' /etc/dsnvps/.tmp/zadilade
+sed -i '/wp-admin/d' /etc/dsnvps/.tmp/zadilade
+sed -i '/wp-includes/d' /etc/dsnvps/.tmp/zadilade
+wc -c < /etc/dsnvps/.tmp/zadilade > /etc/dsnvps/.tmp/zadiladeZX
+cd
+if [ "$(cat /etc/dsnvps/.tmp/zadiladeZX)" -lt 1 ]; then
+    echo "Đang kiểm tra ..."; sleep 2
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy folder của $clean_website"
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS không thể thực hiện chức năng này."
+    if [ -f /home/$mainwebsite/public_html/wp-config.php ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Lưu ý: Với WordPress website, bạn không thể đặt mật khẩu cho các folder:"
+        echo "-------------------------------------------------------------------------"
+        echo "wp-content, wp-includes & wp-content."; sleep 2
+    fi
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+fi
+
+mapfile -t folder_list < /etc/dsnvps/.tmp/zadilade
+
+total=${#folder_list[@]}
+half=$(( (total + 1) / 2 ))  
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         
+    right_index=$((half + i + 1))                
+    left_db="${folder_list[i]:- }"                    
+    if (( right_index <= total )); then           
+        right_db="${folder_list[right_index-1]}"      
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với folder [0 -Thoát]: " 
+    read -r lua_chon
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#folder_list[@]} )); then
+        foldermk=${folder_list[lua_chon-1]}
+        break
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+
+# Determine correct vhost file based on park domain or regular website
+vhost_file=""
+if [[ "$clean_website" != "$mainwebsite" && -f "/home/$mainwebsite/conf.d/$clean_website.conf" ]]; then
+    vhost_file="/home/$mainwebsite/conf.d/$clean_website.conf"
+elif [[ -f "/etc/nginx/conf.d/$clean_website.conf" ]]; then
+    vhost_file="/etc/nginx/conf.d/$clean_website.conf"
+fi
+
+if [[ -z "$vhost_file" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file vhost cho $clean_website"
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS không thể thực hiện chức năng này."
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi
+
+# Function to backup files
+backup_files() {
+    mkdir -p /etc/dsnvps/.tmp/kial
+    cp -f "$vhost_file" /etc/dsnvps/.tmp/kial/vhost.conf
+    if [ -f "/etc/nginx/pwprotect/$clean_website/$foldermk.conf" ]; then
+        cp -f "/etc/nginx/pwprotect/$clean_website/$foldermk.conf" /etc/dsnvps/.tmp/kial/foldermk.conf
+    fi
+    if [ -f "/etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk" ]; then
+        cp -f "/etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk" /etc/dsnvps/.tmp/kial/htpasswd_foldermk
+    fi
+}
+
+# Function to restore files
+restore_files() {
+    if [ -f /etc/dsnvps/.tmp/kial/vhost.conf ]; then
+        cp -f /etc/dsnvps/.tmp/kial/vhost.conf "$vhost_file"
+    fi
+    if [ -f /etc/dsnvps/.tmp/kial/foldermk.conf ]; then
+        cp -f /etc/dsnvps/.tmp/kial/foldermk.conf "/etc/nginx/pwprotect/$clean_website/$foldermk.conf"
+    else
+        rm -f "/etc/nginx/pwprotect/$clean_website/$foldermk.conf"
+    fi
+    if [ -f /etc/dsnvps/.tmp/kial/htpasswd_foldermk ]; then
+        cp -f /etc/dsnvps/.tmp/kial/htpasswd_foldermk "/etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk"
+    else
+        rm -f "/etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk"
+    fi
+}
+
+# Function to check nginx configuration
+check_nginx_config() {
+    nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/nginx_test_result
+    if [ $? -ne 0 ]; then
+        echo "Đã phát hiện lỗi, đang khôi phục..."
+        restore_files
+        clear
+        echo "========================================================================="
+        echo "Lỗi cấu hình Nginx khi thực hiện thay đổi!"
+        echo "-------------------------------------------------------------------------"
+        echo "Đã khôi phục cấu hình trước đó."
+        echo "-------------------------------------------------------------------------"
+        echo "Chi tiết lỗi:"
+        echo "-------------------------------------------------------------------------"
+        cat /etc/dsnvps/.tmp/nginx_test_result
+        rm -rf /etc/dsnvps/.tmp/kial
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        exit
+    else
+        rm -rf /etc/dsnvps/.tmp/kial
+    fi
+}
+
+#####################################################################################
+
+if [ -f /etc/nginx/pwprotect/$clean_website/$foldermk.conf ]; then
+    if [ "$(grep "/etc/nginx/.htpasswd" /etc/nginx/pwprotect/$clean_website/$foldermk.conf)" == "" ]; then
+        prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+        options=( "Thay Mật Khẩu Truy Cập" "Sử Dụng Mật Khẩu Truy Cập Mặc Định" "Tắt Mật Khẩu Truy Cập")
+        echo "========================================================================="
+        echo "Folder $foldermk đã được đặt mật khẩu truy cập"
+        echo "========================================================================="
+        PS3="$prompt"
+        select opt in "${options[@]}"; do 
+            case "$REPLY" in
+            1) chooseacction="thaymktruycap"; break;;
+            2) chooseacction="sudungmkmacdinh"; break;;
+            3) chooseacction="tatmatkhautruycap"; break;;
+            0) chooseacction="cancel"; break;;
+            *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+            esac  
+        done
+        ###################################
+        # Thay Mật Khẩu Truy Cập
+        ###################################
+        if [ "$chooseacction" = "thaymktruycap" ]; then
+            echo "-------------------------------------------------------------------------"
+            while true; do
+                echo -n "Nhập username [ENTER]: " 
+                read username
+                if [ "$username" = "" ]; then
+                    echo "========================================================================="
+                    echo "Bạn chưa nhập username, vui lòng nhập lại!"
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+                if [[ ! "$username" =~ $checkpass ]]; then
+                    echo "========================================================================="
+                    echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt Username."
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                break
+            done
+            echo "-------------------------------------------------------------------------"
+            while true; do
+                echo -n "Nhập mật khẩu: "
+                read matkhau
+                if [ "$matkhau" = "" ]; then
+                    echo "========================================================================="
+                    echo "Bạn chưa nhập mật khẩu, vui lòng nhập lại!"
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+                if [[ ! "$matkhau" =~ $checkpass ]]; then
+                    echo "========================================================================="
+                    echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt mật khẩu."
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                if [[ ${#matkhau} -lt 6 ]]; then
+                    echo "========================================================================="
+                    echo "Mật khẩu tối thiểu phải có 6 ký tự."
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                break
+            done
+            echo "-------------------------------------------------------------------------"
+            echo "Thông tin bạn nhập: "
+            echo "-------------------------------------------------------------------------"
+            echo "Username: $username | Password: $matkhau"
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS sẽ thay thông tin đăng nhập cũ theo thông tin mới này "
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ ..."
+            sleep 2
+
+            backup_files
+
+            if [ ! -d /etc/nginx/pwprotect/$clean_website ]; then
+                mkdir -p /etc/nginx/pwprotect/$clean_website
+            fi
+
+            rm -rf /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+            htpasswd.py -c -b /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+            if [ ! -f /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk ]; then
+                /etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+            fi
+            if [ ! -f /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk ]; then
+                htpasswd -b -c /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+            fi
+
+            chmod -R 644 /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+            cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i 's/.*htpasswd.*/auth_basic_user_file\ \/etc\/nginx\/pwprotect\/$clean_website\/.htpasswd_$foldermk;/g' /etc/nginx/pwprotect/$clean_website/$foldermk.conf 
+END
+            chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+            /etc/dsnvps/.tmp/abcdfrfrf.sh
+            rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+
+            check_nginx_config
+            systemctl reload nginx
+
+            clear
+            echo "========================================================================="
+            echo "Thay thông tin đăng nhập cho $foldermk thành công"
+            echo "-------------------------------------------------------------------------"
+            echo "Username: $username | Password: $matkhau"; sleep 2
+            /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+            exit
+        ###################################
+        # Sử Dụng Mật Khẩu Truy Cập Mặc Định
+        ###################################
+        elif [ "$chooseacction" = "sudungmkmacdinh" ]; then
+            echo "-------------------------------------------------------------------------"
+            read -r -p "Bạn muốn dùng đăng nhập mặc định cho $foldermk ? [y/N] " response
+            case $response in
+                [yY][eE][sS]|[yY]) 
+                    echo "-------------------------------------------------------------------------"; sleep 2
+                    echo "Vui lòng chờ ..."; sleep 3
+                    backup_files
+                    sed -i 's/.*htpasswd.*/auth_basic_user_file\ \/etc\/nginx\/.htpasswd;/g' /etc/nginx/pwprotect/$clean_website/$foldermk.conf
+                    rm -rf /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+
+                    check_nginx_config
+                    systemctl reload nginx
+
+                    clear
+                    echo "========================================================================= "
+                    echo "Config bảo vệ folder $foldermk theo mặc định thành công"
+                    echo "-------------------------------------------------------------------------"
+                    echo "Username: $userdefault | Password: $passdefault"; sleep 2
+                    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+                ;;
+            esac
+            clear
+            echo "========================================================================= "
+            echo "Huỷ bỏ !"
+            /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        ###################################
+        # Tắt Mật Khẩu Truy Cập
+        ###################################
+        elif [ "$chooseacction" = "tatmatkhautruycap" ]; then
+            echo "-------------------------------------------------------------------------"
+            read -r -p "Bạn muốn tắt mật khẩu truy cập $foldermk ? [y/N] " response
+            case $response in
+                [yY][eE][sS]|[yY]) 
+                    echo "-------------------------------------------------------------------------"; sleep 2
+                    echo "Vui lòng chờ ..."; sleep 3
+                    backup_files
+                    cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i '/$foldermk.conf/d' "$vhost_file"
+sed -i '/Protect-Folders/d' "$vhost_file"
+END
+                    chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+                    /etc/dsnvps/.tmp/abcdfrfrf.sh
+                    rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+                    rm -rf /etc/nginx/pwprotect/$clean_website/$foldermk.conf
+                    rm -rf /etc/nginx/pwprotect/$clean_website/$foldermk
+
+                    check_nginx_config
+                    systemctl reload nginx
+
+                    clear
+                    echo "========================================================================= "
+                    echo "Tắt mật khẩu truy cập $foldermk thành công"
+                    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+                ;;
+            esac
+            clear
+            /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        else
+        clear
+        exit 0
+        fi
+    fi
+fi
+
+if [ -f /etc/nginx/pwprotect/$clean_website/$foldermk.conf ]; then
+    if [ ! "$(grep "/etc/nginx/.htpasswd" /etc/nginx/pwprotect/$clean_website/$foldermk.conf)" == "" ]; then
+        prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+        options=( "Sử Dụng Mật Khẩu Truy Cập Khác" "Tắt Mật Khẩu Truy Cập")
+        echo "========================================================================="
+        echo "Folder $foldermk đã được đặt mật khẩu truy cập mặc định"
+        echo "========================================================================="
+        PS3="$prompt"
+        select opt in "${options[@]}"; do 
+            case "$REPLY" in
+            1) chooseacction="thaymktruycap"; break;;
+            2) chooseacction="tatmatkhautruycap"; break;;
+            0) chooseacction="cancel"; break;;
+            *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+            esac  
+        done
+        ###################################
+        # Thay Mật Khẩu Truy Cập
+        ###################################
+        if [ "$chooseacction" = "thaymktruycap" ]; then
+            echo "-------------------------------------------------------------------------"
+            while true; do
+                echo -n "Nhập username [ENTER]: " 
+                read username
+                if [ "$username" = "" ]; then
+                    echo "========================================================================="
+                    echo "Bạn chưa nhập username, vui lòng nhập lại!"
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+                if [[ ! "$username" =~ $checkpass ]]; then
+                    echo "========================================================================="
+                    echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt Username."
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                break
+            done
+            echo "-------------------------------------------------------------------------"
+            while true; do
+                echo -n "Nhập mật khẩu: "
+                read matkhau
+                if [ "$matkhau" = "" ]; then
+                    echo "========================================================================="
+                    echo "Bạn chưa nhập mật khẩu, vui lòng nhập lại!"
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+                if [[ ! "$matkhau" =~ $checkpass ]]; then
+                    echo "========================================================================="
+                    echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt mật khẩu."
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                if [[ ${#matkhau} -lt 6 ]]; then
+                    echo "========================================================================="
+                    echo "Mật khẩu tối thiểu phải có 6 ký tự."
+                    sleep 3;tput cuu 3; tput ed
+                    continue
+                fi
+                break
+            done
+            echo "-------------------------------------------------------------------------"
+            echo "Thông tin bạn nhập: "
+            echo "-------------------------------------------------------------------------"
+            echo "Username: $username | Password: $matkhau"
+            echo "-------------------------------------------------------------------------"
+            echo "DSNVPS sẽ thay thông tin đăng nhập cũ theo thông tin mới này "
+            echo "-------------------------------------------------------------------------"; sleep 2
+            echo "Vui lòng chờ ..."; sleep 3
+
+            backup_files
+
+            if [ ! -d /etc/nginx/pwprotect/$clean_website ]; then
+                mkdir -p /etc/nginx/pwprotect/$clean_website
+            fi
+
+            rm -rf /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+            htpasswd.py -c -b /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+            if [ ! -f /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk ]; then
+                /etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+            fi
+            if [ ! -f /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk ]; then
+                htpasswd -b -c /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+            fi
+
+            chmod -R 644 /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+            cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i 's/.*htpasswd.*/auth_basic_user_file\ \/etc\/nginx\/pwprotect\/$clean_website\/.htpasswd_$foldermk;/g' /etc/nginx/pwprotect/$clean_website/$foldermk.conf 
+END
+            chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+            /etc/dsnvps/.tmp/abcdfrfrf.sh
+            rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+
+            check_nginx_config
+            systemctl reload nginx
+
+            clear
+            echo "========================================================================="
+            echo "Thay thông tin đăng nhập cho $foldermk thành công"
+            echo "-------------------------------------------------------------------------"
+            echo "Username: $username | Password: $matkhau"; sleep 2
+            /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+            exit
+        ###################################
+        # Tắt Mật Khẩu Truy Cập
+        ###################################
+        elif [ "$chooseacction" = "tatmatkhautruycap" ]; then
+            echo "-------------------------------------------------------------------------"
+            read -r -p "Bạn muốn tắt mật khẩu truy cập $foldermk ? [y/N] " response
+            case $response in
+                [yY][eE][sS]|[yY]) 
+                    echo "-------------------------------------------------------------------------"; sleep 2
+                    echo "Vui lòng chờ ..."; sleep 3
+                    backup_files
+                    cat > "/etc/dsnvps/.tmp/abcdfrfrf.sh" <<END
+#!/bin/bash
+sed -i '/$foldermk.conf/d' "$vhost_file"
+sed -i '/Protect-Folders/d' "$vhost_file"
+END
+                    chmod +x /etc/dsnvps/.tmp/abcdfrfrf.sh
+                    /etc/dsnvps/.tmp/abcdfrfrf.sh
+                    rm -f /etc/dsnvps/.tmp/abcdfrfrf.sh
+                    rm -rf /etc/nginx/pwprotect/$clean_website/$foldermk.conf
+
+                    check_nginx_config
+                    systemctl reload nginx
+
+                    clear
+                    echo "========================================================================= "
+                    echo "Tắt mật khẩu truy cập $foldermk thành công"
+                    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+                ;;
+            esac
+            clear
+            /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+        else
+        clear
+        exit 0
+        fi
+    fi
+fi
+
+###############################################################################################
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+echo "========================================================================="
+echo "Lựa chọn mật khẩu truy cập $foldermk"
+echo "========================================================================="
+options=( "Sử Dụng Username Và Mật Khẩu Mặc Định" "Đăng Nhập Bằng Username Và Mật Khẩu Mới" )
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+    case "$REPLY" in
+    1) chooseacction="dungmacdinh"; break;;
+    2) chooseacction="dungthongtinmoi"; break;;
+    0) chooseacction="thoatmenu"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+# Sử Dụng Username Và Mật Khẩu Mặc Định
+###################################
+if [ "$chooseacction" = "thoatmenu" ]; then
+    clear
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi
+if [ "$chooseacction" = "dungmacdinh" ]; then
+    if [ ! -f /usr/bin/gxred ]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    fi
+    if [ ! -d /etc/nginx/pwprotect/$clean_website ]; then
+        mkdir -p /etc/nginx/pwprotect/$clean_website
+    fi
+
+    backup_files
+
+    cat > "/etc/nginx/pwprotect/$clean_website/$foldermk.conf" <<END
+    location /$foldermk {
+        auth_basic "Authorization Required";
+        auth_basic_user_file  /etc/nginx/.htpasswd;
+        # PHP Handler
+    }
+END
+    
+    # Only add include if it doesn't exist
+    if ! grep -Fx "include /etc/nginx/pwprotect/$clean_website/$foldermk.conf;" "$vhost_file" > /dev/null; then
+        if [ "$(grep Protect-Folders "$vhost_file")" == "" ]; then
+            sed -i "/\/etc\/nginx\/conf\/block\.conf;/a\#Config\ to\ Protect-Folders" "$vhost_file"
+            sed -i "s/.*Protect-Folders*./\n&/" "$vhost_file"
+        fi
+        sed -i "/.*Protect-Folders*./ainclude \/etc\/nginx\/pwprotect\/$clean_website\/$foldermk.conf;" "$vhost_file"
+    fi
+
+    check_nginx_config
+    systemctl reload nginx
+
+    clear
+    echo "========================================================================="
+    echo "Đặt mật khẩu bảo vệ folder $foldermk của $clean_website thành công"
+    echo "-------------------------------------------------------------------------"
+    echo "Thông tin truy cập: "
+    echo "-------------------------------------------------------------------------"
+    echo "Username: $userdefault | Password: $passdefault"; sleep 2
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+else 
+    echo "-------------------------------------------------------------------------"
+    while true; do
+        echo -n "Nhập username [ENTER]: " 
+        read username
+        if [ "$username" = "" ]; then
+            echo "========================================================================="
+            echo "Bạn chưa nhập username, vui lòng nhập lại!"
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+        if [[ ! "$username" =~ $checkpass ]]; then
+            echo "========================================================================="
+            echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt Username."
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        break
+    done
+    echo "-------------------------------------------------------------------------"
+    while true; do
+        echo -n "Nhập mật khẩu: "
+        read matkhau
+        if [ "$matkhau" = "" ]; then
+            echo "========================================================================="
+            echo "Bạn chưa nhập mật khẩu, vui lòng nhập lại!"
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+        if [[ ! "$matkhau" =~ $checkpass ]]; then
+            echo "========================================================================="
+            echo "Bạn chỉ được dùng chữ cái, số và dấu gạch dưới để đặt mật khẩu."
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        if [[ ${#matkhau} -lt 6 ]]; then
+            echo "========================================================================="
+            echo "Mật khẩu tối thiểu phải có 6 ký tự."
+            sleep 3;tput cuu 3; tput ed
+            continue
+        fi
+        break
+    done
+
+    echo "-------------------------------------------------------------------------"; sleep 2
+    echo "Vui lòng chờ ..."; sleep 3
+    if [ ! -f /usr/bin/gxred ]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    fi
+    if [ ! -d /etc/nginx/pwprotect/$clean_website ]; then
+        mkdir -p /etc/nginx/pwprotect/$clean_website
+    fi
+
+    backup_files
+
+    rm -rf /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+    htpasswd.py -c -b /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+    if [ ! -f /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk ]; then
+        /etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+    fi
+    if [ ! -f /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk ]; then
+        htpasswd -b -c /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk $username $matkhau
+    fi
+
+    chmod -R 644 /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk
+
+    cat > "/etc/nginx/pwprotect/$clean_website/$foldermk.conf" <<END
+    location /$foldermk {
+        auth_basic "Authorization Required";
+        auth_basic_user_file  /etc/nginx/pwprotect/$clean_website/.htpasswd_$foldermk;
+        # PHP Handler
+    }
+END
+
+    # Only add include if it doesn't exist
+    if ! grep -Fx "include /etc/nginx/pwprotect/$clean_website/$foldermk.conf;" "$vhost_file" > /dev/null; then
+        if [ "$(grep Protect-Folders "$vhost_file")" == "" ]; then
+            sed -i "/\/etc\/nginx\/conf\/block\.conf;/a\#Config\ to\ Protect-Folders" "$vhost_file"
+            sed -i "s/.*Protect-Folders*./\n&/" "$vhost_file"
+        fi
+        sed -i "/.*Protect-Folders*./ainclude \/etc\/nginx\/pwprotect\/$clean_website\/$foldermk.conf;" "$vhost_file"
+    fi
+
+    check_nginx_config
+    systemctl reload nginx
+
+    clear
+    echo "========================================================================="
+    echo "Đặt mật khẩu bảo vệ folder $foldermk của $clean_website thành công"
+    echo "-------------------------------------------------------------------------"
+    echo "Thông tin truy cập: "
+    echo "-------------------------------------------------------------------------"
+    echo "Username: $username | Password: $matkhau"; sleep 2
+    /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
+    exit
+fi

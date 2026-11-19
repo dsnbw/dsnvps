@@ -1,0 +1,48 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================= "
+echo "Sử dụng chức năng này để thay mật khẩu cho tài khoản admin File Manager."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ tạo password cho File Manager mà không cần biết password cũ."
+echo "========================================================================= "
+read -r -p "Bạn muốn tạo thông tin đăng nhập mới cho File Manager? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+#############
+######################################################
+matkhau=`date |md5sum |cut -c '1-32'`
+matkhaumahoa=$(php -r "echo password_hash('$matkhau', PASSWORD_DEFAULT);")
+rm -rf /home/dsnvps.demo/private_html/vsupload
+cp -r /etc/dsnvps/menu/inc/phpsys/vsupload /home/dsnvps.demo/private_html/
+####
+target_file="/home/dsnvps.demo/private_html/vsupload/index.php"
+# Thay thế chính xác chuỗi 'matkhaumahoa' trong file PHP
+sed -i "s|'matkhaumahoa'|'$matkhaumahoa'|" "$target_file"
+chown -R nginx:nginx /home/dsnvps.demo/private_html
+rm -rf /etc/dsnvps/vsupload.conf
+echo "uservsupload=\"dsnvps\"" | sudo tee -a /etc/dsnvps/vsupload.conf > /dev/null
+echo "passvsupload=\"$matkhau\"" | sudo tee -a /etc/dsnvps/vsupload.conf > /dev/null
+
+############################################
+
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+clear
+echo "========================================================================="
+echo "Thay đổi thông tin đăng nhập File Manager thành công."
+echo "-------------------------------------------------------------------------"
+echo "Username: dsnvps | Password: $matkhau"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+;;
+esac
+clear
+echo "========================================================================="
+echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu

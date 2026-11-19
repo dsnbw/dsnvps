@@ -1,0 +1,114 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
+if [ -f /etc/systemd/system/resilio-sync.service ]; then
+
+show_phan_tren_menu()
+{
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+echo "                           Quản Lý Resilio Sync                          "
+echo "========================================================================="
+if [ -f /etc/systemd/system/resilio-sync.service ]; then
+echo "                          Trạng Thái: Đã Cài Đặt                     "
+else
+echo "                          Trạng Thái: Chưa Cài Đặt                    "
+fi
+  
+if [ -f /etc/systemd/system/resilio-sync.service ]; then
+    rslsyncstt=$(pgrep -f "/etc/dsnvps/rslsync/rslsync --nodaemon --config /etc/rslsync-dsnvps/sync.conf")
+    if [ -n "$rslsyncstt" ]; then
+        status="Đang BẬT"
+    else
+        status="Đang TẮT"
+    fi
+    port=$(grep "rslportwebui" /etc/dsnvps/rslsync.info | awk '{print $3}')
+    echo "========================================================================="
+    echo "Resilio status: $status | WebUI: http://$serverip:$port"
+fi
+
+echo "========================================================================="
+}
+show_phan_tren_menu
+echo "Hướng dẫn sử dụng: http://go.dsnvps/6984"
+echo "========================================================================="
+while true; do
+
+printf "%-35s %s\n" "1) Bật/Tắt Resilio Sync" "3) Thay Mật Khẩu Đăng Nhập "
+printf "%-35s %s\n" "2) Xem Thông Tin Quản Lý" "4) Gỡ Cài Đặt Resilio Sync"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in  
+
+    1) /etc/dsnvps/menu/rslisync/dsnvps-tat-bat-rslisync;;
+    2) /etc/dsnvps/menu/rslisync/dsnvps-hien-mat-khau-rslisync;;
+    3) /etc/dsnvps/menu/rslisync/dsnvps-change-mat-khau-rslisync;;
+    4) /etc/dsnvps/menu/rslisync/dsnvps-befor-cai-dat-xoa-rslisync;;
+0) clear; exit 0;;  
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6;; esac; done
+ 
+else
+show_phan_tren_menu()
+{
+
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+echo "                           Quản Lý Resilio Sync                          "
+echo "========================================================================="
+if [ -f /etc/systemd/system/resilio-sync.service ]; then
+echo "                          Trạng Thái: Đã Cài Đặt                     "
+else
+echo "                          Trạng Thái: Chưa Cài Đặt                    "
+fi
+
+if [ -f /etc/systemd/system/resilio-sync.service ]; then
+    rslsyncstt=$(pgrep -f "/etc/dsnvps/rslsync/rslsync --nodaemon --config /etc/rslsync-dsnvps/sync.conf")
+    if [ -n "$rslsyncstt" ]; then
+        status="Đang BẬT"
+    else
+        status="Đang TẮT"
+    fi
+    port=$(grep "rslportwebui" /etc/dsnvps/rslsync.info | awk '{print $3}')
+    echo "========================================================================="
+    echo "Resilio status: $status | WebUI: http://$serverip:$port"
+fi
+echo "========================================================================="
+}
+show_phan_tren_menu
+echo "Hướng dẫn sử dụng: http://go.dsnvps/6984"
+echo "========================================================================="
+while true; do
+
+printf "%-35s %s\n" "1) Bật/Tắt Resilio Sync" "3) Thay Mật Khẩu Đăng Nhập "
+printf "%-35s %s\n" "2) Xem Thông Tin Quản Lý" "4) Cài Đặt Resilio Sync"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Nhập lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in  
+
+    1) /etc/dsnvps/menu/rslisync/dsnvps-tat-bat-rslisync;;
+    2) /etc/dsnvps/menu/rslisync/dsnvps-hien-mat-khau-rslisync;;
+    3) /etc/dsnvps/menu/rslisync/dsnvps-change-mat-khau-rslisync;;
+    4) /etc/dsnvps/menu/rslisync/dsnvps-befor-cai-dat-xoa-rslisync;;
+0) clear; exit 0;;  
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 6; for ((i=0; i<6; i++)); do tput el; tput cud1; done; tput cuu 6;; esac; done
+ 
+ fi

@@ -1,0 +1,124 @@
+#!/bin/bash
+
+echo "========================================================================= "
+echo "Dùng chức năng này để xem thời gian chạy của các Cronjob trên server."
+echo "========================================================================= "
+rm -rf /etc/dsnvps/.tmp/cronjobs.txt
+# Lấy danh sách crontab của người dùng hiện tại
+crontab -l > /etc/dsnvps/.tmp/cronjobs.txt
+
+# Kiểm tra xem file có rỗng hay không
+if [ ! -s /etc/dsnvps/.tmp/cronjobs.txt ]; then
+    rm -f /etc/dsnvps/.tmp/cronjobs.txt
+    clear
+    echo "========================================================================= "
+    echo "Không tìm thấy cronjob trên server."
+    /etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+    exit 0
+fi
+
+# Đọc và sắp xếp các cronjob vào một mảng
+mapfile -t cronjobs < /etc/dsnvps/.tmp/cronjobs.txt
+
+echo "Danh sách cronjob trên server:"
+echo "-------------------------------------------------------------------------"
+for ((i=0; i<${#cronjobs[@]}; i++)); do
+    echo "$((i+1)). ${cronjobs[i]}"
+done
+
+# Hỏi người dùng chọn cronjob
+echo "========================================================================= "
+while :; do
+read -p "Chọn số tương ứng với cronjob [0 -Thoát]: " choice
+    
+    # Nếu người dùng nhập 0, thoát khỏi chương trình
+    if [ "$choice" == "0" ]; then
+         clear
+         /etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+        exit 0
+    fi
+    
+    # Kiểm tra sự hợp lệ của lựa chọn
+    if [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -le "${#cronjobs[@]}" ] && [ "$choice" -gt 0 ]; then
+        selected_job="${cronjobs[$((choice-1))]}"
+        
+        # Tách các thành phần của cronjob
+        IFS=' ' read -r minute hour day month weekday command <<< "$selected_job"
+        echo "========================================================================="
+echo "Cronjob bạn chọn: $selected_job"; sleep 2
+        echo "-------------------------------------------------------------------------"; sleep 2
+        echo "Vui lòng chờ DSNVPS phân tích..."; sleep 3    
+
+        # Giải thích cronjob
+        clear
+        echo "========================================================================="
+        echo "Cronjob: $selected_job"
+        echo "-------------------------------------------------------------------------"
+echo "Giải thích về cronjob này:"
+
+        echo "-------------------------------------------------------------------------"
+        
+        # Kiểm tra ngày trong tuần (weekday) có hợp lệ hay không
+        if [ "$weekday" != "*" ] && ! [[ "$weekday" =~ ^(sun|mon|tue|wed|thu|fri|sat|[0-6])$ ]]; then
+echo "Ngày trong tuần không hợp lệ: $weekday. Vui lòng kiểm tra."
+
+            exit 1
+        fi
+
+        # Giải thích các trường hợp cụ thể
+        if [ "$minute" == "*" ] && [ "$hour" == "*" ] && [ "$day" == "*" ] && [ "$month" == "*" ] && [ "$weekday" == "*" ]; then
+echo "Cronjob sẽ chạy mỗi phút một lần."
+
+        elif [ "$minute" == "*" ] && [ "$hour" == "*" ] && [ "$day" == "*" ] && [ "$month" == "*" ]; then
+echo "Cronjob sẽ chạy mỗi giờ."
+        elif [[ "$minute" =~ ^\*/([0-9]+)$ ]]; then  # Thêm điều kiện cho chuỗi */X
+            interval=$(echo "$minute" | sed 's/\*\/\([0-9]*\)/\1/')
+echo "Cronjob sẽ chạy mỗi $interval phút một lần."
+        elif [[ "$hour" =~ ^\*/([0-9]+)$ ]]; then  # Xử lý cho chuỗi */X trong giờ
+            interval=$(echo "$hour" | sed 's/\*\/\([0-9]*\)/\1/')
+ echo "Cronjob sẽ chạy mỗi $interval giờ."
+        elif [[ "$minute" =~ ^[0-9]+$ ]] && [[ "$hour" =~ ^[0-9]+$ ]] && [[ "$day" =~ ^[0-9]+$ ]] && [[ "$month" == "*" ]] && [[ "$weekday" == "*" ]]; then
+echo "Cronjob này sẽ chạy vào lúc $hour:$minute ngày $day hằng tháng."
+        elif [[ "$minute" =~ ^[0-9]+$ ]] && [[ "$hour" =~ ^[0-9]+$ ]] && [[ "$day" == "*" ]] && [[ "$month" == "*" ]] && [[ "$weekday" =~ ^[0-6]+$ ]]; then
+            day_of_week=$(case $weekday in 
+                            0) echo "Chủ Nhật" ;;
+                            1) echo "Thứ Hai" ;;
+                            2) echo "Thứ Ba" ;;
+                            3) echo "Thứ Tư" ;;
+                            4) echo "Thứ Năm" ;;
+                            5) echo "Thứ Sáu" ;;
+                            6) echo "Thứ Bảy" ;;
+                        esac)
+            echo "Cronjob này sẽ chạy vào lúc $hour:$minute ngày $day_of_week hàng tuần."
+        elif [ "$minute" != "*" ] && [ "$hour" == "*" ] && [ "$day" == "*" ] && [ "$month" == "*" ] && [ "$weekday" == "*" ]; then
+echo "Cronjob sẽ chạy mỗi giờ vào phút $minute."
+        elif [ "$hour" != "*" ] && [ "$minute" == "*" ] && [ "$day" == "*" ] && [ "$month" == "*" ] && [ "$weekday" == "*" ]; then
+echo "Cronjob sẽ chạy $hour giờ 1 lần."
+
+        elif [ "$weekday" != "*" ] && [ "$day" == "*" ]; then
+echo "Cronjob sẽ chạy vào ngày $weekday hàng tuần."
+
+        elif [ "$day" != "*" ] && [ "$weekday" == "*" ]; then
+echo "Cronjob sẽ chạy vào ngày $day hàng tháng."
+
+        elif [ "$month" != "*" ]; then
+echo "Cronjob sẽ chạy vào tháng $month."
+else
+echo "Cronjob sẽ chạy hàng ngày vào lúc $hour giờ $minute phút."
+fi
+
+echo "-------------------------------------------------------------------------"   
+echo "Lệnh thực hiện: $command"
+
+        /etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+        exit
+    else
+        # Xóa dòng nhập liệu và thông báo lỗi
+        tput cuu 1      # Di chuyển con trỏ lên dòng nhập liệu
+        tput el         # Xóa dòng nhập liệu
+        # Xóa dòng nhập liệu
+        echo "Lựa chọn không hợp lệ."; sleep 3  # In thông báo lỗi
+        tput cuu 1      # Quay lại dòng nhập liệu
+        tput el         # Xóa dòng lỗi
+    fi
+done

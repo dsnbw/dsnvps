@@ -1,0 +1,84 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! "`systemctl is-active memcached.service`" == "active" ]; then
+clear
+echo "========================================================================= "
+echo "Memcached đang bị vô hiệu hóa trên server."
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải BẬT Memcached trước khi chạy chức năng này."
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+exit
+fi
+
+maxmemcacheram=$(free -m | awk 'NR==2 {print $2}' | awk '{print int($1/5)}')
+if [ "$maxmemcacheram" -lt 128 ]; then
+    maxmemcacheram=200
+fi
+
+
+
+if [ -f /etc/sysconfig/memcached ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để cấu hình lượng RAM tối đa Memcached có thể dùng"
+echo "-------------------------------------------------------------------------"
+echo "RAM cho Memcached phải là số tự nhiên nằm trong khoảng (128 - $maxmemcacheram)."
+echo "-------------------------------------------------------------------------"
+
+while true; do
+echo -n "Nhập lượng RAM tối đa cho Memcached [0 - Thoát]: "
+read memcacheram
+if [ "$memcacheram" = "0" ]; then
+clear
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+exit
+elif ! [[ $memcacheram -ge 128 && $memcacheram -le $maxmemcacheram ]] ; then  
+        echo "========================================================================="
+echo "RAM cho Memcache phải là số tự nhiên nằm trong khoảng (128 - $maxmemcacheram)."
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 3
+rm -rf /etc/sysconfig/memcached
+cat > "/etc/sysconfig/memcached" <<END
+PORT="11211"
+USER="memcached"
+MAXCONN="10024"
+CACHESIZE="$memcacheram"
+OPTIONS="-l 127.0.0.1 -U 0" 
+END
+
+. /etc/sysconfig/memcached 2>/dev/null; cat > /etc/memcached.conf << MEMEOF
+-d
+logfile /var/log/memcached.log
+-m ${CACHESIZE:-128}
+-p ${PORT:-11211}
+-u memcache
+-l 127.0.0.1
+-c ${MAXCONN:-1024}
+MEMEOF
+systemctl restart memcached.service
+
+clear
+echo "========================================================================="
+echo "Cấu hình thành công Memcached sử dụng $memcacheram MB RAM"
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+exit
+fi
+clear
+echo "========================================================================= "
+echo "Không phát hiện Memcached trên server"
+/etc/dsnvps/menu/memcache/dsnvps-memcache-menu
+exit
+fi

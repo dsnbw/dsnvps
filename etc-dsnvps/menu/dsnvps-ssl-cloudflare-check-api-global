@@ -1,0 +1,695 @@
+#!/bin/bash
+
+get_ssl_global_api_token() {
+    local global_ssl_api_file="/etc/dsnvps/ssl-cloudflare-api-global.conf"
+    
+    if [ -f "$global_ssl_api_file" ]; then
+        source "$global_ssl_api_file"
+        if [ -n "$global_ssl_api_token" ]; then
+            echo "$global_ssl_api_token"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+get_ssl_global_api_email() {
+    local global_ssl_api_file="/etc/dsnvps/ssl-cloudflare-api-global.conf"
+    
+    if [ -f "$global_ssl_api_file" ]; then
+        source "$global_ssl_api_file"
+        if [ -n "$global_ssl_api_email" ]; then
+            echo "$global_ssl_api_email"
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+validate_ssl_api_token() {
+    local email="$1"
+    local api_key="$2"
+    
+    if [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    if [ -n "$email" ]; then
+        local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json")
+    else
+        local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/user/tokens/verify" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json")
+    fi
+    
+    if echo "$response" | grep -q '"success":true'; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+get_zone_id_for_ssl() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    local main_domain
+    
+    if [ -z "$domain" ] || [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    local main_domain="$domain"
+    if [[ "$domain" == www.* ]]; then
+        main_domain="${domain#www.}"
+    fi
+    
+    if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+        source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+        if is_subdomain_accurate "$domain"; then
+            main_domain=$(get_main_domain "$domain")
+        fi
+    fi
+    
+    if [ -n "$email" ]; then
+        local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=${main_domain}" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json")
+    else
+        local response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=${main_domain}" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json")
+    fi
+    
+    local zone_id=$(echo "$response" | grep -o '"id":"[^"]*"' | head -n 1 | sed 's/"id":"//' | sed 's/"//')
+    
+    if [ -n "$zone_id" ]; then
+        echo "$zone_id"
+        return 0
+    else
+        return 1
+    fi
+}
+
+check_domain_exists_for_ssl() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    if [ -z "$domain" ] || [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    local main_domain="$domain"
+    if [[ "$domain" == www.* ]]; then
+        main_domain="${domain#www.}"
+    fi
+    
+    local zone_id=$(get_zone_id_for_ssl "$main_domain" "$email" "$api_key" 2>/dev/null)
+    
+    if [ -n "$zone_id" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_subdomain() {
+    local domain="$1"
+    
+    if is_subdomain_accurate "$domain"; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_subdomain_in_cloudflare_accurate() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    if [ -z "$domain" ] || [ -z "$api_key" ]; then
+        return 1
+    fi
+    
+    local main_domain="$domain"
+    if [[ "$domain" == www.* ]]; then
+        main_domain="${domain#www.}"
+    fi
+    
+    local zone_id=""
+    if [ -n "$email" ]; then
+        zone_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$main_domain" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json" 2>/dev/null | jq -r '.result[0].id' 2>/dev/null)
+    else
+        zone_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$main_domain" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json" 2>/dev/null | jq -r '.result[0].id' 2>/dev/null)
+    fi
+    
+    if [ -z "$zone_id" ] || [ "$zone_id" = "null" ]; then
+        local parent_domain=""
+        if echo "$main_domain" | grep -E '^[a-z0-9-]+\.[a-z0-9-]+\.[a-z]+$' >/dev/null; then
+            parent_domain=$(echo "$main_domain" | sed 's/^[^.]*\.//')
+        elif echo "$main_domain" | grep -E '^[a-z0-9-]+\.[a-z0-9-]+\.[a-z0-9-]+\.[a-z]+$' >/dev/null; then
+            parent_domain=$(echo "$main_domain" | sed 's/^[^.]*\.//')
+        fi
+        
+        if [ -n "$parent_domain" ]; then
+            if [ -n "$email" ]; then
+                local parent_zone_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$parent_domain" \
+                     -H "X-Auth-Email: $email" \
+                     -H "X-Auth-Key: $api_key" \
+                     -H "Content-Type: application/json" 2>/dev/null | jq -r '.result[0].id' 2>/dev/null)
+            else
+                local parent_zone_id=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$parent_domain" \
+                     -H "Authorization: Bearer $api_key" \
+                     -H "Content-Type: application/json" 2>/dev/null | jq -r '.result[0].id' 2>/dev/null)
+            fi
+            
+            if [ -n "$parent_zone_id" ] && [ "$parent_zone_id" != "null" ]; then
+                if [ -n "$email" ]; then
+                    local subdomain_check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$parent_zone_id/dns_records?name=${main_domain}" \
+                         -H "X-Auth-Email: $email" \
+                         -H "X-Auth-Key: $api_key" \
+                         -H "Content-Type: application/json" 2>/dev/null)
+                else
+                    local subdomain_check=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$parent_zone_id/dns_records?name=${main_domain}" \
+                         -H "Authorization: Bearer $api_key" \
+                         -H "Content-Type: application/json" 2>/dev/null)
+                fi
+                
+                if echo "$subdomain_check" | grep -q '"success":true' && echo "$subdomain_check" | grep -q '"result":\[.*\]' && ! echo "$subdomain_check" | grep -q '"result":\[\]'; then
+                    return 0
+                fi
+            fi
+        fi
+        return 1
+    fi
+    
+    local zone_name=""
+    if [ -n "$email" ]; then
+        zone_name=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$main_domain" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json" 2>/dev/null | jq -r '.result[0].name' 2>/dev/null)
+    else
+        zone_name=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=$main_domain" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json" 2>/dev/null | jq -r '.result[0].name' 2>/dev/null)
+    fi
+    
+    if [ -z "$zone_name" ] || [ "$zone_name" = "null" ]; then
+        return 1
+    fi
+    
+    if [ "$main_domain" = "$zone_name" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+get_main_domain() {
+    local subdomain="$1"
+    
+    echo "$subdomain" | sed 's/^[^.]*\.//'
+}
+
+generate_new_private_key() {
+    local domain="$1"
+    
+    mkdir -p "/etc/nginx/paidssl/$domain"
+    
+    openssl genrsa -out "/etc/nginx/paidssl/$domain/$domain.key" 2048
+    chmod 600 "/etc/nginx/paidssl/$domain/$domain.key"
+}
+
+generate_csr() {
+    local domain="$1"
+    
+    openssl req -new -key "/etc/nginx/paidssl/$domain/$domain.key" \
+        -out "/etc/nginx/paidssl/$domain/$domain.csr" \
+        -subj "/CN=$domain"
+}
+
+create_certificate_via_api() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    local main_domain
+    
+    local main_domain="$domain"
+    if [[ "$domain" == www.* ]]; then
+        main_domain="${domain#www.}"
+    fi
+    
+    local zone_id=$(get_zone_id_for_ssl "$main_domain" "$email" "$api_key")
+    
+    if [ -z "$zone_id" ]; then
+        echo "==> Không tìm thấy zone ID cho domain: $main_domain"
+        return 1
+    fi
+    
+    local hostnames="[\"$domain\"]"
+    
+    if [ -f "/etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global" ]; then
+        source /etc/dsnvps/menu/dsnvps-ssl-cloudflare-check-api-global
+        if should_create_www_subdomain "$domain" "$email" "$api_key"; then
+            if [[ "$domain" == www.* ]]; then
+                local non_www_domain="${domain#www.}"
+                hostnames="[\"$domain\",\"$non_www_domain\"]"
+                echo "==> Tạo certificate cho cả $domain và $non_www_domain"
+            else
+                local www_domain="www.$domain"
+                hostnames="[\"$domain\",\"$www_domain\"]"
+                echo "==> Tạo certificate cho cả $domain và $www_domain"
+            fi
+        else
+            echo "==> Tạo certificate cho subdomain $domain"
+        fi
+    else
+        echo "==> Tạo certificate cho $domain"
+    fi
+    
+    local csr_content=$(cat "/etc/nginx/paidssl/$domain/$domain.csr" | tr -d '\n' | sed 's/-----BEGIN CERTIFICATE REQUEST-----//' | sed 's/-----END CERTIFICATE REQUEST-----//')
+    
+    if [ -n "$email" ]; then
+        local response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/certificates" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json" \
+             -d "{\"csr\":\"-----BEGIN CERTIFICATE REQUEST-----\\n$csr_content\\n-----END CERTIFICATE REQUEST-----\",\"hostnames\":$hostnames,\"request_type\":\"origin-rsa\",\"requested_validity\":5475}")
+    else
+        local response=$(curl -s -X POST "https://api.cloudflare.com/client/v4/certificates" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json" \
+             -d "{\"csr\":\"-----BEGIN CERTIFICATE REQUEST-----\\n$csr_content\\n-----END CERTIFICATE REQUEST-----\",\"hostnames\":$hostnames,\"request_type\":\"origin-rsa\",\"requested_validity\":5475}")
+    fi
+    
+    if echo "$response" | jq -e '.success' >/dev/null 2>&1; then
+        local cert_id=$(echo "$response" | jq -r '.result.id')
+        local cert_content=$(echo "$response" | jq -r '.result.certificate')
+        
+        if [ -n "$cert_id" ] && [ -n "$cert_content" ] && [ "$cert_content" != "null" ]; then
+            mkdir -p "/etc/nginx/paidssl/$domain"
+            
+            echo "$cert_content" > "/etc/nginx/paidssl/$domain/$domain.crt"
+            
+            if [ -f "/etc/nginx/paidssl/$domain/$domain.crt" ]; then
+                echo "==> Đã lưu certificate vào file /etc/nginx/paidssl/$domain/$domain.crt"
+            else
+                return 1
+            fi
+            
+            echo "$cert_id"
+            return 0
+        else
+            echo "==> Không thể lấy certificate ID hoặc certificate content"
+            return 1
+        fi
+    else
+        echo "==> API Error:"
+        echo "$response" | jq -r '.errors[0].message' 2>/dev/null || echo "$response"
+        return 1
+    fi
+}
+
+download_certificate_from_api() {
+    local domain="$1"
+    local cert_id="$2"
+    local email="$3"
+    local api_key="$4"
+    
+    echo "==> Đang tải certificate từ Cloudflare API..."
+    echo "==> Certificate ID: $cert_id"
+    
+    local max_attempts=5
+    local attempt=1
+    
+    while [ $attempt -le $max_attempts ]; do
+        echo "==> Lần thử $attempt/$max_attempts..."
+        
+        if [ -n "$email" ]; then
+            local cert_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/certificates/$cert_id" \
+                 -H "X-Auth-Email: $email" \
+                 -H "X-Auth-Key: $api_key" \
+                 -H "Content-Type: application/json")
+        else
+            local cert_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/certificates/$cert_id" \
+                 -H "Authorization: Bearer $api_key" \
+                 -H "Content-Type: application/json")
+        fi
+        
+        if echo "$cert_response" | jq -e '.success == false' >/dev/null 2>&1; then
+            local error_message=$(echo "$cert_response" | jq -r '.errors[0].message' 2>/dev/null)
+            echo "==> API Error: $error_message"
+            return 1
+        fi
+        
+        local cert_content=$(echo "$cert_response" | jq -r '.result.certificate')
+        
+        local cert_status=$(echo "$cert_response" | jq -r '.result.status' 2>/dev/null)
+        
+        if [ -n "$cert_content" ] && [ "$cert_content" != "null" ] && [ "$cert_content" != "" ]; then
+            echo "$cert_content" > "/etc/nginx/paidssl/$domain/$domain.crt"
+            
+            if [ -f "/etc/nginx/paidssl/$domain/$domain.key" ]; then
+                echo "==> Đã tải certificate thành công"
+                return 0
+            else
+                echo "==> Không tìm thấy private key"
+                return 1
+            fi
+        elif [ "$cert_status" = "pending" ] || [ "$cert_status" = "processing" ]; then
+            echo "==> Certificate đang được xử lý, chờ 10 giây..."
+            sleep 10
+            attempt=$((attempt + 1))
+        else
+            echo "==> Không thể lấy certificate content"
+            echo "==> Response: $cert_response"
+            return 1
+        fi
+    done
+    
+    echo "==> Đã thử $max_attempts lần nhưng không thể tải certificate"
+    return 1
+}
+
+download_ca_bundle() {
+    local domain="$1"
+    
+    wget -O "/etc/nginx/paidssl/$domain/$domain.ca" \
+         "https://developers.cloudflare.com/ssl/static/origin_ca_rsa_root.pem" \
+         >/dev/null 2>&1
+}
+
+set_ssl_encryption_mode() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    local main_domain
+    
+    local main_domain="$domain"
+    if [[ "$domain" == www.* ]]; then
+        main_domain="${domain#www.}"
+    fi
+    
+    local zone_id=$(get_zone_id_for_ssl "$main_domain" "$email" "$api_key")
+    
+    if [ -z "$zone_id" ]; then
+        echo "==> Không tìm thấy zone ID cho domain: $main_domain";sleep 1
+        echo "-------------------------------------------------------------------------"
+        return 1
+    fi
+    
+    echo "==> Đang chỉnh SSL/TLS encryption về Full (Strict) cho $domain..."
+    
+    if [ -n "$email" ]; then
+        local response=$(curl -s -X PATCH "https://api.cloudflare.com/client/v4/zones/$zone_id/settings/ssl" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json" \
+             -d '{"value":"strict"}' 2>/dev/null)
+    else
+        local response=$(curl -s -X PATCH "https://api.cloudflare.com/client/v4/zones/$zone_id/settings/ssl" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json" \
+             -d '{"value":"strict"}' 2>/dev/null)
+    fi
+    
+    if echo "$response" | jq -e '.success' >/dev/null 2>&1; then
+        echo "==> Đã chỉnh SSL/TLS encryption về Full (Strict) cho $domain";sleep 1
+        echo "-------------------------------------------------------------------------"    
+        return 0
+    else
+        local error_code=$(echo "$response" | jq -r '.errors[0].code' 2>/dev/null)
+        local error_message=$(echo "$response" | jq -r '.errors[0].message' 2>/dev/null)
+        
+        if [ "$error_code" = "9109" ]; then
+            echo "==> CẢNH BÁO: API Token không có quyền thay đổi SSL/TLS encryption mode";sleep 1
+            echo "-------------------------------------------------------------------------"
+            echo "Để sửa lỗi này, vui lòng:"
+            echo "1. Vào Cloudflare Dashboard → My Profile → API Tokens"
+            echo "2. Chỉnh sửa API Token hiện tại"
+            echo "3. Thêm quyền 'Zone Settings:Edit' cho zone $main_domain"
+            echo "4. Hoặc sử dụng Global API Key thay vì API Token"
+            echo "-------------------------------------------------------------------------"
+            echo "SSL certificate đã được tạo thành công, chỉ thiếu cấu hình SSL mode"
+            echo "-------------------------------------------------------------------------"
+        else
+            echo "==> Không thể chỉnh SSL/TLS encryption mode: $response";sleep 1
+            echo "-------------------------------------------------------------------------"
+        fi
+        return 1
+    fi
+}
+
+check_ssl_encryption_mode() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    local main_domain
+    
+    if is_subdomain "$domain"; then
+        main_domain=$(get_main_domain "$domain")
+    else
+        main_domain="$domain"
+    fi
+    
+    local zone_id=$(get_zone_id_for_ssl "$main_domain" "$email" "$api_key")
+    
+    if [ -z "$zone_id" ]; then
+        return 1
+    fi
+    
+    local ssl_mode=""
+    if [ -n "$email" ]; then
+        ssl_mode=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/settings/ssl" \
+             -H "X-Auth-Email: $email" \
+             -H "X-Auth-Key: $api_key" \
+             -H "Content-Type: application/json" 2>/dev/null | jq -r '.result.value' 2>/dev/null)
+    else
+        ssl_mode=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zone_id/settings/ssl" \
+             -H "Authorization: Bearer $api_key" \
+             -H "Content-Type: application/json" 2>/dev/null | jq -r '.result.value' 2>/dev/null)
+    fi
+    
+    if [ "$ssl_mode" = "strict" ]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+is_subdomain_in_cloudflare() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    is_subdomain_in_cloudflare_accurate "$domain" "$email" "$api_key"
+    return $?
+}
+
+should_create_www_subdomain() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    if is_subdomain_accurate "$domain"; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+ensure_ssl_encryption_mode() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    if is_subdomain_in_cloudflare "$domain" "$email" "$api_key"; then
+        echo "==> $domain là subdomain - không chỉnh SSL/TLS encryption mode";sleep 1
+        return 0
+    fi
+    
+    if check_ssl_encryption_mode "$domain" "$email" "$api_key"; then
+        echo "==> SSL/TLS encryption đã là Full (Strict) cho $domain";sleep 1
+        return 0
+    else
+        set_ssl_encryption_mode "$domain" "$email" "$api_key"
+        return $?
+    fi
+}
+
+get_main_domain_for_ssl() {
+    local domain="$1"
+    
+    if [[ "$domain" == www.* ]]; then
+        echo "${domain#www.}"
+    else
+        echo "$domain"
+    fi
+}
+
+configure_ssl_for_main_domain() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    local main_domain=$(get_main_domain_for_ssl "$domain")
+    
+    echo "==> Đang cấu hình SSL/TLS encryption về Full (Strict) cho $main_domain..."
+    ensure_ssl_encryption_mode "$main_domain" "$email" "$api_key"
+}
+
+handle_subdomain_ssl() {
+    local subdomain="$1"
+    local email="$2"
+    local api_key="$3"
+    local main_domain=$(get_main_domain "$subdomain")
+    
+    echo "========================================================================="
+    echo "==> CẤU HÌNH SSL CHO SUBDOMAIN: $subdomain"; sleep 2
+    echo "========================================================================="
+    
+    echo "==> Tự động tạo certificate mới cho $subdomain"
+    
+    mkdir -p "/etc/nginx/paidssl/$subdomain"
+    
+    create_new_certificate "$subdomain" "$email" "$api_key"
+}
+
+create_new_certificate() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    echo "==> Đang tạo certificate mới cho $domain..."
+    
+    generate_new_private_key "$domain"
+    
+    generate_csr "$domain"
+    
+    local cert_id=$(create_certificate_via_api "$domain" "$email" "$api_key")
+    local api_result=$?
+    
+    if [ $api_result -eq 0 ] && [ -n "$cert_id" ]; then
+        echo "==> Certificate đã được tạo thành công"
+        
+        download_ca_bundle "$domain"
+        
+        echo "==> Đã tạo certificate thành công cho $domain"
+        return 0
+    else
+        echo "==> Tạo certificate thất bại, chuyển sang chế độ thủ công";sleep 1
+        echo "-------------------------------------------------------------------------"
+        return 1
+    fi
+}
+
+handle_main_domain_ssl() {
+    local domain="$1"
+    local email="$2"
+    local api_key="$3"
+    
+    echo "==> Tự động tạo certificate mới cho $domain"
+    
+    create_new_certificate "$domain" "$email" "$api_key"
+}
+
+find_public_suffix() {
+    local domain="$1"
+    local psl_file="/etc/dsnvps/public_suffix_list.dat"
+    
+    if [ ! -f "$psl_file" ]; then
+        return 1
+    fi
+    
+    local longest_suffix=""
+    local domain_lower=$(echo "$domain" | tr '[:upper:]' '[:lower:]')
+    
+    while IFS= read -r line; do
+        if [[ "$line" =~ ^[[:space:]]*$ ]] || [[ "$line" =~ ^// ]]; then
+            continue
+        fi
+        
+        if [[ "$line" =~ ^\* ]] || [[ "$line" =~ ^! ]]; then
+            continue
+        fi
+        
+        if [[ "$domain_lower" =~ \.$line$ ]] || [[ "$domain_lower" == "$line" ]]; then
+            if [ ${#line} -gt ${#longest_suffix} ]; then
+                longest_suffix="$line"
+            fi
+        fi
+    done < "$psl_file"
+    
+    if [ -n "$longest_suffix" ]; then
+        echo "$longest_suffix"
+        return 0
+    fi
+    
+    return 1
+}
+
+is_subdomain_accurate() {
+    local domain="$1"
+    
+    if [[ ! "$domain" =~ ^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        return 1
+    fi
+    
+    if [ -f "/etc/dsnvps/public_suffix_list.dat" ]; then
+        local suffix=$(find_public_suffix "$domain")
+        
+        if [ -n "$suffix" ]; then
+            local domain_part=$(echo "$domain" | sed "s/\.$suffix$//")
+            local dot_count=$(echo "$domain_part" | tr -cd '.' | wc -c)
+            
+            if [[ "$domain_part" == "www" ]] || [[ "$domain_part" =~ ^www\. ]]; then
+                return 1
+            fi
+            
+            return $((dot_count >= 1 ? 0 : 1))
+        fi
+    fi
+    
+    local domain_lower=$(echo "$domain" | tr '[:upper:]' '[:lower:]')
+    
+    local complex_tlds=(
+        "co.uk" "com.au" "gov.uk" "org.uk" "net.au" "com.vn" "com.br"
+        "co.jp" "co.kr" "com.cn" "com.tw" "com.hk" "com.sg"
+        "co.za" "co.in" "com.mx" "com.ar" "com.pe" "com.cl"
+    )
+    
+    for tld in "${complex_tlds[@]}"; do
+        if [[ "$domain_lower" =~ \.$tld$ ]]; then
+            local domain_part=$(echo "$domain" | sed "s/\.$tld$//")
+            local dot_count=$(echo "$domain_part" | tr -cd '.' | wc -c)
+            
+            if [[ "$domain_part" == "www" ]] || [[ "$domain_part" =~ ^www\. ]]; then
+                return 1
+            fi
+            
+            return $((dot_count >= 1 ? 0 : 1))
+        fi
+    done
+    
+    local dot_count=$(echo "$domain" | tr -cd '.' | wc -c)
+    
+    if [[ "$domain" == www.* ]]; then
+        return 1
+    fi
+    
+    return $((dot_count >= 2 ? 0 : 1))
+}

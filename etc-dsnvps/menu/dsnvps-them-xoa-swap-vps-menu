@@ -1,0 +1,133 @@
+#!/bin/bash
+sleep 3 && tput cuu 13 && tput ed
+
+menu_swap() {
+    echo "========================================================================="
+    echo "Hướng dẫn sử dụng: http://go.dsnvps/1755"
+    echo "-------------------------------------------------------------------------"
+    echo "Tạo & Xóa Swap - Không Hỗ Trợ VPS OpenVZ"
+    echo "========================================================================="
+
+    while true; do
+        printf "%-35s %s\n" " 1) Swap 512 MB" "5) Swap 4 GB"
+        printf "%-35s %s\n" " 2) Swap 1 GB" "6) Swap 6 GB"
+        printf "%-35s %s\n" " 3) Swap 2 GB" "7) Xóa (Remove) Swap"
+        printf "%-35s %s\n" " 4) Swap 3 GB" "0) Thoát"
+        echo "========================================================================="
+        read -p "Lựa chọn của bạn [0 - Thoát]: " choice
+
+        case $choice in
+            1) create_swap 512 ;;
+            2) create_swap 1024 ;;
+            3) create_swap 2048 ;;
+            4) create_swap 3072 ;;
+            5) create_swap 4096 ;;
+            6) create_swap 6144 ;;
+            7) remove_swap ;;
+0) clear; exit 0;;
+            *)
+                echo "========================================================================="
+                echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+                tput cuu 8; for ((i=0; i<8; i++)); do tput el; tput cud1; done; tput cuu 8
+                ;;
+        esac
+    done
+}
+
+create_swap() {
+    local size=$1
+    if [ -f /swapfile ]; then
+        clear
+        test_swap=$(du -m /swapfile 2>/dev/null | awk '{print $1}')
+        echo "========================================================================= "
+        echo "Bạn đã tạo Swap! Dung lượng Swap: $test_swap MB"
+        echo "-------------------------------------------------------------------------"
+        echo "Bạn phải xóa Swap cũ trước khi tạo swap mới."; sleep 2
+        dsnvps
+    fi
+
+    echo "========================================================================="
+    read -r -p "Bạn muốn tạo swap dung lượng $size MB? [y/N] " response
+
+    case $response in
+        [yY][eE][sS]|[yY])
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ ..."
+            sleep 2
+            check_swap=$(free -m | awk '/Swap/ {print $2}')
+
+            # Sửa phần tạo swap
+            dd if=/dev/zero of=/swapfile bs=1M count=$size status=progress
+            chmod 600 /swapfile
+            mkswap /swapfile
+            swapon /swapfile
+            chown root:root /swapfile
+
+            test_swap=$(free -m | awk '/Swap/ {print $2}')
+
+            if [ "$check_swap" == "$test_swap" ]; then
+                swapoff /swapfile
+                rm -rf /swapfile
+                clear
+                echo "========================================================================= "
+                echo "Tạo swap thất bại"
+                echo "-------------------------------------------------------------------------"
+                echo "Server của bạn không hỗ trợ tạo swap mới."; sleep 2
+                dsnvps
+            else
+                grep -q "/swapfile" /etc/fstab || echo "/swapfile none swap sw 0 0" >> /etc/fstab
+                clear
+                echo "========================================================================= "
+                echo "Tạo swap thành công: $size MB"; sleep 2
+                dsnvps
+            fi
+            ;;
+        *)
+            clear
+            dsnvps
+            ;;
+    esac
+}
+
+remove_swap() {
+    if [ -f /swapfile ]; then
+        echo "========================================================================="
+        echo "Chức năng này chỉ hỗ trợ xóa Swap do DSNVPS tạo ra trước đó."
+        echo "-------------------------------------------------------------------------"
+        echo "Với Swap có sẵn trên hệ thống, DSNVPS không thể can thiệp được."
+        echo "========================================================================="
+        read -r -p "Bạn muốn xóa swap trên server? [y/N] " response
+
+        case $response in
+            [yY][eE][sS]|[yY])
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng chờ ..."
+                sleep 2
+                swapoff /swapfile
+                rm -rf /swapfile
+                sed -i '/\/swapfile/d' /etc/fstab
+                clear
+                echo "========================================================================= "
+                echo "Bạn đã xóa swap thành công."
+                echo "-------------------------------------------------------------------------"
+                echo "Bây giờ bạn có thể tạo swap mới!"; sleep 2
+                dsnvps
+                ;;
+            *)
+                clear
+                echo "========================================================================= "
+                echo "Hủy bỏ!"
+                dsnvps
+                ;;
+        esac
+    else
+        clear
+        echo "========================================================================= "
+        echo "Bạn chưa tạo swap trên server"
+        echo "-------------------------------------------------------------------------"
+        echo "Hoặc server không hỗ trợ bạn tạo thêm SWAP."; sleep 2
+        dsnvps
+    fi
+}
+
+menu_swap

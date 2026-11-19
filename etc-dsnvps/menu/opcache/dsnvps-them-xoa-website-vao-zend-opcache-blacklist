@@ -1,0 +1,174 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+BLACKLIST_FILE="/etc/dsnvps/opcache.blacklist"
+
+# Kiểm tra điều kiện bắt buộc
+# Anti-debug removed
+ if [ -f /etc/php.d/opcache.ini ]; then
+    enable_status=$(grep "^opcache.enable=" "/etc/php.d/opcache.ini" | tail -1 | awk -F '=' '{print $2}' | tr -d ' "')
+ if [ -z "$enable_status" ] || [ "$enable_status" = "0" ]; then
+ clear
+ echo "========================================================================="
+ echo "Zend Opcache phải được BẬT trước khi dùng chức năng này !"
+ /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+      
+ fi
+ fi
+if [ ! -f /etc/php.d/opcache.ini ]; then
+    clear
+    echo "========================================================================="
+    echo "Zend Opcache đang được TẮT"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy bật Zend Opcache để sử dụng chức năng này."
+    /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+    exit 1
+fi
+
+# Tạo file blacklist nếu chưa tồn tại
+if [ ! -f "$BLACKLIST_FILE" ]; then
+    touch "$BLACKLIST_FILE"
+fi
+
+# Hàm lấy danh sách website hợp lệ
+get_valid_sites() {
+    local result=()
+    for conf in /etc/nginx/conf.d/*.conf; do
+        site=$(basename "$conf" .conf)
+        [[ "$site" == "$mainsite" ]] && continue
+        [ -d "/home/$site/public_html" ] && result+=("$site")
+    done
+    echo "${result[@]}"
+}
+
+# Lấy danh sách đang trong blacklist, bỏ qua các dòng mặc định
+get_blacklisted_sites() {
+    local bl_sites=()
+    if [ -s "$BLACKLIST_FILE" ]; then
+        while IFS= read -r line; do
+            # Bỏ qua các dòng mặc định
+            [[ "$line" =~ ^/home/dsnvps\.demo/ ]] && continue
+            [[ "$line" =~ ^/home/\*/public_html/wp-content/plugins/(backwpup|duplicator|updraftplus)/ ]] && continue
+            [[ "$line" == "/home/dsnvps.demo/private_html" ]] && continue
+            # Lấy tên website từ các dòng dạng /home/([^/]+)/ hoặc /home/([^/]+)/public_html
+            if [[ "$line" =~ ^/home/([^/]+)/($|public_html$) ]]; then
+                bl_sites+=("${BASH_REMATCH[1]}")
+            fi
+        done < "$BLACKLIST_FILE"
+    fi
+    echo "${bl_sites[@]}"
+}
+
+# Hàm kiểm tra website trong blacklist
+is_site_blacklisted() {
+    local site="$1"
+    local path="/home/$site/"
+    local path_public="/home/$site/public_html"
+    # Kiểm tra cả hai dạng đường dẫn
+    grep -Fx -e "$path" -e "$path_public" "$BLACKLIST_FILE" > /dev/null
+}
+
+# In danh sách website với dấu **
+show_sites() {
+    local sites=("$@")
+    local total=${#sites[@]}
+    local half=$(( (total + 1) / 2 ))
+
+    for ((i = 0; i < half; i++)); do
+        lidx=$((i + 1))
+        ridx=$((i + half + 1))
+
+        lsite="${sites[i]}"
+        rsite="${sites[ridx-1]:-}"
+
+        # Thêm ** nếu website nằm trong blacklist động
+        is_site_blacklisted "$lsite" && lsite="${lsite}**"
+        [ -n "$rsite" ] && is_site_blacklisted "$rsite" && rsite="${rsite}**"
+
+        if [ -n "$rsite" ]; then
+            printf "%2d. %-25s %2d. %-25s\n" "$lidx" "$lsite" "$ridx" "$rsite"
+        else
+            printf "%2d. %-25s\n" "$lidx" "$lsite"
+        fi
+    done
+}
+
+# Khởi đầu: hiển thị tiêu đề và danh sách 1 lần
+VALID_SITES=($(get_valid_sites))
+TOTAL=${#VALID_SITES[@]}
+echo "========================================================================="
+echo "Sử dụng chức năng này để BẬT/TẮT Zend Opcache cho Website. Website bị TẮT"
+echo "-------------------------------------------------------------------------"
+echo "Zend Opcache sẽ không được cache file PHP để tiện sửa code. Sau khi sửa "
+echo "-------------------------------------------------------------------------"
+echo "code xong, hãy BẬT lại Zend Opcache cho Website đó để tăng hiệu suất."
+echo "========================================================================="
+echo "Danh sách website | **: Đang TẮT Zend Opcache (Không cache PHP files)"
+echo "-------------------------------------------------------------------------"
+show_sites "${VALID_SITES[@]}"
+echo "========================================================================="
+
+# Vòng lặp chọn website
+while true; do
+    tput sc
+    read -p "Lựa chọn website [0 -Thoát]: " choice
+
+    if [[ "$choice" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/opcache/dsnvps-before-opcache
+        exit 0
+    elif [[ "$choice" =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= TOTAL )); then
+        website="${VALID_SITES[choice-1]}"
+        path="/home/$website/"
+        echo "========================================================================="
+        echo "=> Bạn đã chọn: $website"
+
+        if is_site_blacklisted "$website"; then
+            echo "-------------------------------------------------------------------------"
+            echo "Website này đang TẮT Zend Opcache (Không Cache file PHP)."
+            echo "========================================================================="
+            read -p "Bạn có muốn BẬT Zend Opcache cho nó ? (y/N): " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                grep -Fxv -e "$path" -e "${path}public_html" "$BLACKLIST_FILE" > "${BLACKLIST_FILE}.tmp" && mv "${BLACKLIST_FILE}.tmp" "$BLACKLIST_FILE"
+                echo "-------------------------------------------------------------------------"
+                echo "Đã BẬT Zend Opcache cho $website."
+                sleep 5 && tput cuu 10 && tput ed
+                /etc/dsnvps/menu/inc/re-start-php-fpm-service
+            else
+                echo "-------------------------------------------------------------------------"
+                echo "Đã hủy thao tác."
+                sleep 3 && tput cuu 10 && tput ed
+            fi
+        else
+            echo "-------------------------------------------------------------------------"
+            echo "Website này đang BẬT Zend Opcache (Đang cấu hình cache PHP files)."
+            echo "========================================================================="
+            read -p "Bạn muốn TẮT Zend Opcache cho nó ? (y/N): " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                echo "$path" >> "$BLACKLIST_FILE"
+                echo "-------------------------------------------------------------------------"
+                echo "Đã tắt Zend Opcache cho $website."
+                /etc/dsnvps/menu/inc/re-start-php-fpm-service
+                sleep 5 && tput cuu 10 && tput ed
+            else
+                echo "-------------------------------------------------------------------------"
+                echo "Đã hủy thao tác."
+                sleep 3 && tput cuu 10 && tput ed
+            fi
+        fi
+        echo "========================================================================="
+        echo "Danh sách website | **: Đang TẮT Zend Opcache (Không cache PHP files)"
+        echo "-------------------------------------------------------------------------"
+        VALID_SITES=($(get_valid_sites))
+        TOTAL=${#VALID_SITES[@]}
+        show_sites "${VALID_SITES[@]}"
+        echo "========================================================================="
+    else
+        tput rc
+        tput ed
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+        sleep 3
+        tput rc
+        tput ed
+    fi
+done

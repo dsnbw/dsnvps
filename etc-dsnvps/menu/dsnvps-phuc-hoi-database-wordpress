@@ -1,0 +1,159 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Sử dụng chức năng này để phục hồi database có định dạng .sql.gz "
+echo "========================================================================="
+echo -n "Nhập tên website: " 
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại "
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website có thể không đúng định dạng domain!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại!"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "$website không tồn tại trên hệ thống!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+if [ -f /home/$website/public_html/wp-config-sample.php ]; then
+if [ ! -f /home/$website/public_html/wp-config.php ]; then
+clear
+echo "========================================================================="
+echo "$website có code wordpress nhưng chưa cài đặt !"
+echo "-------------------------------------------------------------------------"
+echo "Hãy cài đặt wordpress và thử lại !"
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+fi
+if [ ! -f /home/$website/public_html/wp-config.php ]; then
+clear
+echo "========================================================================="
+echo "$website không phải wordpress blog !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy làm lại."
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+exit
+fi
+tendatabase=`cat /home/$website/public_html/wp-config.php | grep DB_NAME | cut -d \' -f 4`
+randomwp=`date |md5sum |cut -c '1-18'`
+date -r /var/lib/mysql/$tendatabase +%H%M%S> /etc/dsnvps/.tmp/dsnvps1
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trên hệ thống"
+echo "-------------------------------------------------------------------------"
+echo "$website sử dụng wordpress code"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "-------------------------------------------------------------------------"
+
+if [ -f /home/$website/public_html/DSNVPS-DATABASE.sql.gz ]; then
+echo "Tìm thấy file backup DSNVPS-DATABASE.sql.gz"
+echo "-------------------------------------------------------------------------"
+echo "Chuẩn bị phục hồi .... "
+echo "-------------------------------------------------------------------------"
+sleep 2
+gunzip < /home/$website/public_html/DSNVPS-DATABASE.sql.gz | mysql -u root -p$mariadbpass -f $tendatabase
+date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+
+if [ "$check1" == "$check2" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps1
+	rm -rf /etc/dsnvps/.tmp/dsnvps2
+	clear
+	echo "========================================================================="
+	echo "Phục hồi database $tendataname thất bại "
+	echo "-------------------------------------------------------------------------"
+	echo "Hãy kiểm tra file backup và làm lại !"
+	/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+	else	
+	rm -rf /etc/dsnvps/.tmp/dsnvps1
+	rm -rf /etc/dsnvps/.tmp/dsnvps2
+	clear
+	echo "========================================================================="
+	echo "Phuc hoi database $tendatabase thành công !"
+	mv /home/$website/public_html/DSNVPS-DATABASE.sql.gz /home/$website/public_html/DSNVPS-DATABASE.sql.gz.$randomwp
+	echo "-------------------------------------------------------------------------"
+	echo "File backup được đổi tên thành DSNVPS-DATABASE.sql.gz.$randomwp"
+	/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+	fi
+else
+	clear
+	echo "========================================================================="
+echo "CÁCH PHỤC HỒI"
+echo "========================================================================="
+echo "Chức năng này chỉ phục hồi được database có định dạng .sql.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Bạn hãy đổi tên file backup thành DSNVPS-DATABASE.sql.gz và upload vào: "
+	echo "-------------------------------------------------------------------------"
+	echo "/home/$website/public_html/"
+	echo "========================================================================="
+	read -p "Upload file xong. Nhấn [Enter] để phục hồi ..."
+	echo "-------------------------------------------------------------------------"
+	echo "DSNVPS đang tìm file Backup .... "
+	echo "-------------------------------------------------------------------------"
+	sleep 4
+	if [ -f /home/$website/public_html/DSNVPS-DATABASE.sql.gz ]; then
+echo "Tìm thấy file backup DSNVPS-DATABASE.sql.gz"
+echo "-------------------------------------------------------------------------"
+echo "Chuẩn bị phục hồi .... "
+echo "-------------------------------------------------------------------------"
+sleep 2
+gunzip < /home/$website/public_html/DSNVPS-DATABASE.sql.gz | mysql -u root -p$mariadbpass -f $tendatabase
+date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+
+if [ "$check1" == "$check2" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps1
+	rm -rf /etc/dsnvps/.tmp/dsnvps2
+	clear
+	echo "========================================================================="
+	echo "Phục hồi database $tendatabase thất bại  "
+	echo "-------------------------------------------------------------------------"
+	echo "Hãy kiểm tra file backup và làm lại !"
+	/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+	else	
+	rm -rf /etc/dsnvps/.tmp/dsnvps1
+	rm -rf /etc/dsnvps/.tmp/dsnvps2
+	clear
+	echo "========================================================================="
+	echo "Phục hồi database $tendatabase thành công !"
+	mv /home/$website/public_html/DSNVPS-DATABASE.sql.gz /home/$website/public_html/DSNVPS-DATABASE.sql.gz.$randomwp
+	echo "-------------------------------------------------------------------------"
+	echo "File backup được đổi tên thành DSNVPS-DATABASE.sql.gz.$randomwp"
+	/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+	fi
+else
+clear
+echo "=========================================================================" 
+echo "Không tìm thấy DSNVPS-DATABASE.sql.gz !"
+echo "-------------------------------------------------------------------------"
+echo "Hãy upload file backup lên và thử lại "
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+fi

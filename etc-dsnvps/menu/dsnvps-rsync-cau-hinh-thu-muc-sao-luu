@@ -1,0 +1,323 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/dsnvps/vps_backup_rsync.info ]; then
+clear
+echo "========================================================================="
+echo "Server hiện tại chưa được kết nối với VPS backup"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng kết nối với VPS backup trước khi thực hiện thao tác này."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+if [ -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+	if [ ! -f /etc/cron.d/dsnvps.rsync.cron ]; then
+	rm -rf /etc/dsnvps/Auto_backup_VPS_by_rsync
+	fi
+fi
+if [ -f /etc/cron.d/dsnvps.rsync.cron ]; then
+	if [ ! -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+	rm -rf /etc/cron.d/dsnvps.rsync.cron
+	fi
+fi
+rm -rf /etc/dsnvps/.tmp/loa
+if [ -f /etc/dsnvps/Auto_backup_VPS_by_rsync ]; then
+echo "========================================================================="
+echo "VPS đã được cấu [Cấu Hình Thời Gian Đồng Bộ]"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn cấu hình lại thời gian auto backup? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "-------------------------------------------------------------------------"
+echo "Ok ! Vui lòng chờ ..."; sleep 2
+echo "" > /etc/dsnvps/.tmp/loa
+else
+clear
+echo "========================================================================="
+echo "Hủy bỏ."
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+fi
+fi
+ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+sshport=$(grep "sshport" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới VPS Backup ... "
+checkconnect=$(ssh -p $sshport -o BatchMode=yes -o ConnectTimeout=9 root@$ipvpsbackup echo connected 2>&1)
+if [[ ! $checkconnect == connected ]] ; then
+clear
+echo "========================================================================="
+echo "Kết nối tới VPS Backup thất bại"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể thực hiện chức năng này"
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo "Kết nối => OK."
+if [ -f /etc/dsnvps/.tmp/loa ]; then
+        sleep 4  
+        tput cuu 10 
+        tput ed
+else
+        sleep 4  
+        tput cuu 4 
+        tput ed
+fi
+
+make_script_backup() {
+    rm -rf /etc/dsnvps/Auto_backup_VPS_by_rsync
+    ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+    sshport=$(grep "sshport" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+
+    cat > "/etc/dsnvps/Auto_backup_VPS_by_rsync" <<EOF
+#!/bin/bash
+ssh -p $sshport root@$ipvpsbackup mkdir -p /home/VPS-$serverip 
+ssh -p $sshport root@$ipvpsbackup mkdir -p /home/VPS-$serverip/etc
+
+if [ "\$(grep "Createfolder" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')" == "" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Cai dat rsync and wget cho VPS Backup "
+    echo "-------------------------------------------------------------------------"
+    ssh -p $sshport root@$ipvpsbackup apt-get -y -q install rsync wget tar zip unzip
+    ssh -p $sshport root@$ipvpsbackup yum -y -q install rsync wget tar zip unzip
+    echo "Createfolder = thanhcong" >> /etc/dsnvps/vps_backup_rsync.info
+fi
+
+echo "Thoi gian thuc hien backup gan nhat: \$(date +%T/%d/%m/%Y)" > /home/00-Time-Backup.txt
+
+# Backup toan bo /home, loai tru cac thu muc khong can thiet, va xoa file da xoa tren VPS chinh
+rsync -avz -e "ssh -p $sshport" --delete --exclude={cache,.cache,dsnvps.conf} /home/ root@$ipvpsbackup:/home/VPS-$serverip/home/
+
+# Backup cac file cau hinh va xoa file da xoa tren VPS chinh
+rsync -avz -e "ssh -p $sshport" --delete /etc/nginx/ root@$ipvpsbackup:/home/VPS-$serverip/etc/nginx/
+rsync -avz -e "ssh -p $sshport" --delete /etc/my.cnf root@$ipvpsbackup:/home/VPS-$serverip/etc/my.cnf
+rsync -avz -e "ssh -p $sshport" --delete /etc/php-fpm.d/ root@$ipvpsbackup:/home/VPS-$serverip/etc/php-fpm.d/
+
+EOF
+
+    chmod +x /etc/dsnvps/Auto_backup_VPS_by_rsync
+}
+
+
+make_script_backup_backup_folder_only() {
+    rm -rf /etc/dsnvps/Auto_backup_VPS_by_rsync
+    ipvpsbackup=$(grep "ipaddress" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+    sshport=$(grep "sshport" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}' | tr -d ' ')
+    cat > "/etc/dsnvps/Auto_backup_VPS_by_rsync" <<EOF
+#!/bin/bash
+. /root/dsnvps.conf
+ssh -p $sshport root@$ipvpsbackup mkdir -p /home/VPS-$serverip 
+ssh -p $sshport root@$ipvpsbackup mkdir -p /home/VPS-$serverip/etc
+
+if [ "\$(grep "Createfolder" /etc/dsnvps/vps_backup_rsync.info | awk '{print $3}')" == "" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Cai dat rsync and wget cho VPS Backup "
+    echo "-------------------------------------------------------------------------"
+    ssh -p $sshport root@$ipvpsbackup apt-get -y -q install rsync wget tar zip unzip
+    ssh -p $sshport root@$ipvpsbackup yum -y -q install rsync wget tar zip unzip
+    echo "Createfolder = thanhcong" >> /etc/dsnvps/vps_backup_rsync.info
+fi
+
+echo "Thoi gian thuc hien backup gan nhat: \$(date +%T/%d/%m/%Y)" > /home/dsnvps.demo/private_html/backup/00-Time-Backup.txt
+
+rsync -avz -e "ssh -p $sshport" /home/$mainsite/private_html/backup/ root@$ipvpsbackup:/home/VPS-$serverip/Backup-Files/
+rsync -avz -e "ssh -p $sshport" /etc/nginx/ root@$ipvpsbackup:/home/VPS-$serverip/etc/nginx/
+rsync -avz -e "ssh -p $sshport" /etc/my.cnf root@$ipvpsbackup:/home/VPS-$serverip/etc/my.cnf
+rsync -avz -e "ssh -p $sshport" /etc/php-fpm.d/ root@$ipvpsbackup:/home/VPS-$serverip/etc/php-fpm.d/
+
+# Xoa file backup cu hon $backup_days ngay trong thu muc Backup-Files
+ssh -p $sshport root@$ipvpsbackup 'find /home/VPS-$serverip/Backup-Files/ -type f -mtime +'"$backup_days"' -exec rm -f {} \;'
+EOF
+
+    chmod +x /etc/dsnvps/Auto_backup_VPS_by_rsync
+}
+
+
+
+########################## Lua Chon Backup ALl Hoac File backup Only
+###############################################################################
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+echo "========================================================================="
+echo "Bạn muốn backup cả Server hay chỉ file backup (website & database)?"
+echo "-------------------------------------------------------------------------"
+echo "=> 1. Backup Cả server: Backup cấu hình (nginx,php,mysql) và tất cả các "
+echo "-------------------------------------------------------------------------"
+echo "website & file backup trong /home. File bên VPS backup sẽ giống hệt bên"
+echo "-------------------------------------------------------------------------"
+echo "server chính. Nếu xóa file bên server chính, file bên VPS backup cũng bị"
+echo "-------------------------------------------------------------------------"
+echo "xóa. Bạn nên BẬT Auto Backup Website và Database khi chọn chức năng này."
+echo "========================================================================="
+echo "=> 2. Chỉ Backup Files: Backup cấu hình (nginx,php,mysql) và backup files"
+echo "-------------------------------------------------------------------------"
+echo "trong /home/dsnvps.demo/private_html/backup. Khi chọn chức năng này, cần"
+echo "-------------------------------------------------------------------------"
+echo "cấu hình thời gian giữ backup file, nếu không VPS backup sẽ full disc sau"
+echo "-------------------------------------------------------------------------"
+echo "một thời gian nhất định."
+echo "========================================================================="
+options=( "Backup Cả Server + Config (Nginx,MySQL,PHP)" "Chỉ Backup Files + Config (Nginx,MySQL,PHP)")
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) chooseaction="backuptatca"; break;;
+    2) chooseaction="backupmoifilebackup"; break;;
+    0) chooseaction="cancle"; break;;
+*) echo "Bạn nhập sai! Bạn vui lòng chọn số trong danh sách"; continue;;
+    esac  
+done
+###################################
+#backuptatca
+###################################
+if [ "$chooseaction" = "backuptatca" ]; then
+thietlapsaoluu=0
+echo "========================================================================="
+echo "Bạn chọn: Backup ca Server"
+###################################
+#khongbackupmainsite
+###################################
+elif [ "$chooseaction" = "backupmoifilebackup" ]; then
+thietlapsaoluu=1
+echo "========================================================================="
+echo "Bạn chọn: Chỉ backup các file backup"
+echo "========================================================================="
+echo "Chọn số ngày giữ file backup (Website & Database) trên VPS Backup."
+echo "-------------------------------------------------------------------------"
+echo "Những file backup quá hạn sẽ tự động bị xóa theo thời gian bạn đã chọn."
+echo "-------------------------------------------------------------------------"
+echo "File backup Config (Nginx,MySQL,PHP) không bị ảnh hưởng."
+echo "========================================================================="
+echo "1) 5 ngày"
+echo "2) 7 ngày"
+echo "3) 10 ngày"
+echo "4) 15 ngày"
+echo "========================================================================="
+while true; do
+    read -p "Nhập lựa chọn (1-4): " choice
+    case $choice in
+        1) backup_days=5; break ;;
+        2) backup_days=7; break ;;
+        3) backup_days=10; break ;;
+        4) backup_days=15; break ;;
+        *) echo "Lựa chọn không hợp lệ, vui lòng nhập lại!" ;;
+    esac
+done
+echo "========================================================================="
+echo "Bạn đã chọn lưu backup trong $backup_days ngày."
+
+###################################
+else
+clear
+exit 0
+fi
+
+################################################################################################
+################################################################################################
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=("1 Ngày 1 Lần Vào 03:00 Sáng" "2 Ngày 1 Lần Vào 03:00 Sáng" "3 Ngày 1 Lần Vào 03:00 Sáng")
+  echo "========================================================================="
+  echo "Cài Đặt Thời Gian Server Tự Động Sync Data Tới VPS Backup."
+  echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) timersync="bbbb"; break;;
+    2) timersync="cccc"; break;;
+    3) timersync="dddd"; break;;
+    0) timersync="huybo"; break;;
+    *) echo "Bạn nhập sai, Vui lòng nhập theo danh sách trong list"; continue;;
+    #*) echo "You typed wrong, Please type in the ordinal number on the list";continue;;
+    esac  
+done
+
+###################################
+#1 tieng 1 lan
+###################################
+if [ "$timersync" = "aaaa" ]; then
+timesync=`echo "1 tieng 1 lan"`
+###################################
+#1 ngay 1 lan
+###################################
+elif [ "$timersync" = "bbbb" ]; then
+timesync=`echo "1 Ngày 1 Lần"`
+###################################
+#1 tuan 1 lan
+###################################
+elif [ "$timersync" = "cccc" ]; then
+timesync=`echo "2 Ngày 1 Lần"`
+###################################
+#2 tuan 1 lan
+###################################
+elif [ "$timersync" = "dddd" ]; then
+timesync=`echo "3 Ngày 1 Lần"`
+else
+clear
+/etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+###################################
+fi
+
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn DSNVPS Backup Data tới VPS Backup $timesync? [y/N] " response
+#read -r -p "You want DSNVPS sync data to vps backup every $phut minutes  ? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ ..."
+    sleep 2
+if [ "$thietlapsaoluu" == "0" ]; then
+make_script_backup
+else
+make_script_backup_backup_folder_only
+fi
+
+if [ "$timersync" = "aaa" ]; then
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.rsync.cron
+    echo "0 * * * * root /etc/dsnvps/Auto_backup_VPS_by_rsync >/dev/null 2>&1" >> /etc/cron.d/dsnvps.rsync.cron
+elif [ "$timersync" = "bbbb" ]; then
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.rsync.cron
+    echo "0 3 * * * root /etc/dsnvps/Auto_backup_VPS_by_rsync >/dev/null 2>&1" >> /etc/cron.d/dsnvps.rsync.cron
+elif [ "$timersync" = "cccc" ]; then
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.rsync.cron
+    echo "0 3 */2 * * root /etc/dsnvps/Auto_backup_VPS_by_rsync >/dev/null 2>&1" >> /etc/cron.d/dsnvps.rsync.cron
+else
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.rsync.cron
+    echo "0 3 */3 * * root /etc/dsnvps/Auto_backup_VPS_by_rsync >/dev/null 2>&1" >> /etc/cron.d/dsnvps.rsync.cron
+fi
+
+
+systemctl restart crond
+clear
+  echo "========================================================================="
+  echo "Thiết lập thời gian auto backup data thành công!"
+  echo "-------------------------------------------------------------------------"
+  echo "$timesync DSNVPS backup data tới VPS Backup."
+  echo "-------------------------------------------------------------------------"
+  echo "Thư mục lưu trữ backup trên VPS backup: /home/VPS-$serverip"
+  echo "-------------------------------------------------------------------------"
+  echo "Thời gian auto backup data: $timesync"
+  if [ "$thietlapsaoluu" = "1" ]; then
+  echo "-------------------------------------------------------------------------"
+  echo "Thời gian giữ backup bên VPS Backup: $backup_days ngày."
+fi
+
+  /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+ 
+;;
+*)
+rm -rf /etc/cron.d/dsnvps.rsync.cron
+rm -rf /etc/dsnvps/Auto_backup_VPS_by_rsync
+clear
+echo "========================================================================="
+echo "Huỷ bỏ!"
+  /etc/dsnvps/menu/dsnvps-rsync-backup-vps-menu
+  exit
+;;
+esac
+exit

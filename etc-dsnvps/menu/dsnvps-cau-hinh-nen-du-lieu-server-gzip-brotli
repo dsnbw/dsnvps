@@ -1,0 +1,244 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Hàm kiểm tra RAM
+check_ram() {
+    total_ram=$(free -m | awk '/^Mem:/{print $2}')
+    if [ "$total_ram" -lt 4096 ]; then
+        return 1  # RAM < 4GB
+    else
+        return 0  # RAM >= 4GB
+    fi
+}
+
+if [ ! -f /etc/nginx/conf/brotli.conf ]; then
+    cp /etc/dsnvps/menu/inc/conf/brotli.conf /etc/nginx/conf/brotli.conf
+fi
+config_file="/etc/nginx/nginx.conf"
+brotli_conf="/etc/nginx/conf/brotli.conf"
+temp_config="/tmp/nginx.conf.tmp"
+error_log="/tmp/910s.error"
+
+function save_original_config {
+    cp "$config_file" "$temp_config"
+}
+
+function restore_original_config {
+    cp "$temp_config" "$config_file"
+    rm "$temp_config"
+}
+
+function create_brotli_config {
+    if [ ! -f "$brotli_conf" ]; then
+        cat <<EOL > "$brotli_conf"
+# Cau hinh brotli
+brotli on;
+brotli_comp_level 6;
+brotli_static on;
+brotli_types application/atom+xml application/javascript application/json application/rss+xml \
+              application/vnd.ms-fontobject \
+              application/x-font-opentype application/x-font-truetype application/x-font-ttf application/x-javascript \
+              application/xhtml+xml application/xml \
+              font/eot font/opentype font/otf font/truetype \
+              image/svg+xml image/vnd.microsoft.icon \
+              image/x-icon image/x-win-bitmap text/css \
+              text/javascript text/plain text/xml;
+EOL
+    fi
+}
+
+function get_current_compression {
+    if grep -q "gzip on;" "$config_file"; then
+        echo "gzip"
+    elif grep -q "include.*conf/brotli.conf" "$config_file"; then
+        echo "brotli"
+    else
+        echo "none"
+    fi
+}
+
+function confirm_change {
+    while true; do
+        echo "========================================================================="
+        echo "Bạn đã chọn: $1"
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS sẽ cấu hình server nén dữ liệu với $1."
+        echo "-------------------------------------------------------------------------"
+        read -p "Nhập OK để xác nhận [0 -Thoát]: " confirmation
+        case "$confirmation" in
+            OK)
+                return 0
+                ;;
+0) clear; exit 0;;
+            *)
+                echo "========================================================================="
+                echo "Nhập không hợp lệ. Vui lòng thử lại."
+                sleep 3
+                tput cuu 8
+                for ((i=0; i<8; i++)); do
+                    tput el
+                    tput cud1
+                done
+                tput cuu 8
+                ;;
+        esac
+    done
+}
+
+function prompt_for_compression {
+    current_compression=$(get_current_compression)
+    echo "========================================================================="
+    echo "Hướng dẫn sử dụng: http://go.dsnvps/1902"
+    echo "========================================================================="
+    echo "Sử dụng chức năng này để thiết lập nén dữ liệu Server"
+    echo "-------------------------------------------------------------------------"
+    echo "Cấu hình nén dữ liệu hiện tại: $current_compression"
+    echo "========================================================================="
+    echo "Lựa chọn cấu hình nén dữ liệu:"
+    echo "========================================================================="
+    while true; do
+        echo "1) gzip"
+        echo "2) brotli"
+        read -p "Nhập lựa chọn [0 -Thoát]: " choice
+        case $choice in
+            1) enable_gzip; break ;;
+            2) 
+                if check_ram; then
+                    enable_brotli
+                    break
+                else
+                    if [ "$(get_current_compression)" == "brotli" ]; then
+                        enable_brotli
+                        break
+                    else
+                        clear
+                        echo "========================================================================="
+                        echo "RAM hệ thống dưới 4GB, không thể chọn Brotli!"
+                        echo "-------------------------------------------------------------------------"
+                        echo "Vui lòng chọn Gzip hoặc nâng cấp RAM để sử dụng Brotli."
+                        sleep 3
+                        prompt_for_compression
+                        break
+                    fi
+                fi
+                ;;
+0) clear; exit 0;;
+            *) 
+                echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+                sleep 3
+                tput cuu 4
+                for ((i=0; i<4; i++)); do
+                    tput el
+                    tput cud1
+                done
+                tput cuu 4
+                continue;;
+        esac
+    done
+}
+
+function enable_gzip {
+    if [ "$(get_current_compression)" == "gzip" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ ..."; sleep 2
+        clear
+        echo "========================================================================="
+        echo "Cấu hình nén dữ liệu hiện tại đang dùng: gzip"
+        echo "-------------------------------------------------------------------------"
+        echo "Giữ nguyên cấu hình hiện tại."
+        /etc/dsnvps/menu/dsnvps-tien-ich
+    else
+        if confirm_change "gzip"; then
+            echo "-------------------------------------------------------------------------"
+            echo "Chuyển sang nén dữ liệu với gzip..."; sleep 2
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ ..."; sleep 2
+            save_original_config
+            sed -i '/include.*conf\/brotli\.conf;/ s/^/#/' "$config_file"
+            sed -i 's/^\s*gzip off;/gzip on;/' "$config_file"
+            if nginx -t; then
+                systemctl reload nginx
+                clear
+                echo "========================================================================="
+                echo "Hoàn thành chuyển cấu hình nén dữ liệu sang Gzip."
+                /etc/dsnvps/menu/dsnvps-tien-ich
+            else
+                nginx -t > "$error_log" 2>&1
+                restore_original_config
+                clear
+                echo "========================================================================="
+                echo "DSNVPS gặp lỗi khi thực hiện chức năng này. Phục hồi cấu hình cũ."
+                echo "-------------------------------------------------------------------------"
+                echo "Lỗi khi thực hiện cấu hình:"
+                echo "-------------------------------------------------------------------------"
+                cat "$error_log"
+                /etc/dsnvps/menu/dsnvps-tien-ich
+            fi
+        fi
+    fi
+}
+
+function enable_brotli {
+    if [ ! -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] && ! { [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] || nginx -V 2>&1 | grep -q "nginx-more"; }; then
+        echo "========================================================================="
+        echo "Chức năng này chỉ hoạt động trên Nginx-More."; sleep 3
+        echo "-------------------------------------------------------------------------"
+        echo "Kiểm Tra Phiên Bản Nginx ..."; sleep 3
+        clear
+        echo "========================================================================="
+        echo "Chức năng chỉ hỗ trợ Nginx-More !"
+        echo "-------------------------------------------------------------------------"
+        echo "Khuyến nghị: Hãy chuyển sang Nginx-More để sử dụng FULL chức năng DSNVPS."
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS menu => Thay Đổi/Cập Nhật Nginx => Nginx-More." 
+        /etc/dsnvps/menu/dsnvps-tien-ich
+        exit
+    fi
+    
+    if [ "$(get_current_compression)" == "brotli" ]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ ..."; sleep 2
+        clear
+        echo "========================================================================="
+        echo "Cấu hình nén dữ liệu hiện tại đang dùng: brotli"
+        echo "-------------------------------------------------------------------------"
+        echo "Giữ nguyên cấu hình hiện tại."
+        /etc/dsnvps/menu/dsnvps-tien-ich
+    else
+        if confirm_change "brotli"; then
+            echo "-------------------------------------------------------------------------"
+            echo "Chuyển sang nén dữ liệu với brotli..."; sleep 2
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ ..."; sleep 2
+            save_original_config
+            create_brotli_config
+            if ! grep -q "include.*conf/brotli.conf" "$config_file"; then
+                sed -i '/http {/a\    include '"$brotli_conf"';' "$config_file"
+            else
+                sed -i '/include.*conf\/brotli\.conf;/ s/^#//' "$config_file"
+            fi
+            sed -i 's/^\s*gzip on;/gzip off;/' "$config_file"
+            if nginx -t; then
+                systemctl reload nginx
+                clear
+                echo "========================================================================="
+                echo "Hoàn thành chuyển cấu hình nén dữ liệu sang Brotli."
+                /etc/dsnvps/menu/dsnvps-tien-ich
+            else
+                nginx -t > "$error_log" 2>&1
+                restore_original_config
+                clear
+                echo "========================================================================="
+                echo "DSNVPS gặp lỗi khi thực hiện chức năng này. Phục hồi cấu hình cũ."
+                echo "-------------------------------------------------------------------------"
+                echo "Lỗi khi thực hiện cấu hình:"
+                echo "-------------------------------------------------------------------------"
+                cat "$error_log"
+                /etc/dsnvps/menu/dsnvps-tien-ich
+            fi
+        fi
+    fi
+}
+
+# Thuc hien lua chon
+prompt_for_compression

@@ -1,0 +1,54 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+domain="${1:-}"
+if [[ -z "$domain" ]]; then
+    domain="$(dsnvps_pick_domain all)" || exit 0
+fi
+
+proto="https"
+curl -fsSIL --max-time 5 "https://${domain}" >/dev/null 2>&1 || proto="http"
+base_url="${proto}://${domain}"
+
+echo -e "${C_CYAN}Đang tìm sitemap tại ${base_url}...${C_RESET}"
+sitemap_url=""
+for path in "/sitemap_index.xml" "/wp-sitemap.xml" "/sitemap.xml"; do
+    code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 6 -L "${base_url}${path}")
+    if [[ "$code" == "200" ]]; then
+        sitemap_url="${base_url}${path}"
+        break
+    fi
+done
+
+if [[ -z "$sitemap_url" ]]; then
+    echo -e "${C_YELLOW}Không tìm thấy sitemap XML. Đang preload trang chủ ${base_url}...${C_RESET}"
+    curl -s -o /dev/null -w "GET ${base_url} -> HTTP %{http_code} (%{time_total}s)\n" -A "DSNVPS-Preload-Bot/1.0" -L "${base_url}"
+    exit 0
+fi
+
+echo -e "${C_GREEN}Tìm thấy sitemap: ${sitemap_url}${C_RESET}"
+urls_tmp="/etc/dsnvps/.tmp/preload_${domain}.txt"
+: > "$urls_tmp"
+
+# Extract sub-sitemaps or direct URLs
+locs=$(curl -fsSL --max-time 10 "$sitemap_url" | grep -oP '(?<=<loc>)[^<]+' || true)
+for u in $locs; do
+    if [[ "$u" == *.xml* ]]; then
+        curl -fsSL --max-time 10 "$u" | grep -oP '(?<=<loc>)[^<]+' >> "$urls_tmp" || true
+    else
+        echo "$u" >> "$urls_tmp"
+    fi
+done
+
+sort -u "$urls_tmp" -o "$urls_tmp"
+total=$(wc -l < "$urls_tmp")
+echo -e "${C_CYAN}Bắt đầu Preload ${total} URL (5 luồng song song)...${C_RESET}"
+
+count=0
+xargs -P 5 -I {} bash -c '
+    code=$(curl -s -o /dev/null -w "%{http_code} %{time_total}s" --max-time 10 -A "DSNVPS-Preload-Bot/1.0" -L "$1")
+    printf "  [%s] %s\n" "$code" "$1"
+' _ {} < "$urls_tmp"
+
+rm -f "$urls_tmp"
+echo -e "${C_GREEN}✔ Hoàn tất Preload Cache cho ${domain} (${total} URL)!${C_RESET}"

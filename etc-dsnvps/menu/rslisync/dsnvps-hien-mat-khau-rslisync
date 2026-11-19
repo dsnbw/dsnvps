@@ -1,0 +1,27 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+clear
+echo "========================================================================= "
+echo "Bạn chưa cài đặt Resilio Sync"
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+else
+echo "========================================================================= "
+echo "Vui lòng chờ..."; sleep 2
+clear
+echo "========================================================================="
+echo "Thông tin quản lý Resilio Sync:"
+echo "-------------------------------------------------------------------------"
+echo "Resilio Sync WebUI: http://$serverip:$(grep -E '^rslportwebui[[:space:]]*=' /etc/dsnvps/rslsync.info | awk '{print $3}')"
+echo "-------------------------------------------------------------------------"
+echo "User: $(grep username /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}') | Password: $(grep password /etc/dsnvps/rslsync.info | awk 'NR==1 {print $3}')"
+echo "-------------------------------------------------------------------------"
+echo "Resilio Sync phải được bật trước khi truy cập!"
+/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
+fi

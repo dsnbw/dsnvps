@@ -1,0 +1,13 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /usr/local/maldetect/conf.maldet ]; then
+/etc/dsnvps/menu/dsnvps-cai-dat-maldet-with-clamav
+else
+/etc/dsnvps/menu/dsnvps-remove-maldet-with-clamav
+fi

@@ -1,0 +1,58 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+while true; do
+    clear
+    tcp_cc="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo unknown)"
+    zram_st="OFF"; grep -q '/dev/zram' /proc/swaps 2>/dev/null && zram_st="ON"
+    mpid="$(systemctl show -p MainPID --value mariadb 2>/dev/null || echo 0)"
+    jem_st="OFF"; [[ "$mpid" =~ ^[0-9]+$ ]] && ((mpid > 1)) && grep -q "libjemalloc" "/proc/${mpid}/maps" 2>/dev/null && jem_st="ON"
+    jit_st="$(php-fpm$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null) -i 2>/dev/null | awk -F'=> ' '/opcache\.jit_buffer_size/ {print $2; exit}' | awk '{print $1}')"
+    [[ -z "$jit_st" || "$jit_st" == "0" ]] && jit_st="OFF"
+    noa_st="OFF"; findmnt -n -o OPTIONS / | grep -q "noatime" && noa_st="ON"
+    bro_st="OFF"; grep -q "brotli.conf" /etc/nginx/nginx.conf 2>/dev/null && bro_st="ON"
+
+    echo -e "${C_CYAN}=========================================================================${C_RESET}"
+    echo -e "${C_YELLOW}      DSNVPS SERVER TURBO & OPTIMIZATION SUITE (WPTangToc + VPSSIM)${C_RESET}"
+    echo -e "${C_CYAN}=========================================================================${C_RESET}"
+    echo -e " Trạng thái: TCP=${C_GREEN}${tcp_cc}${C_RESET} | ZRAM=${C_GREEN}${zram_st}${C_RESET} | Jemalloc=${C_GREEN}${jem_st}${C_RESET} | JIT=${C_GREEN}${jit_st}${C_RESET} | noatime=${C_GREEN}${noa_st}${C_RESET} | Brotli=${C_GREEN}${bro_st}${C_RESET}"
+    echo "-------------------------------------------------------------------------"
+    echo "  1) 🚀 1-Click Tối Ưu Toàn Diện Server (Chạy Tất Cả Tối Ưu)"
+    echo "  2) ⚙️  Tối Ưu Kernel Linux, Google TCP BBR, FQ & THP"
+    echo "  3) 💾 Bật ZRAM Swap Siêu Tốc (zstd trên RAM)"
+    echo "  4) 🛑 Tắt ZRAM Swap"
+    echo "  5) 🛡️  Kích Hoạt Bảo Vệ OOM Score (SSH, MariaDB, Nginx, Cache)"
+    echo "  6) 💿 Tối Ưu Disk I/O (noatime & SSD TRIM)"
+    echo "  7) 🗄️  Kích Hoạt MariaDB Jemalloc & Auto-Tune MySQL"
+    echo "  8) ⚡ Bật PHP 8+ JIT Compiler (Auto-size theo RAM)"
+    echo "  9) 🔌 Tắt PHP JIT Compiler"
+    echo " 10) 🌐 Bật Nén Kép Nginx Brotli + Gzip"
+    echo " 11) 📝 Giới Hạn Dung Lượng Log Systemd Journald (100MB)"
+    echo " 12) 🧹 Loại Bỏ Snapd & Dịch Vụ Thừa Chiếm Tài Nguyên"
+    echo " 13) 🧠 Xả Bộ Nhớ Đệm RAM Linux (Clear PageCache / Dentries / Inodes)"
+    echo "  0) Quay lại Menu chính"
+    echo "========================================================================="
+    read -r -p "Lựa chọn của bạn [0-13]: " ch
+    case "$ch" in
+        1) /etc/dsnvps/menu/optimize/dsnvps-opt-all; read -r -p "Nhấn [Enter]..." ;;
+        2) /etc/dsnvps/menu/optimize/dsnvps-opt-kernel; read -r -p "Nhấn [Enter]..." ;;
+        3) /etc/dsnvps/menu/optimize/dsnvps-opt-zram --auto; read -r -p "Nhấn [Enter]..." ;;
+        4) /etc/dsnvps/menu/optimize/dsnvps-opt-zram off; read -r -p "Nhấn [Enter]..." ;;
+        5) /etc/dsnvps/menu/optimize/dsnvps-opt-oom; read -r -p "Nhấn [Enter]..." ;;
+        6) /etc/dsnvps/menu/optimize/dsnvps-opt-disk; read -r -p "Nhấn [Enter]..." ;;
+        7) /etc/dsnvps/menu/optimize/dsnvps-opt-jemalloc; read -r -p "Nhấn [Enter]..." ;;
+        8) /etc/dsnvps/menu/optimize/dsnvps-opt-php-jit --auto; read -r -p "Nhấn [Enter]..." ;;
+        9) /etc/dsnvps/menu/optimize/dsnvps-opt-php-jit off; read -r -p "Nhấn [Enter]..." ;;
+        10) /etc/dsnvps/menu/optimize/dsnvps-opt-nginx; read -r -p "Nhấn [Enter]..." ;;
+        11) /etc/dsnvps/menu/optimize/dsnvps-opt-journald; read -r -p "Nhấn [Enter]..." ;;
+        12) /etc/dsnvps/menu/optimize/dsnvps-opt-bloat; read -r -p "Nhấn [Enter]..." ;;
+        13)
+            sync && echo 3 > /proc/sys/vm/drop_caches
+            echo -e "${C_GREEN}[OK] Đã xả bộ nhớ đệm RAM (PageCache/Dentries/Inodes)!${C_RESET}"
+            free -h
+            read -r -p "Nhấn [Enter]..."
+            ;;
+        0) clear; exit 0 ;;
+        *) echo "Sai lựa chọn!"; sleep 1 ;;
+    esac
+done

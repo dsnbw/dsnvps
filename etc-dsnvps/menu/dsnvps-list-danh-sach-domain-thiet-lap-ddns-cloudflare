@@ -1,0 +1,116 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+if pgrep -x "strace" > /dev/null; then
+    echo "DSNVPS không thể thực hiện chức năng này."
+    clear
+dsnvps
+exit 1
+fi
+
+
+# Đường dẫn thư mục
+ddns_folder="/etc/dsnvps/ddns-cloudflare"
+nginx_folder="/etc/nginx/conf.d"
+tmp_folder="/etc/dsnvps/.tmp"
+kalis_file="$tmp_folder/kalis"
+kalis2_file="$tmp_folder/kalis2"
+kalislo_file="$tmp_folder/kalislo"
+
+
+# Function to extract maindomain from subdomain
+get_maindomain() {
+    local domain=$1
+    echo "$domain" | awk -F. '{if (NF>2) print $(NF-1)"."$NF; else print $0}'
+}
+
+# Check and delete files in /etc/dsnvps/ddns-cloudflare that are not present in /etc/nginx/conf.d
+if [ "$(ls -A $ddns_folder)" ]; then
+    # If the ddns-cloudflare folder is not empty
+    for file in "$ddns_folder"/*.conf; do
+        domain_name=$(basename "$file" .conf)
+        maindomain=$(get_maindomain "$domain_name")
+        multisite_dir="/home/$maindomain/multisite.conf.d"
+
+        # Check conditions for deletion
+        if [ ! -f "$nginx_folder/$domain_name.conf" ] && \
+           { [ ! -d "$multisite_dir" ] || [ -z "$(ls -A $multisite_dir/*.conf 2>/dev/null)" ]; }; then
+            # echo "Deleting file: $file because it's not in $nginx_folder and no conf file in $multisite_dir"
+            rm -f "$file"
+        fi
+    done
+else
+clear
+printf "=========================================================================\n"
+echo "Chưa thiết lập DDNS Cloudflare cho website trên server."
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+  exit 0
+fi
+
+# Lấy danh sách các file còn lại trong /etc/dsnvps/ddns-cloudflare và lưu vào /etc/dsnvps/.tmp/kalis
+find "$ddns_folder" -type f -name "*.conf" -exec basename {} \; > "$kalis_file"
+
+# Kiểm tra nếu file /etc/dsnvps/.tmp/kalis rỗng
+if [ ! -s "$kalis_file" ]; then
+  echo "Không có file nào trong $ddns_folder."
+  exit 0
+fi
+
+# Tạo file /etc/dsnvps/.tmp/kalis2 với nội dung đã loại bỏ đuôi .conf
+sed 's/\.conf$//' "$kalis_file" > "$kalis2_file"
+
+# Đếm số lượng domain
+domain_count=$(wc -l < "$kalis_file")
+
+
+# Tạo hoặc xóa file /etc/dsnvps/.tmp/kalislo
+> "$kalislo_file"
+
+# Đọc từng domain trong /etc/dsnvps/.tmp/kalis
+while read -r domain; do
+  domain_no_conf=$(echo "$domain" | sed 's/\.conf$//')
+  domain_file="$ddns_folder/$domain"
+  if [ -f "$domain_file" ]; then
+    echo "Website: $domain_no_conf" >> "$kalislo_file"
+    apitoken=$(grep -oP 'cloudflare_zone_api_token="[^"]*' "$domain_file" | cut -d '"' -f 2)
+#    zoneid=$(grep -oP 'zoneid="[^"]*' "$domain_file" | cut -d '"' -f 2)
+    proxieds=$(grep -oP 'proxied="[^"]*' "$domain_file" | cut -d '"' -f 2)
+# Kiểm tra giá trị của proxied và thiết lập status tương ứng
+if [ "$proxieds" = "true" ]; then
+  statusproxy=ON
+elif [ "$proxieds" = "false" ]; then
+  statusproxy=OFF
+fi
+    #echo "API Token: $apitoken" >> "$kalislo_file"
+    #echo "Zone id: $zoneid" >> "$kalislo_file"    
+    echo "CloudClare Proxy: $statusproxy" >> "$kalislo_file"
+    echo "=========================================================================" >> "$kalislo_file"
+  fi
+done < "$kalis_file"
+
+# Xóa dòng "=================" cuối cùng nếu có
+sed -i '$d' "$kalislo_file"
+
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "              Danh Sách Website Thiết Lập DDNS Cloudflare \n"
+printf "=========================================================================\n"
+echo "CloudFlare Proxy| BẬT: Hiện IP Server | TẮT: Ẩn IP Server"
+echo "========================================================================="
+if [ "$domain_count" -eq 1 ]; then
+ echo "Số lượng: 1 Website:"
+else
+  echo "Số lượng: $domain_count Websites"
+fi
+
+echo "========================================================================="
+cat "$kalislo_file"
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu

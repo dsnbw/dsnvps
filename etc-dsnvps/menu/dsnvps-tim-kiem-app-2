@@ -1,0 +1,175 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Khai báo hàm unset_api
+unset_api() {
+    unset API_KEY >/dev/null 2>&1
+    unset API_URL >/dev/null 2>&1
+}
+
+
+#################
+# Neu khong có thì thoat ngay:
+if [ ! -f "/etc/dsnvps/.tmp/zzz01czzkla" ]; then
+echo "1" >/dev/null 2>&1
+exit
+fi
+# Xóa file check Neu khong có thì thoat ngay:
+if [ -f "/etc/dsnvps/.tmp/zzz01czzkla" ]; then
+rm -rf /etc/dsnvps/.tmp/zzz01czzkla
+fi
+##########
+
+# Hàm parse JSON bằng Python hoặc sed
+parse_json() {
+    local json="$1" key="$2" value
+    if command -v python3 >/dev/null 2>&1 && python3 -c 'import json' 2>/dev/null; then
+        value=$(echo "$json" | python3 -c "import json, sys; data = json.loads(sys.stdin.read()); print(data.get(\"$key\", \"\"))" 2>/dev/null)
+        [ "$value" = "None" ] && value=""
+        echo "$value"
+    else
+        value=$(echo "$json" | sed -n "s/.*\"$key\":\"\\{0,1\\}\\([^\"]*\\)\"\\{0,1\\}.*/\\1/p" | head -1)
+        [ "$value" = "null" ] && value=""
+        echo "$value"
+    fi
+}
+
+# Định nghĩa biến
+API_URL="https://$(cat /dev/urandom | tr -dc 'a-f0-9' | head -c6).dsnvps.top"
+API_KEY="HALINH-Dq1r68x4EHYgqmBphIKgZpw4Ka"
+DSNVPS_VERSION_FILE="/etc/dsnvps/menu/inc/dsnvps.version"
+TMP_DIR="/etc/dsnvps/.tmp"
+
+# Kiểm tra domain quản lý
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Tạo thư mục tạm
+if [ ! -d /etc/dsnvps/.tmp ]; then
+    mkdir -p /etc/dsnvps/.tmp
+fi
+
+# Kiểm tra file phiên bản
+if [ ! -f /etc/dsnvps/menu/inc/dsnvps.version ]; then
+    clear
+    echo "========================================================================="
+    echo "Xin lỗi, chúng tôi không thể biết phiên bản hiện tại của bạn"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chắc rằng bạn chạy script official từ website DSNVPS.VN"
+    unset_api
+    dsnvps
+    exit
+fi
+
+echo "========================================================================="
+echo "Đang lấy phiên bản mới nhất của DSNVPS ..."; sleep 2
+
+# Kiểm tra và cài python3, pip3, requests nếu chưa có
+if ! command -v python3 >/dev/null 2>&1; then
+    apt-get install -y -qq python3 >/dev/null 2>&1
+fi
+if ! command -v pip3 >/dev/null 2>&1; then
+    apt-get install -y -qq python3-pip >/dev/null 2>&1
+fi
+if ! python3 -c 'import requests' >/dev/null 2>&1; then
+    pip3 install requests --quiet >/dev/null 2>&1
+fi
+
+# Thử gọi API bằng Python
+python3 -c '
+import requests, json, sys, re
+try:
+    url = "'"$API_URL"'/?action=get_latest_version"
+    headers = {"Authorization": "Bearer '"$API_KEY"'", "Content-Type": "application/json"}
+    response = requests.post(url, json={}, headers=headers, timeout=5)
+    if response.status_code != 200 or "status" not in response.json() or response.json()["status"] != "success":
+        sys.exit(1)
+    data = response.json()
+    version = data.get("version", "")
+    updated_at = data.get("updated_at", "")
+    if not version or not re.match(r"^\d+\.\d+\.\d+$", version):
+        sys.exit(1)
+    print(f"{version} {updated_at}")
+except:
+    sys.exit(1)
+' | while IFS=' ' read -r remote_version update_time; do
+    echo "$remote_version $update_time" > /tmp/dsnvps_version
+done
+
+# Kiểm tra kết quả từ Python
+if [ -f /tmp/dsnvps_version ] && [ -n "$(cat /tmp/dsnvps_version)" ]; then
+    read -r remote_version update_time < /tmp/dsnvps_version
+    rm -f /tmp/dsnvps_version
+else
+    # Python thất bại, thử dùng curl
+    if ! command -v curl >/dev/null 2>&1; then
+        apt-get install -y -qq curl >/dev/null 2>&1
+    fi
+    response=$(curl -s --max-time 5 -X POST "$API_URL/?action=get_latest_version" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: application/json" \
+        -d "{}" 2>/dev/null)
+    if [ -n "$response" ] && echo "$response" | grep -q '"status":"success"'; then
+        remote_version=$(parse_json "$response" "version" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$')
+        update_time=$(parse_json "$response" "updated_at")
+        if [ -n "$remote_version" ]; then
+            echo "$remote_version $update_time" > /tmp/dsnvps_version
+            read -r remote_version update_time < /tmp/dsnvps_version
+            rm -f /tmp/dsnvps_version
+        fi
+    fi
+fi
+
+# Kiểm tra kết quả cuối cùng
+if [ -z "$remote_version" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không thể kiểm tra phiên bản hiện tại hoặc phiên bản không hợp lệ."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy chạy lại chức năng này một lần nữa."
+    unset_api
+    dsnvps
+    exit 1
+fi
+
+LOCALVER=$(cat "$DSNVPS_VERSION_FILE" 2>/dev/null)
+
+if [ "$LOCALVER" != "$remote_version" ]; then
+    echo "========================================================================="
+    echo "Phát hiện bản nâng cấp của DSNVPS !"
+    echo "-------------------------------------------------------------------------"
+    echo "Phiên bản đang sử dụng: $LOCALVER"
+    echo "-------------------------------------------------------------------------"
+    echo "Phiên bản mới nhất: $remote_version - Thời gian update: $update_time"
+    echo "-------------------------------------------------------------------------"
+    echo "Xem DSNVPS Update Log tại: https://go.dsnvps/3515"
+    echo "========================================================================="
+    read -r -n 1 -p "Nhấn phím bất kỳ bắt đầu cập nhật DSNVPS... "
+    echo
+    echo "-------------------------------------------------------------------------"
+    echo "Chuẩn bị cập nhật DSNVPS..."
+    sleep 2
+    rm -f "$TMP_DIR/dsnvps-update"
+    if [ "$(arch)" = "aarch64" ]; then
+        wget -q https://dsnvps/script/dsnvps/dsnvps-update-ARM -O "$TMP_DIR/dsnvps-update" && chmod +x "$TMP_DIR/dsnvps-update"
+    else
+        wget -q https://dsnvps/script/dsnvps/dsnvps-update -O "$TMP_DIR/dsnvps-update" && chmod +x "$TMP_DIR/dsnvps-update"
+    fi
+    unset_api
+    "$TMP_DIR/dsnvps-update"
+else
+    clear
+    echo "========================================================================="
+    echo "Bạn đang sử dụng DSNVPS - FREE FOR ALL"
+    echo "-------------------------------------------------------------------------"
+    echo "Phiên bản hiện tại: $LOCALVER   |   Cập nhật lần cuối: $update_time"
+    unset_api
+    sleep 1
+    dsnvps
+fi

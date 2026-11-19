@@ -1,0 +1,48 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ]; then
+/etc/dsnvps/menu/dsnvps-xoa-website
+	else
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+   UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+   if [ ! "$UP" -ne 1 ]; then
+/etc/dsnvps/menu/dsnvps-xoa-website
+		else
+				clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ Nginx"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, Nginx đã dừng. Vui lòng bật lại trược khi sử dụng chức năng này !"
+			echo "-------------------------------------------------------------------------"
+	echo "Trạng thái Nginx:"
+	echo "-------------------------------------------------------------------------"
+	nginx -t
+	dsnvps
+fi
+fi

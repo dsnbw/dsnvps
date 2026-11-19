@@ -1,0 +1,74 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+ echo "========================================================================="  
+    while true; do
+    printf "%-18s %-18s %-18s %-18s\n" "1) Zend Opcache" "2) Memcached" "3) Redis Cache" "4) Tất cả Cache"
+
+echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+ #   read -p "Type in your choice [0 - Exit]: " choice
+    case $choice in
+    
+    
+    1) luachonclearcache="zendcacehe"; break;;
+    2) luachonclearcache="memcaceh"; break;;
+    3) luachonclearcache="redisache"; break;;
+    4) luachonclearcache="allcache"; break;;
+    0) luachonclearcache="cancel"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #    *) echo "You typed wrong, Please type in the ordinal number on the list";continue;;
+    esac  
+done
+
+if [ "$luachonclearcache" = "zendcacehe" ]; then
+if [ ! -f /etc/php.d/opcache.ini ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache hiện đang tắt."
+echo "-------------------------------------------------------------------------"
+echo "Bạn không cần xóa Zend Opcache Cache"
+dsnvps
+fi
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+echo "========================================================================= "
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+echo "Clear Zend Opache => Done !"
+dsnvps
+elif [ "$luachonclearcache" = "memcaceh" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-memcache
+elif [ "$luachonclearcache" = "redisache" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-redis-cache
+elif [ "$luachonclearcache" = "allcache" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 2
+clear
+echo "========================================================================= "
+if [ -f /etc/php.d/opcache.ini ]; then
+
+/etc/dsnvps/menu/inc/re-start-php-fpm-service 
+
+fi
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-redis-cache-check
+/etc/dsnvps/menu/dsnvps-clear-cache-xoa-cache-server-memcache-check
+clear
+echo "========================================================================= "
+echo "Xóa { Zen Opcache  , Memcache, Redis Cache } Cache  => Done !"
+dsnvps
+else
+clear
+exit 0
+fi

@@ -1,0 +1,7 @@
+#!/bin/bash
+echo "alias restartnginx='service nginx restart'" >> /root/.bashrc
+echo "alias restartphp='service php-fpm restart'" >> /root/.bashrc
+echo "alias restartmysql='service mysql restart'" >> /root/.bashrc
+echo "alias reloadnginx='service nginx reload'" >> /root/.bashrc
+echo "alias statusnginx='nginx -t'" >> /root/.bashrc
+echo "alias DSNVPS='dsnvps'" >> /root/.bashrc

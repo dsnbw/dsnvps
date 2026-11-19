@@ -1,0 +1,183 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -r /etc/dsnvps/menu/dsnvps-tao-mat-khau-bao-ve-folder.py /usr/local/bin/htpasswd.py
+chmod 755 /usr/local/bin/htpasswd.py
+fi
+if [ ! -f /etc/dsnvps/pwprotect.default ]; then
+echo "" > /etc/dsnvps/pwprotect.default
+fi
+if [ ! -f /etc/cron.d/dsnvps.code.cron ]; then
+touch /etc/cron.d/dsnvps.code.cron
+fi
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+mkdir -p /home/$mainsite/private_html/backup
+fi
+
+if [ -f /etc/dsnvps/auto.backup.all.websites.telegram.conf ]; then
+thongbao="BẬT    "
+else
+thongbao="TẮT    "
+fi
+#######################
+#Tong dung luong wwebsite
+# Đường dẫn thư mục cần kiểm tra
+HOME_DIR="/home"
+NGINX_CONF_DIR="/etc/nginx/conf.d"
+
+# Biến để lưu tổng dung lượng (tính bằng KB)
+TOTAL_SIZE_KB=0
+
+# Duyệt qua tất cả các thư mục trong /home
+for dir in "$HOME_DIR"/*; do
+    if [ -d "$dir" ]; then
+        folder_name=$(basename "$dir")
+        
+        # Loại trừ thư mục dsnvps.demo
+        if [ "$folder_name" = "dsnvps.demo" ]; then
+            continue
+        fi
+        
+        # Kiểm tra file vhost trong /etc/nginx/conf.d
+        vhost_file="$NGINX_CONF_DIR/$folder_name.conf"
+        if [ -f "$vhost_file" ]; then
+            size=$(du -s "$dir" | cut -f1)
+            TOTAL_SIZE_KB=$((TOTAL_SIZE_KB + size))
+        fi
+    fi
+done
+
+# Tính toán và trả về giá trị với đơn vị
+if [ "$TOTAL_SIZE_KB" -eq 0 ]; then
+    result="0 KB"
+elif [ "$TOTAL_SIZE_KB" -lt 1024 ]; then
+    result="${TOTAL_SIZE_KB} KB"
+else
+    result=$(echo "scale=0; $TOTAL_SIZE_KB / 1024" | bc)
+    result="${result} MB"
+fi
+
+####################################################
+find /home/$mainsite/private_html/backup/ -name "*.zip*" > /etc/dsnvps/.tmp/dsnvps_check_backup_code_size
+numberfiles=$(cat /etc/dsnvps/.tmp/dsnvps_check_backup_code_size | wc -l)
+if [ "$numberfiles" -ne 0 ]; then
+    TOTAL_SIZE_KB=$(du -c --block-size=1K $(cat /etc/dsnvps/.tmp/dsnvps_check_backup_code_size) | tail -1 | cut -f 1)
+    if [ "$TOTAL_SIZE_KB" -eq 0 ]; then
+        backupcodesize="0 KB"
+    elif [ "$TOTAL_SIZE_KB" -lt 1024 ]; then
+        backupcodesize="$TOTAL_SIZE_KB KB"
+    else
+        backupcodesize=$(echo "scale=0; $TOTAL_SIZE_KB / 1024" | bc)
+        backupcodesize="$backupcodesize MB"
+    fi
+else
+    backupcodesize="0 KB"
+fi
+#####################################
+if [ -f /etc/cron.d/auto.backup.all.websites.cron ] && [ -f /etc/dsnvps/auto.backup.all.websites.conf ]; then
+autobackupwebsite=BẬT
+
+thoigianmode=`cat /etc/cron.d/auto.backup.all.websites.cron | awk 'NR==2 {print $3}'`
+if [ "$thoigianmode" == "*" ]; then
+khoangcachngay=1
+thoigianbackup="Sao Lưu Hàng Ngày"
+else
+khoangcachngay=`echo $thoigianmode | cut -d'/' -f2`
+thoigianbackup="Sao Lưu $khoangcachngay Ngày 1 Lần"
+fi
+
+rm -rf /etc/dsnvps/.tmp/zasxcetbvcx
+cat > "/etc/dsnvps/.tmp/zasxcetbvcx" <<END
+#!/bin/bash
+. /etc/dsnvps/auto.backup.all.websites.conf
+echo "\$sobansaoluu" > /etc/dsnvps/.tmp/zadertycvb
+rm -rf /etc/dsnvps/.tmp/zasxcetbvcx
+END
+sh /etc/dsnvps/.tmp/zasxcetbvcx
+sobansaoluu=`cat /etc/dsnvps/.tmp/zadertycvb`
+ngaytuxoa=`echo "| Lưu Trữ File Backup: ${sobansaoluu} Bản"`
+else
+autobackupwebsite=`echo "TẮT (Không An Toàn - Khuyến Nghị: BẬT)"`
+thoigianbackup=""
+ngaytuxoa=""
+fi
+
+show_phan_tren_menu()
+{
+
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                     Sao Lưu & Phục Hồi Code Website\n"
+printf "=========================================================================\n"
+
+message="Tổng Dung Lượng Website: $result | Tổng Dung Lượng Backup: $backupcodesize"; printf "%$(( (73 - ${#message}) / 2 ))s%s\n" "" "$message"
+#printf "%$(( (73 - ${#backupcodesize} - 30) / 2))s%s\n" "" "Tổng Dung Lượng File Sao Lưu: $backupcodesize"
+echo "-------------------------------------------------------------------------"
+echo "Thư Mục Lưu Trữ: /home/$mainsite/private_html/backup"           
+printf "=========================================================================\n"
+echo "Tự Động Sao Lưu Tất Cả Website: $autobackupwebsite " 
+echo "========================================================================="
+if [ -f /etc/cron.d/auto.backup.all.websites.cron ] && [ -f /etc/dsnvps/auto.backup.all.websites.conf ]; then
+echo "Tần Suất Sao Lưu: $thoigianbackup $ngaytuxoa"
+fi
+}
+
+while true; do
+clear
+show_phan_tren_menu
+echo ""
+printf "%-36s  %s\n" "1) Sao Lưu 1 Website Code         |"  "6) Phục Hồi Code 1 Website"
+printf "%-40s  %s\n" "2) Sao Lưu Tất Cả Website Code    |"  "7) Phục Hồi Full Web & Database"
+printf "%-35s  %s\n" "3) Sao Lưu Full Web & Database    |""--------------------------------------"
+printf "%-35s  %s\n" "----------------------------------|" "8) Lấy Link File Sao Lưu"
+printf "%-41s  %s\n" "4) Tự Động Sao Lưu 1 Website Code |" "9) Đưa Link File Backup Tới Website"
+printf "%-32s  %s\n" "5) Tự Động Sao Lưu Tất Cả Website |" "10) Xóa Tất Cả Dữ Liệu Sao Lưu"
+printf "%-32s %s\n" "----------------------------------""|--------------------------------------"
+printf "%-28s %s\n" "11) TẮT/BẬT Thông Báo Telegram => |"" => Thông Báo Telegram: $thongbao"
+echo "========================================================================="
+
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in
+    1 ) /etc/dsnvps/menu/dsnvps-sao-luu-code;;
+    2 ) /etc/dsnvps/menu/dsnvps-lan-luot-sao-luu-het-tat-ca-website;;  
+    3 ) /etc/dsnvps/menu/dsnvps-sao-luu-full-website-database-code;;   
+    4 ) /etc/dsnvps/menu/dsnvps-befor-chon-tat-bat-tu-dong-sao-luu-code;;
+    5 ) /etc/dsnvps/menu/dsnvps-tao-cron-auto-sao-luu-tat-ca-website;;
+    11 ) /etc/dsnvps/menu/dsnvps-on-off-send-thong-bao-sao-luu-thanh-cong-website;;
+    6 ) /etc/dsnvps/menu/dsnvps-phuc-hoi-website;;
+    7 ) /etc/dsnvps/menu/dsnvps-phuc-hoi-full-website-database-code;;
+    8 ) /etc/dsnvps/menu/dsnvps-link-tai-sao-luu-1-site;;
+    9 ) /etc/dsnvps/menu/dsnvps-copy-backup-code-to-root-folder;; 
+    10 ) /etc/dsnvps/menu/dsnvps-xoa-toan-bo-backup-website;;
+0) clear; exit 0;;
+    
+        *)
+           # clear
+            echo "========================================================================="
+            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 2.8
+            #echo "You typed wrong, Please type in the ordinal number on the list."; sleep 2.3 
+            #show_phan_tren_menu
+ ####### ########## XOA 4 DONG PHIA TREN ################
+ sleep 2
+ tput cuu 12   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<12; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 12   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+continue
+##############################################################
+
+    esac
+
+done
+

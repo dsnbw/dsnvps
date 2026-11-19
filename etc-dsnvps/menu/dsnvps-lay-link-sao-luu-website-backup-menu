@@ -1,0 +1,59 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+numberfiles=$(find /home/$mainsite/private_html/backup/ -name "*.zip*" | wc -l)
+if [ "$numberfiles" = "0" ]; then
+clear
+echo "========================================================================="
+echo "Không tồn tại file backup trên server."
+/etc/dsnvps/menu/dsnvps-sao-luu
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để lấy link tải các bản sao lưu của website trên"
+echo "------------------------------------------------------------------------"
+echo "Vì một website có nhiều bản sao lưu cho nên:"
+echo "------------------------------------------------------------------------"
+echo "=> Link tải bản backup gần nhất sẽ hiển thị ngay trên màn hình Terminal."
+echo "-------------------------------------------------------------------------"
+echo "=> Link tải tất cả các bản sao lưu sẽ ở trong file text phía dưới cùng."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/getlinkbackup"
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "1 Website" "Tất Cả Website")
+printf "=========================================================================\n"
+printf "LẤY LINK TẢI BACKUP CỦA 1 WEBSITE HOẶC TẤT CẢ WEBSITE\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) laylink="1website"; break;;
+    2) laylink="tatca"; break;;
+    0) laylink="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#
+###################################
+if [ "$laylink" = "1website" ]; then
+/etc/dsnvps/menu/dsnvps-link-tai-sao-luu-1-site
+###################################
+#
+###################################
+elif [ "$laylink" = "tatca" ]; then
+/etc/dsnvps/menu/dsnvps-link-download-tat-ca-backup-website-sao-luu
+###################################
+#
+###################################
+else
+clear
+exit 0
+fi

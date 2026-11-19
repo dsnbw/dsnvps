@@ -1,0 +1,440 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+
+######Check Nginx Service I
+UP=$(/etc/init.d/nginx status | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "Nginx service is not running"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS trying to start it"
+echo "------------------------------------------------------------------------"
+echo "Please wait ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Check Nginx service once again !"
+echo "------------------------------------------------------------------------"
+echo "please wait ..."
+sleep 5 ; clear
+UP=$(/etc/init.d/nginx status | grep running | grep -v not | wc -l);
+if [ "$UP" -ne 1 ]; then
+clear
+echo "========================================================================"
+echo "DSNVPS can not start Nginx Service"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Sorry, nginx stopped. Start it before use this function!"
+	echo "------------------------------------------------------------------------"
+	nginx -t
+	/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+else
+clear
+echo "========================================================================="
+echo "Nginx started !"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+fi
+######Check Nginx Service II
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+nginx -t 2>&1 | grep -v 'ModSecurity-nginx' > /etc/dsnvps/.tmp/dsnvps.nginx.check
+if [ -f /etc/dsnvps/.tmp/dsnvps.nginx.check ]; then
+awk '{print $NF}' /etc/dsnvps/.tmp/dsnvps.nginx.check | tr -d '\n' > /etc/dsnvps/.tmp/dsnvps.nginx.check.word
+if [ `cat /etc/dsnvps/.tmp/dsnvps.nginx.check.word` != "oksuccessful" ]; then
+rm -rf /etc/dsnvps/.tmp/dsnvps.nginx.check*
+echo "-------------------------------------------------------------------------"
+echo "Error found ..."; sleep 3
+clear
+clear
+echo "========================================================================="
+echo "Nginx has an error. DSNVPS can not run this function !"
+echo "-------------------------------------------------------------------------"
+echo "Nginx status: "
+echo "-------------------------------------------------------------------------"
+nginx -t
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+fi
+
+#############################
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite
+    do
+if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+fi
+ done < "$file1"
+ if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+clear
+echo "========================================================================="
+ echo "DSNVPS khong tim thay website chay Wordpress Code tren Server"
+ /etc/dsnvps/menu/dsnvps-letsencrypt-menu
+ exit
+ fi
+ #################################
+ 
+echo "========================================================================="
+echo "Dung chuc nang nay de cai dat SSL cho Sub-Domain cua Wordpress multisite."  
+echo "-------------------------------------------------------------------------"
+echo "Xem huong dan tai: https://go.dsnvps/2588"
+mapfile -t website_list < /etc/dsnvps/.tmp/checkallwebsites
+echo "========================================================================="
+echo "Danh sach cac website tren server:"
+echo "-------------------------------------------------------------------------"
+for ((i = 0; i < ${#website_list[@]}; i+=2)); do
+    if ((i+1 < ${#website_list[@]})); then
+        printf "%-4s %-20s %-4s %-20s\n" "$((i+1))." "${website_list[i]}" "$((i+2))." "${website_list[i+1]}"
+    else
+        printf "%-4s %-20s\n" "$((i+1))." "${website_list[i]}"
+    fi
+done
+while true; do
+    echo "========================================================================="
+    echo -n "Nhap so tuong ung voi website (0-Thoat): " 
+    read -r selection
+    
+    # Check if nothing is entered or if the input is invalid
+    if [[ -z "$selection" ]]; then
+        echo "Vui long nhap mot so hop le."
+        continue
+    elif [[ "$selection" == "0" ]]; then
+        clear
+clear && /etc/dsnvps/menu/dsnvps-letsencrypt-menu
+        break
+    elif [[ "$selection" =~ ^[0-9]+$ ]] && (( selection >= 1 && selection <= ${#website_list[@]} )); then
+        website=${website_list[selection-1]}
+        break  # Exit the loop if the selection is valid
+    else
+        echo "Lua chon khong hop le. Vui long thu lai."
+    fi
+done
+
+
+
+
+
+if [ ! "$(grep "WP_ALLOW_MULTISITE" /home/$website/public_html/wp-config.php)" == "" ]; then
+if [ ! "$(grep "define( 'SUBDOMAIN_INSTALL', false );" /home/$website/public_html/wp-config.php)" == "" ]; then
+clear
+echo "========================================================================="
+echo "$website cai dat Multisite duoc cai dat theo dang Sub-directories"
+echo "-------------------------------------------------------------------------"
+echo "Ban khong can su dung chuc nang nay."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi
+fi
+
+cd /home/$website/public_html
+wp site list --allow-root | sed '1d' | sed '1d' > /etc/dsnvps/.tmp/listsubsites
+sed '$d' /etc/dsnvps/.tmp/listsubsites >/dev/null 2>&1
+if [ ! -s /etc/dsnvps/.tmp/listsubsites ]; then
+rm -rf /etc/dsnvps/.tmp/listsubsites
+clear
+echo "========================================================================="
+echo "Hien tai $website chua tao SUB nao trong WP-ADMIN."
+echo "-------------------------------------------------------------------------"
+echo "Ban phai tao Sub trong WP-ADMIN truoc khi chay chuc nang nay !"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+cd
+echo "========================================================================="
+echo "$website da cai dat wordpress multisite dang Sub-domain"
+echo "-------------------------------------------------------------------------"
+echo "List subsites cua $website:"
+echo "-------------------------------------------------------------------------"
+awk '{print $2}' /etc/dsnvps/.tmp/listsubsites | sed 's/http:\/\///'| sed 's/\///' > /etc/dsnvps/.tmp/listsubsites2
+cat /etc/dsnvps/.tmp/listsubsites2 | pr -2 -t
+#rm -rf /etc/dsnvps/.tmp/listsubsites
+echo "========================================================================="
+echo "CAI DAT FREE SSL CHO SUB-DOMAIN"
+echo "========================================================================="
+echo "Khong duoc nhap kem domain. Vi du tao Vhost cho abc.dsnvps nhap: abc"
+echo "-------------------------------------------------------------------------"
+echo "SUB ban nhap phai trong list duoi va da duoc tao Vhost tren server:"
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/abcdtsd.temp
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+awk '{print $2}' /etc/dsnvps/.tmp/listsubsites2 | sed 's/http:\/\///'| sed 's/\///' | sed 's/.$websiteOK//'> /etc/dsnvps/.tmp/listsubsites3
+rm -rf /etc/dsnvps/.tmp/config.temp
+END
+sh /etc/dsnvps/.tmp/config.temp
+cat /etc/dsnvps/.tmp/listsubsites3 | pr -2 -t
+echo "========================================================================="
+echo -n "Nhap ten sub: " 
+read subdomain
+if [ "$subdomain" = "" ]; then
+clear
+echo "========================================================================="
+echo "Ban nhap sai, vui long nhap lai "
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi
+
+kiemtradata="^[a-zA-Z0-9][-a-zA-Z0-9]{0,61}[a-zA-Z0-9]$";
+if [[ ! "$subdomain" =~ $kiemtradata ]]; then
+	subdomain=`echo $subdomain | tr '[A-Z]' '[a-z]'`
+	rm -rf /etc/dsnvps/.tmp/listsubsites
+clear
+echo "========================================================================="
+echo "$subdomain khong hop le ! "
+echo "-------------------------------------------------------------------------"
+echo "Ban hay lam lai !"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi 
+
+grep http://$subdomain.$websiteOK /etc/dsnvps/.tmp/listsubsites > /etc/dsnvps/.tmp/xZhyzn0al
+if [ ! -s /etc/dsnvps/.tmp/xZhyzn0al ]; then
+rm -rf /etc/dsnvps/.tmp/xZhyzn0al
+rm -rf /etc/dsnvps/.tmp/listsubsites
+clear
+echo "========================================================================="
+echo "Ban phai tao Sub $subdomain trong WP-ADMIN"
+echo "-------------------------------------------------------------------------"
+echo "cua $website truoc khi chay chuc nang nay !"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+
+#rm -rf /etc/dsnvps/.tmp/xZhyzn0al
+if [ ! -f /etc/nginx/conf.d/$subdomain.$websiteOK.conf ]; then
+clear
+echo "========================================================================="
+echo "$subdomain.$websiteOK chua duoc kich hoat (tao Vhost) "
+echo "-------------------------------------------------------------------------"
+echo "Ban phai tao Vhost cho SUB truoc khi chay chuc nang nay:"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS Menu ==> Wordpress Blog Tools ==> Cai Dat Wordpress Multisite"
+echo "-------------------------------------------------------------------------"
+echo "Sau do chay lai chuc nang nay."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi
+
+
+#######################################################
+#Check Cai Dat SSL roi hay chua
+rm -rf /etc/dsnvps/.tmp/bopukzyatsffrg
+rm -rf /etc/dsnvps/.tmp/bopaslxixoaseufncg
+rm -rf /etc/dsnvps/.tmp/aslxixoaseufnc
+rm -rf /etc/dsnvps/.tmp/bxnahslsadoplza
+rm -rf /etc/dsnvps/.tmp/bxnahslsado
+grep listen /etc/nginx/conf.d/$subdomain.$websiteOK.conf > /etc/dsnvps/.tmp/bxnahslsado
+grep ssl /etc/dsnvps/.tmp/bxnahslsado > /etc/dsnvps/.tmp/bxnahslsadoplza
+grep 443 /etc/dsnvps/.tmp/bxnahslsado > /etc/dsnvps/.tmp/aslxixoaseufnc
+
+wc -c < /etc/dsnvps/.tmp/bxnahslsadoplza > /etc/dsnvps/.tmp/bopukzyatsffrg
+wc -c < /etc/dsnvps/.tmp/aslxixoaseufnc > /etc/dsnvps/.tmp/bopaslxixoaseufncg
+check1=`cat /etc/dsnvps/.tmp/bopukzyatsffrg`
+check2=`cat /etc/dsnvps/.tmp/bopaslxixoaseufncg`
+
+if [  "$check1" -gt "10" ] && [  "$check2" -gt "10" ]; then
+rm -rf rm -rf /etc/dsnvps/.tmp/bopukzyatsffrg
+rm -rf /etc/dsnvps/.tmp/bopaslxixoaseufncg
+rm -rf /etc/dsnvps/.tmp/aslxixoaseufnc
+rm -rf /etc/dsnvps/.tmp/bxnahslsadoplza
+rm -rf /etc/dsnvps/.tmp/bxnahslsado
+clear
+echo "========================================================================="
+echo "$subdomain.$website is using SSL."
+echo "-------------------------------------------------------------------------"
+echo "You can not run this function."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/bopukzyatsffrg
+rm -rf /etc/dsnvps/.tmp/bopaslxixoaseufncg
+rm -rf /etc/dsnvps/.tmp/aslxixoaseufnc
+rm -rf /etc/dsnvps/.tmp/bxnahslsadoplza
+rm -rf /etc/dsnvps/.tmp/bxnahslsado
+#######################################################
+
+rm -rf /etc/dsnvps/.tmp/servername
+grep "server_name\ $subdomain.$websiteOK" /etc/nginx/conf.d/$subdomain.$websiteOK.conf > /etc/dsnvps/.tmp/servername
+servername=$(cat /etc/dsnvps/.tmp/servername)
+if [ ! -f /etc/dsnvps/.tmp/servername ]; then
+clear
+echo "========================================================================="
+echo "Ban da thay doi cau hinh file Vhost khong dung voi config DSNVPS yeu cau"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS khong the chay chuc nang nay."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi
+
+echo "========================================================================="
+read -r -p "Ban muon cai dat SSL cho $subdomain.$websiteOK ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+
+############# Check Page Speed Cho Domain#######################################
+if [ "`grep "\/etc\/nginx\/ngx_pagespeed.conf" /etc/nginx/conf.d/$subdomain.$websiteOK.conf`" != "" ]; then
+pagespeed=1
+fi
+################################################################################
+
+rm -rf /etc/dsnvps/.tmp/config.ssl.$subdomain.$websiteOK.txt
+cat > "/etc/dsnvps/.tmp/config.ssl.$subdomain.$websiteOK.txt" <<END
+
+# Config for Free SSL (LetEncrypt) - Do not Delete !
+location ~ /.well-known {
+        allow all;
+        root /home/$website/public_html;
+    }
+END
+
+cd /etc/dsnvps/.tmp
+if [ "`grep "location\ ~\ /.well-known\ {" /etc/nginx/conf.d/$subdomain.$websiteOK.conf`" == "" ]; then
+cat > "/etc/dsnvps/.tmp/config.ssl.$subdomain.$websiteOK.sh" <<END
+sed -i "/block.conf;/r config.ssl.$subdomain.$websiteOK.txt" /etc/nginx/conf.d/$subdomain.$websiteOK.conf
+rm -rf /etc/dsnvps/.tmp/config.ssl.$subdomain.$websiteOK.sh
+END
+sh config.ssl.$subdomain.$websiteOK.sh
+fi
+cd
+mkdir -p /etc/nginx/auth-acme/$subdomain.$websiteOK
+/root/.acme.sh/acme.sh --issue --insecure -d $subdomain.$websiteOK -w /home/$website/public_html
+sleep 6
+/root/.acme.sh/acme.sh --installcert -d $subdomain.$websiteOK --keypath  /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.key --capath  /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.ca --fullchainpath  /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.crt --reloadcmd "service nginx reload"
+sleep 6
+if [ ! -s /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.crt ]; then
+rm -rf /etc/nginx/auth-acme/$subdomain.$websiteOK
+#rm -rf /root/.acme.sh/$website
+clear
+echo "========================================================================="
+echo "Qua trinh cai dat SSL cho $subdomain.$websiteOK gap loi."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS khong the tao chung chi SSL Let's Encrypt cho domain nay."
+echo "-------------------------------------------------------------------------"
+echo "Ban vui long kiem tra lai hoac thu lai sau"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/$subdomain.$websiteOK.conf.txt
+cp -r /etc/nginx/conf.d/$subdomain.$websiteOK.conf /etc/dsnvps/.tmp/$subdomain.$websiteOK.conf.txt
+
+# replace from 1 to server_name
+sed -i "1,/${servername}/d" /etc/dsnvps/.tmp/$subdomain.$websiteOK.conf.txt
+# Tao vhost ssl
+rm -rf /etc/dsnvps/.tmp/SSL-$subdomain.$websiteOK.conf.txt
+
+cat > "/etc/dsnvps/.tmp/SSL-$subdomain.$websiteOK.conf.txt" <<END
+server {
+listen 80;
+server_name $subdomain.$websiteOK www.$subdomain.$websiteOK;
+return       301 https://$subdomain.$websiteOK\$request_uri;
+}
+server {
+listen 443 ssl;
+http2 on;
+http3 on;
+ssl_certificate /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.crt;
+ssl_certificate_key /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.key;
+ssl_trusted_certificate /etc/nginx/auth-acme/$subdomain.$websiteOK/$subdomain.$websiteOK.ca;
+ssl_session_timeout 4h;
+ssl_session_tickets off;  
+ssl_prefer_server_ciphers on;
+include /etc/nginx/conf/ssl-protocol-cipherV2.conf;
+ssl_ecdh_curve X25519:P-256:P-384:P-224:P-521;
+ssl_buffer_size 1400;
+add_header Alt-Svc 'h3-23=":443"';  # Advertise HTTP/3 support
+add_header QUIC-Status "OK";
+add_header Strict-Transport-Security "max-age=31536000; preload" always;
+ssl_stapling on;
+ssl_stapling_verify on;
+resolver 1.1.1.1 8.8.8.8 valid=300s;
+resolver_timeout 10s;
+access_log off;
+access_log   /home/$website/logs/$subdomain.$websiteOK_access_log;
+error_log off;
+error_log /home/$website/logs/$subdomain.$websiteOK_error.log; 
+add_header X-Frame-Options SAMEORIGIN;
+add_header X-Content-Type-Options nosniff;
+add_header X-XSS-Protection "1; mode=block";
+root /home/$website/public_html;
+include /etc/nginx/conf/ddos2.conf;
+index index.php index.html index.htm;
+$servername
+END
+
+
+cd /etc/dsnvps/.tmp/
+cat SSL-$subdomain.$websiteOK.conf.txt $subdomain.$websiteOK.conf.txt > $subdomain.$websiteOK.conf_HTTPS
+rm -rf /etc/dsnvps/.tmp/SSL-$subdomain.$websiteOK.conf.txt
+rm -rf /etc/dsnvps/.tmp/$subdomain.$websiteOK.conf.txt
+cd
+if [ ! -d /etc/dsnvps/Backup.Vhost.SSL ]; then
+mkdir -p /etc/dsnvps/Backup.Vhost.SSL
+fi
+mkdir -p /etc/dsnvps/Backup.Vhost.SSL/$subdomain.$websiteOK
+
+#Backup Vhost.Conf
+yes | cp -rf  /etc/nginx/conf.d/$subdomain.$websiteOK.conf /etc/dsnvps/Backup.Vhost.SSL/$subdomain.$websiteOK/$subdomain.$websiteOK.conf
+yes | cp -rf  /etc/dsnvps/.tmp/$subdomain.$websiteOK.conf_HTTPS /etc/dsnvps/Backup.Vhost.SSL/$subdomain.$websiteOK/$subdomain.$websiteOK.conf_HTTPS
+
+yes | cp -rf  /etc/dsnvps/Backup.Vhost.SSL/$subdomain.$websiteOK/$subdomain.$websiteOK.conf_HTTPS /etc/nginx/conf.d/$subdomain.$websiteOK.conf
+
+
+### Tat PageSpeed Cho Domain ######################################################
+sed -i '/pagespeed\ LoadFromFile/d' /etc/nginx/conf.d/$subdomain.$websiteOK.conf
+sed -i '/\/etc\/nginx\/ngx_pagespeed.conf/d' /etc/nginx/conf.d/$subdomain.$websiteOK.conf
+###################################################################################
+
+rm -rf /etc/dsnvps/.tmp/$subdomain.$websiteOK.conf_HTTPS
+
+rm -rf /etc/dsnvps/.tmp/avgxyanzyuk
+service nginx restart > /etc/dsnvps/.tmp/avgxyanzyuk
+if [ "grep OK /etc/dsnvps/.tmp/avgxyanzyuk" = "" ]; then
+yes | cp -rf /etc/dsnvps/Backup.Vhost.SSL/$subdomain.$websiteOK/$subdomain.$websiteOK.conf /etc/nginx/conf.d/$subdomain.$websiteOK.conf 
+#########  Restart Nginx ###############
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#################################
+sleep 5
+clear
+echo "========================================================================="
+echo "Qua trinh cai dat Let's Encrypt cho $subdomain.$websiteOK"
+echo "-------------------------------------------------------------------------"
+echo "theo cau hinh Vhost hien tai that bai."
+echo "-------------------------------------------------------------------------"
+echo "Ban thu chay lai chuc nang nay mot lan nua."
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+
+clear
+echo "========================================================================="
+echo "Cai dat SSL cho $subdomain.$websiteOK thanh cong."
+echo "-------------------------------------------------------------------------"
+echo "Truy cap $subdomain.$websiteOK de check."
+if [ "$pagespeed" = "1" ];then
+echo "-------------------------------------------------------------------------"
+echo "Google PageSpeed da bi disable cho website."
+echo "-------------------------------------------------------------------------"
+echo "Ban hay enable lai de tiep tuc su dung."
+fi
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+
+else
+
+clear
+echo "========================================================================="
+echo "Cancel"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+
+fi

@@ -1,0 +1,24 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+	if [ "`systemctl is-active nginx.service`" == "active" ]; then
+/etc/dsnvps/menu/dsnvps-nang-cap-nginx
+	else
+systemctl start nginx.service
+	if [ "`systemctl is-active nginx.service`" == "active" ]; then
+/etc/dsnvps/menu/dsnvps-nang-cap-nginx
+		else
+	clear
+	echo "========================================================================="
+	echo "Rất tiếc, Nginx đang dừng. Hãy bật lên trước khi dùng chức năng này!"
+	#echo "Xin lỗi, Nginx đã dừng. Vui lòng bật lại trược khi sử dụng chức năng này !"
+/etc/dsnvps/menu/dsnvps-update-upgrade-service-menu
+		fi
+fi
+

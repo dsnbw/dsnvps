@@ -1,0 +1,214 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+mem_total_mb="$(dsnvps_ram_mb)"
+((mem_total_mb <= 0)) && mem_total_mb=1024
+
+if ((mem_total_mb <= 768)); then
+    CONNTRACK_MAX=65536; CONNTRACK_HASHSIZE=16384; MIN_FREE_KB=16384
+    MAX_TW_BUCKETS=65536; TCP_MAX_MEM=8388608; VFS_PRESSURE=100
+    DIRTY_BG_BYTES=16777216; DIRTY_MAX_BYTES=67108864; SHMMAX=134217728; SHMALL=32768
+elif ((mem_total_mb <= 1536)); then
+    CONNTRACK_MAX=131072; CONNTRACK_HASHSIZE=32768; MIN_FREE_KB=32768
+    MAX_TW_BUCKETS=131072; TCP_MAX_MEM=16777216; VFS_PRESSURE=100
+    DIRTY_BG_BYTES=33554432; DIRTY_MAX_BYTES=134217728; SHMMAX=268435456; SHMALL=65536
+elif ((mem_total_mb <= 4096)); then
+    CONNTRACK_MAX=262144; CONNTRACK_HASHSIZE=65536; MIN_FREE_KB=65536
+    MAX_TW_BUCKETS=262144; TCP_MAX_MEM=16777216; VFS_PRESSURE=60
+    DIRTY_BG_BYTES=67108864; DIRTY_MAX_BYTES=268435456; SHMMAX=536870912; SHMALL=131072
+else
+    CONNTRACK_MAX=524288; CONNTRACK_HASHSIZE=131072; MIN_FREE_KB=65536
+    MAX_TW_BUCKETS=1440000; TCP_MAX_MEM=33554432; VFS_PRESSURE=50
+    DIRTY_BG_BYTES=134217728; DIRTY_MAX_BYTES=536870912; SHMMAX=2147483648; SHMALL=524288
+fi
+
+if [[ -d /sys/block/zram0 ]] || [[ -f /etc/default/zramswap ]] || [[ -f /etc/systemd/zram-generator.conf ]] || grep -q '/dev/zram' /proc/swaps 2>/dev/null; then
+    SWAPPINESS_VAL=100
+    PAGE_CLUSTER_VAL=0
+else
+    SWAPPINESS_VAL=10
+    PAGE_CLUSTER_VAL=3
+fi
+
+mkdir -p /etc/security/limits.d /etc/systemd/system.conf.d /etc/modules-load.d /etc/modprobe.d 2>/dev/null
+cat > /etc/security/limits.d/99-dsnvps.conf <<'LIMITS'
+*       soft nofile 524288
+*       hard nofile 524288
+root    soft nofile 524288
+root    hard nofile 524288
+nginx   soft nofile 524288
+nginx   hard nofile 524288
+*       soft nproc  16384
+*       hard nproc  16384
+nginx   soft nproc  32768
+nginx   hard nproc  32768
+*       soft core   0
+*       hard core   0
+LIMITS
+chmod 644 /etc/security/limits.d/99-dsnvps.conf
+
+cat > /etc/systemd/system.conf.d/99-dsnvps-limits.conf <<'SYSLIM'
+[Manager]
+DefaultLimitNOFILE=524288
+DefaultLimitNPROC=32768
+SYSLIM
+chmod 644 /etc/systemd/system.conf.d/99-dsnvps-limits.conf
+
+modprobe tcp_bbr >/dev/null 2>&1 || true
+modprobe sch_fq >/dev/null 2>&1 || true
+modprobe nf_conntrack >/dev/null 2>&1 || true
+
+cat > /etc/modules-load.d/dsnvps.conf <<'MODS'
+tcp_bbr
+sch_fq
+nf_conntrack
+MODS
+
+printf 'options nf_conntrack hashsize=%s\n' "$CONNTRACK_HASHSIZE" > /etc/modprobe.d/nf_conntrack.conf
+if [[ -w /sys/module/nf_conntrack/parameters/hashsize ]]; then
+    printf '%s\n' "$CONNTRACK_HASHSIZE" > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true
+fi
+
+avail_cc=""
+[[ -r /proc/sys/net/ipv4/tcp_available_congestion_control ]] && avail_cc="$(</proc/sys/net/ipv4/tcp_available_congestion_control)"
+if [[ "$avail_cc" == *"bbr3"* ]]; then
+    TCP_CC="bbr3"
+elif [[ "$avail_cc" == *"bbr2"* ]]; then
+    TCP_CC="bbr2"
+elif [[ "$avail_cc" == *"bbr"* ]]; then
+    TCP_CC="bbr"
+else
+    TCP_CC="cubic"
+fi
+
+if [[ -f /etc/sysctl.d/10-bufferbloat.conf ]]; then
+    sed -i 's/^-*net\.core\.default_qdisc.*/# overridden by 99-dsnvps-optimize.conf/' /etc/sysctl.d/10-bufferbloat.conf
+fi
+
+SYSCTL_CONTENT="# DSNVPS 2026+ Enterprise Kernel, QUIC/BBR & VM Tuning (${mem_total_mb}MB RAM)
+kernel.pid_max = 65536
+kernel.panic = 10
+kernel.sysrq = 0
+kernel.core_uses_pid = 0
+kernel.core_pattern = /dev/null
+kernel.sched_autogroup_enabled = 0
+kernel.shmmax = ${SHMMAX}
+kernel.shmall = ${SHMALL}
+kernel.msgmnb = 65536
+kernel.msgmax = 65536
+fs.suid_dumpable = 0
+fs.nr_open = 12000000
+fs.file-max = 2097152
+fs.aio-max-nr = 1048576
+fs.inotify.max_user_watches = 524288
+fs.inotify.max_user_instances = 1024
+
+vm.swappiness = ${SWAPPINESS_VAL}
+vm.page-cluster = ${PAGE_CLUSTER_VAL}
+vm.vfs_cache_pressure = ${VFS_PRESSURE}
+vm.dirty_background_ratio = 0
+vm.dirty_ratio = 0
+vm.dirty_background_bytes = ${DIRTY_BG_BYTES}
+vm.dirty_bytes = ${DIRTY_MAX_BYTES}
+vm.dirty_expire_centisecs = 1500
+vm.dirty_writeback_centisecs = 300
+vm.min_free_kbytes = ${MIN_FREE_KB}
+vm.overcommit_memory = 1
+vm.panic_on_oom = 0
+vm.max_map_count = 262144
+
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = ${TCP_CC}
+net.core.wmem_max = ${TCP_MAX_MEM}
+net.core.rmem_max = ${TCP_MAX_MEM}
+net.core.rmem_default = 262144
+net.core.wmem_default = 262144
+net.core.optmem_max = 65536
+net.core.netdev_max_backlog = 16384
+net.core.netdev_budget = 600
+net.core.somaxconn = 65535
+net.unix.max_dgram_qlen = 4096
+
+net.ipv4.tcp_rmem = 4096 87380 ${TCP_MAX_MEM}
+net.ipv4.tcp_wmem = 4096 65536 ${TCP_MAX_MEM}
+net.ipv4.udp_rmem_min = 16384
+net.ipv4.udp_wmem_min = 16384
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_notsent_lowat = 16384
+net.ipv4.tcp_limit_output_bytes = 1048576
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_base_mss = 1024
+net.ipv4.tcp_sack = 1
+net.ipv4.tcp_window_scaling = 1
+net.ipv4.tcp_syncookies = 1
+net.ipv4.tcp_max_syn_backlog = 65536
+net.ipv4.tcp_syn_retries = 2
+net.ipv4.tcp_synack_retries = 2
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 240
+net.ipv4.tcp_keepalive_intvl = 30
+net.ipv4.tcp_keepalive_probes = 3
+net.ipv4.tcp_tw_reuse = 2
+net.ipv4.tcp_max_tw_buckets = ${MAX_TW_BUCKETS}
+net.ipv4.tcp_max_orphans = 65536
+net.ipv4.ip_local_port_range = 1024 65535
+net.ipv4.tcp_rfc1337 = 1
+
+net.ipv4.ip_forward = 0
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv4.conf.default.accept_source_route = 0
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.default.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.default.send_redirects = 0
+net.ipv4.conf.all.log_martians = 0
+net.ipv4.conf.default.log_martians = 0
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.icmp_ignore_bogus_error_responses = 1
+
+net.netfilter.nf_conntrack_max = ${CONNTRACK_MAX}
+net.netfilter.nf_conntrack_tcp_timeout_established = 1800
+net.netfilter.nf_conntrack_tcp_timeout_time_wait = 30
+net.netfilter.nf_conntrack_tcp_timeout_close_wait = 15
+net.netfilter.nf_conntrack_tcp_timeout_fin_wait = 30
+net.netfilter.nf_conntrack_udp_timeout = 30
+net.netfilter.nf_conntrack_udp_timeout_stream = 60
+"
+
+if [[ ! -f /proc/user_beancounters ]]; then
+    printf '%s\n' "$SYSCTL_CONTENT" > /etc/sysctl.conf
+    printf '%s\n' "$SYSCTL_CONTENT" > /etc/sysctl.d/99-dsnvps-optimize.conf
+fi
+
+# Set CPU governor to performance when writable (bare-metal/dedicated)
+for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    [[ -w "$gov" ]] && echo performance > "$gov" 2>/dev/null || true
+done
+
+# Disable Transparent Huge Pages (THP)
+[[ -w /sys/kernel/mm/transparent_hugepage/enabled ]] && echo never > /sys/kernel/mm/transparent_hugepage/enabled 2>/dev/null || true
+[[ -w /sys/kernel/mm/transparent_hugepage/defrag ]] && echo never > /sys/kernel/mm/transparent_hugepage/defrag 2>/dev/null || true
+
+cat > /etc/systemd/system/dsnvps-disable-thp.service <<'THP'
+[Unit]
+Description=Disable Transparent Huge Pages (THP) for DSNVPS
+DefaultDependencies=no
+After=sysinit.target local-fs.target
+Before=mariadb.service mysql.service redis-server.service valkey-server.service nginx.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c '[ -w /sys/kernel/mm/transparent_hugepage/enabled ] && echo never > /sys/kernel/mm/transparent_hugepage/enabled; [ -w /sys/kernel/mm/transparent_hugepage/defrag ] && echo never > /sys/kernel/mm/transparent_hugepage/defrag; exit 0'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=basic.target
+THP
+
+systemctl daemon-reload >/dev/null 2>&1 || true
+systemctl enable --now dsnvps-disable-thp.service >/dev/null 2>&1 || true
+sysctl --system >/dev/null 2>&1 || sysctl -p >/dev/null 2>&1 || true
+echo -e "${C_GREEN}[OK] Kernel Tuning (TCP=${TCP_CC}, qdisc=fq, swappiness=${SWAPPINESS_VAL}, THP=never)${C_RESET}"

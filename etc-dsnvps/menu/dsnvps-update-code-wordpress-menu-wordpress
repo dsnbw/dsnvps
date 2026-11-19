@@ -1,0 +1,51 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để update WordPress code lên phiên bản mới nhất"  
+echo "-------------------------------------------------------------------------"
+echo "Trước khi update, DSNVPS tiến hành sao lưu database cho website"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1101"
+echo "========================================================================="
+#prompt="Nhập lựa chọn của bạn: "
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Update 1 website" "Update tất cả WordPress website")
+printf "LỰA CHỌN CÁCH UPDATE\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachonupdate="update1site"; break;;
+    2) luachonupdate="updateall"; break;;
+    0) chonphpversion="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#Update 1 website
+###################################
+if [ "$luachonupdate" = "update1site" ]; then
+/etc/dsnvps/menu/dsnvps-update-wordpresss-code-for-website
+###################################
+#Update tat ca cac website
+###################################
+elif [ "$luachonupdate" = "updateall" ]; then
+/etc/dsnvps/menu/dsnvps-update-wp-code-tat-ca-vps-website-wordpress
+###################################
+#Huỷ bỏ update
+###################################
+else
+clear
+exit 0
+fi

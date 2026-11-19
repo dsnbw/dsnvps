@@ -1,0 +1,629 @@
+#!/bin/bash
+# Nạp các file cấu hình
+. /root/dsnvps.conf
+. /etc/dsnvps/backup.gdriver.conf
+
+# Kiểm tra file cấu hình backup
+if [ ! -f /etc/dsnvps/backup.gdriver.conf ]; then
+    echo "Lỗi: không tìm thấy file cấu hình Google Drive."
+    exit 1
+fi
+
+# Kiểm tra rclone có được cài đặt không
+if ! command -v rclone >/dev/null 2>&1; then
+    echo "Lỗi: rclone chưa được cài đặt."
+    exit 1
+fi
+
+# Đường dẫn backup trên VPS
+backup_base_dir="/home/$mainsite/private_html/backup"
+
+# Kiểm tra thư mục backup có tồn tại không
+if [ ! -d "$backup_base_dir" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Lỗi: Thư mục backup $backup_base_dir không tồn tại."
+    exit 1
+fi
+
+# Khởi tạo biến đếm cho thông báo Telegram
+total_uploaded=0
+total_failed=0
+total_skipped=0
+total_deleted_folders=0
+uploaded_websites=()
+uploaded_databases=()
+failed_items=()
+skipped_items=()
+deleted_folders=()
+
+echo "-------------------------------------------------------------------------"
+echo "Đang quét các file backup cần upload..."
+
+# Hàm đổi tên file trên Google Drive
+rename_existing_file() {
+    local remote_file="$1"
+    local new_name="$2"
+    local item_name="$3"
+  
+    # Kiểm tra file có tồn tại trên Google Drive không
+    if rclone lsf "$remote_file" >/dev/null 2>&1; then
+        echo " → File đã tồn tại trên Google Drive, đang đổi tên..."
+        
+        # Đổi tên file cũ
+        if rclone moveto "$remote_file" "$new_name" --quiet; then
+            echo " → Đã đổi tên file thành công"
+        else
+            echo " → Cảnh báo: Không thể đổi tên file, vẫn tiếp tục upload"
+        fi
+    else
+        echo " -> ->"
+    fi
+}
+
+# Hàm xóa folder local (cho action=move)
+delete_local_folder() {
+    local folder_path="$1"
+    local folder_name="$2"
+    local reason="$3"
+    
+    if [ "$action" = "move" ]; then
+        echo " → Action=move: Đang xóa folder local ($reason): $folder_name"
+        if rm -rf "$folder_path" 2>/dev/null; then
+            echo " → ✓ Đã xóa folder local: $folder_name"
+            total_deleted_folders=$((total_deleted_folders + 1))
+            deleted_folders+=("$folder_name")
+        else
+            echo " → ✗ Lỗi: Không thể xóa folder local: $folder_name"
+        fi
+    fi
+}
+
+# Hàm upload file
+upload_file() {
+    local local_file="$1"
+    local remote_path="$2"
+    local item_name="$3"
+    local file_type="$4" # "website" hoặc "database"
+  
+    # Lấy timestamp từ file local
+    local time=$(date -r "$local_file" +%Hh%Mm-%d-%m-%y)
+    local filename=$(basename "$local_file")
+    local remote_file="$remote_path/$filename"
+    local renamed_file="$remote_path/${filename}_$time"
+  
+    echo "-------------------------------------------------------------------------"
+    echo -e "\033[31mĐang xử lý $file_type: $item_name\033[0m"
+    echo " → File: $filename"
+    echo " → Thời gian backup: $time"
+    echo " → Action: $action"
+  
+    # Tạo thư mục trên Google Drive nếu chưa có
+    rclone mkdir "$remote_path" --quiet
+  
+    # Xác định extension dựa trên type
+    local ext="\.zip"
+    if [ "$file_type" = "database" ]; then
+        ext="\.gz"
+    fi
+  
+    # Tìm file backup cũ (file có đuôi đúng type và KHÔNG có pattern timestamp ở đuôi)
+    local grep_pattern="_[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}$"
+    old_files=$(rclone lsf "$remote_path" 2>/dev/null | grep -E "${ext}$" | grep -v "$grep_pattern" || true)
+  
+    local skip=0
+    local local_size=$(stat -c%s "$local_file")
+    local local_hash=$(rclone hashsum MD5 "$local_file" | awk '{print $1}')
+  
+    if [ -n "$old_files" ]; then
+        if [ $(echo "$old_files" | wc -l) -gt 1 ]; then
+            echo " → Cảnh báo: Tìm thấy nhiều hơn 1 file backup không có timestamp cho $file_type. Sẽ xử lý tất cả."
+        fi
+        while IFS= read -r old_file_name; do
+            if [ -n "$old_file_name" ]; then
+                echo " → Trên Google Drive, tìm thấy backup: $old_file_name"
+              
+                # Đối với website (.zip), kiểm tra tên file trước
+                if [ "$file_type" = "website" ] && [ "$old_file_name" != "$filename" ]; then
+                    echo " → Tên file khác ($old_file_name != $filename) => Upload luôn không cần check"
+                    # Đổi tên file cũ dựa trên mod time của chính nó
+                    old_info=$(rclone lsl "$remote_path/$old_file_name" | grep " $old_file_name$")
+                    mod_date=$(echo "$old_info" | awk '{print $2}')
+                    mod_time_part=$(echo "$old_info" | awk '{print $3}')
+                    mod_time="$mod_date $mod_time_part"
+                    old_time=$(date -d "$mod_time" +%Hh%Mm-%d-%m-%y 2>/dev/null)
+                    if [ -z "$old_time" ]; then
+                        echo " → Cảnh báo: Không thể lấy thời gian của file cũ $old_file_name, sử dụng thời gian local thay thế"
+                        old_time="$time"
+                    fi
+                    new_old_name="$remote_path/${old_file_name}_$old_time"
+                    echo " → Đang đổi tên file cũ $old_file_name thành ${old_file_name}_$old_time"
+                    if rclone moveto "$remote_path/$old_file_name" "$new_old_name" --quiet; then
+                        echo " → Đã đổi tên file cũ thành công"
+                    else
+                        echo " → Cảnh báo: Không thể đổi tên file cũ, vẫn tiếp tục upload"
+                    fi
+                    # Tiếp tục để upload file mới (không skip)
+                else
+                    # Kiểm tra kích thước file trước
+                    remote_size=$(rclone lsl "$remote_path/$old_file_name" | awk '{print $1}')
+                    if [ "$local_size" != "$remote_size" ]; then
+                        echo " → File có kích thước khác nhau ($local_size != $remote_size) => Upload luôn không cần check"
+                        # Đổi tên file cũ dựa trên mod time của chính nó
+                        old_info=$(rclone lsl "$remote_path/$old_file_name" | grep " $old_file_name$")
+                        mod_date=$(echo "$old_info" | awk '{print $2}')
+                        mod_time_part=$(echo "$old_info" | awk '{print $3}')
+                        mod_time="$mod_date $mod_time_part"
+                        old_time=$(date -d "$mod_time" +%Hh%Mm-%d-%m-%y 2>/dev/null)
+                        if [ -z "$old_time" ]; then
+                            echo " → Cảnh báo: Không thể lấy thời gian của file cũ $old_file_name, sử dụng thời gian local thay thế"
+                            old_time="$time"
+                        fi
+                        new_old_name="$remote_path/${old_file_name}_$old_time"
+                        echo " → Đang đổi tên file cũ $old_file_name thành ${old_file_name}_$old_time"
+                        if rclone moveto "$remote_path/$old_file_name" "$new_old_name" --quiet; then
+                            echo " → Đã đổi tên file cũ thành công"
+                        else
+                            echo " → Cảnh báo: Không thể đổi tên file cũ, vẫn tiếp tục upload"
+                        fi
+                    else
+                        # Kích thước giống nhau, kiểm tra hash
+                        remote_hash=$(rclone hashsum MD5 "$remote_path/$old_file_name" | awk '{print $1}')
+                        if [ "$local_hash" = "$remote_hash" ]; then
+                            echo " → File giống với file $old_file_name trên Google Drive"
+                            echo "==> bỏ qua upload và giữ nguyên file này."
+                            skip=1
+                            # Không đổi tên file này, tiếp tục kiểm tra các file cũ khác
+                        else
+                            # Đổi tên file cũ dựa trên mod time của chính nó
+                            old_info=$(rclone lsl "$remote_path/$old_file_name" | grep " $old_file_name$")
+                            mod_date=$(echo "$old_info" | awk '{print $2}')
+                            mod_time_part=$(echo "$old_info" | awk '{print $3}')
+                            mod_time="$mod_date $mod_time_part"
+                            old_time=$(date -d "$mod_time" +%Hh%Mm-%d-%m-%y 2>/dev/null)
+                            if [ -z "$old_time" ]; then
+                                echo " → Cảnh báo: Không thể lấy thời gian của file cũ $old_file_name, sử dụng thời gian local thay thế"
+                                old_time="$time"
+                            fi
+                            new_old_name="$remote_path/${old_file_name}_$old_time"
+                            echo " → 2 File backup không giống nhau"
+                            echo "==> Đổi tên $old_file_name thành ${old_file_name}_$old_time"
+                            if rclone moveto "$remote_path/$old_file_name" "$new_old_name" --quiet; then
+                                echo " → Đổi tên thành công"
+                            else
+                                echo " → Cảnh báo: Không thể đổi tên file cũ, vẫn tiếp tục upload"
+                            fi
+                        fi
+                    fi
+                fi
+            fi
+        done <<< "$old_files"
+    else
+        echo " → Không tìm thấy file backup cũ cho $file_type"
+    fi
+  
+    if [ $skip -eq 1 ]; then
+        # File bị skip, với action=move cần xóa folder local
+        if [ "$action" = "move" ]; then
+            local folder_path=$(dirname "$local_file")
+            local folder_name=$(basename "$folder_path")
+            delete_local_folder "$folder_path" "$folder_name" "file đã có trên Google Drive"
+        fi
+        return 2 # Return code 2 = skipped
+    fi
+  
+    # Kiểm tra file có giống nhau không bằng rclone check
+    echo "$filename" > /tmp/check_single_file.txt
+  
+    # Tạo thư mục tạm để chứa file cần kiểm tra
+    temp_check_dir="/tmp/rclone_check_$(basename "$backup_subfolder")"
+    mkdir -p "$temp_check_dir"
+    cp "$local_file" "$temp_check_dir/"
+  
+    # Sử dụng rclone check để so sánh file
+    if rclone check "$temp_check_dir" "$remote_path" --files-from /tmp/check_single_file.txt --quiet 2>/dev/null; then
+        echo " → File đã tồn tại và giống nhau trên Google Drive, bỏ qua upload"
+        
+        # Dọn dẹp thư mục tạm
+        rm -rf "$temp_check_dir"
+        rm -f /tmp/check_single_file.txt
+        
+        # File bị skip, với action=move cần xóa folder local
+        if [ "$action" = "move" ]; then
+            local folder_path=$(dirname "$local_file")
+            local folder_name=$(basename "$folder_path")
+            delete_local_folder "$folder_path" "$folder_name" "file đã có trên Google Drive"
+        fi
+        return 2 # Return code 2 = skipped
+    fi
+  
+    # Dọn dẹp thư mục tạm
+    rm -rf "$temp_check_dir"
+    rm -f /tmp/check_single_file.txt
+  
+    # File khác nhau hoặc chưa tồn tại, tiến hành upload
+    # Đổi tên file cũ nếu tồn tại
+    rename_existing_file "$remote_file" "$renamed_file" "$item_name"
+  
+    # Upload file mới (sử dụng copy hoặc move dựa trên action)
+    echo " → Đang upload backup file mới..."
+  
+    # Create temporary file for progress output
+    progress_file="/tmp/rclone_progress_$(basename "$filename").txt"
+    # Chọn lệnh rclone dựa trên action
+    if [ "$action" = "move" ]; then
+        rclone move "$local_file" "$remote_path" --update --modify-window 1s --progress > "$progress_file" 2>&1 &
+    else
+        rclone copy "$local_file" "$remote_path" --update --modify-window 1s --progress > "$progress_file" 2>&1 &
+    fi
+    rclone_pid=$!
+    
+    # Function to show progress
+    show_progress() {
+        local last_percent=""
+        while kill -0 $rclone_pid 2>/dev/null; do
+            if [ -f "$progress_file" ]; then
+                # Extract percentage from rclone output
+                percent=$(grep -oP '\d+%' "$progress_file" | tail -n 1)
+                if [ -n "$percent" ] && [ "$percent" != "$last_percent" ]; then
+                    printf "\r   Progress: %s" "$percent"
+                    last_percent="$percent"
+                fi
+            fi
+            sleep 0.5
+        done
+        # Print final progress line
+        if [ -f "$progress_file" ]; then
+            percent=$(grep -oP '\d+%' "$progress_file" | tail -n 1)
+            if [ -n "$percent" ]; then
+                printf "\r   Progress: %s\n" "$percent"
+            fi
+        fi
+    }
+    
+    # Run progress function in background
+    show_progress &
+    progress_pid=$!
+    
+    # Wait for rclone to complete
+    wait $rclone_pid
+    rclone_exit_code=$?
+    
+    # Stop progress function
+    kill $progress_pid 2>/dev/null
+    wait $progress_pid 2>/dev/null
+    
+    # Clean up progress file
+    rm -f "$progress_file"
+  
+    if [ $rclone_exit_code -eq 0 ]; then
+        echo " → Upload thành công: $filename"
+        total_uploaded=$((total_uploaded + 1))
+      
+        if [ "$file_type" = "website" ]; then
+            uploaded_websites+=("$item_name")
+        else
+            uploaded_databases+=("$item_name")
+        fi
+        
+        # Nếu action=move, xóa folder local sau khi upload thành công
+        if [ "$action" = "move" ]; then
+            local folder_path=$(dirname "$local_file")
+            local folder_name=$(basename "$folder_path")
+            delete_local_folder "$folder_path" "$folder_name" "upload thành công"
+        fi
+        
+        return 0
+    else
+        echo " → Lỗi: Không thể upload $filename"
+        total_failed=$((total_failed + 1))
+        failed_items+=("$item_name ($file_type)")
+        return 1
+    fi
+}
+
+# Quét tất cả các subfolder trong thư mục backup
+for backup_subfolder in "$backup_base_dir"/*; do
+    # Kiểm tra nếu là thư mục
+    if [ ! -d "$backup_subfolder" ]; then
+        continue
+    fi
+  
+    subfolder_name=$(basename "$backup_subfolder")
+    remote_base="$nameaction:$serverip/$subfolder_name"
+  
+    # Tìm các file .zip (backup website)
+    for zip_file in "$backup_subfolder"/*.zip; do
+        if [ -f "$zip_file" ]; then
+            # Chỉ xử lý file không có đuôi timestamp (file mới nhất)
+            if [[ ! "$zip_file" =~ _[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}\.zip$ ]]; then
+                upload_file "$zip_file" "$remote_base" "$subfolder_name" "website"
+                upload_result=$?
+                if [ $upload_result -eq 2 ]; then
+                    total_skipped=$((total_skipped + 1))
+                    skipped_items+=("$subfolder_name (website)")
+                fi
+            fi
+        fi
+    done
+  
+    # Tìm các file .gz (backup database)
+    for gz_file in "$backup_subfolder"/*.gz; do
+        if [ -f "$gz_file" ]; then
+            # Chỉ xử lý file không có đuôi timestamp (file mới nhất)
+            if [[ ! "$gz_file" =~ _[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}\.gz$ ]]; then
+                upload_file "$gz_file" "$remote_base" "$subfolder_name" "database"
+                upload_result=$?
+                if [ $upload_result -eq 2 ]; then
+                    total_skipped=$((total_skipped + 1))
+                    skipped_items+=("$subfolder_name (database)")
+                fi
+            fi
+        fi
+    done
+done
+
+# Hiển thị tổng kết upload
+echo "-------------------------------------------------------------------------"
+echo -e "\033[1;31mTổng kết upload:\033[0m"
+echo "-------------------------------------------------------------------------"
+echo " → Đã upload thành công: $total_uploaded file(s)"
+echo " → Upload thất bại: $total_failed file(s)"
+echo " → File đã bỏ qua (giững nhau): $total_skipped file(s)"
+if [ "$action" = "move" ]; then
+    echo " → Folder local đã xóa: $total_deleted_folders folder(s)"
+fi
+if [ ${#uploaded_websites[@]} -gt 0 ]; then
+    echo " → Website đã backup: ${uploaded_websites[*]}"
+fi
+if [ ${#uploaded_databases[@]} -gt 0 ]; then
+    echo " → Database đã backup: ${uploaded_databases[*]}"
+fi
+if [ ${#skipped_items[@]} -gt 0 ]; then
+    echo " → File đã bỏ qua (không cần backup): ${skipped_items[*]}"
+fi
+if [ ${#failed_items[@]} -gt 0 ]; then
+    echo " → Backup thất bại: ${failed_items[*]}"
+fi
+if [ ${#deleted_folders[@]} -gt 0 ]; then
+    echo " → Folder local đã xóa: ${deleted_folders[*]}"
+fi
+
+# Hàm xóa file dựa trên số lượng bản backup
+delete_old_files_by_count() {
+    local remote_path="$1"
+    local max_backups="$2"
+    
+    echo "-------------------------------------------------------------------------"
+    echo -e "\033[1;31mChuẩn bị xử lý số bản backup trên Google Drive.\033[0m"
+    
+    # Lấy danh sách TẤT CẢ các subfolder trên Google Drive
+    temp_gdrive_folders="/tmp/gdrive_folders.txt"
+    rclone lsf "$remote_path" --dirs-only 2>/dev/null > "$temp_gdrive_folders" || true
+    
+    if [ ! -s "$temp_gdrive_folders" ]; then
+        echo " → Không tìm thấy folder nào trên Google Drive trong $remote_path"
+        rm -f "$temp_gdrive_folders"
+        return
+    fi
+    
+    # Xử lý từng subfolder trên Google Drive
+    while IFS= read -r subfolder_name; do
+        if [ -z "$subfolder_name" ]; then
+            continue
+        fi
+        
+        # Loại bỏ dấu / ở cuối nếu có
+        subfolder_name=$(echo "$subfolder_name" | sed 's/\/$//')
+        
+        if [ -z "$subfolder_name" ]; then
+            continue
+        fi
+        
+        remote_subfolder="$remote_path/$subfolder_name"
+        
+        # Kiểm tra subfolder có tồn tại trên Google Drive không
+        if ! rclone lsf "$remote_subfolder" >/dev/null 2>&1; then
+            echo " → Subfolder $subfolder_name không tồn tại trên Google Drive, bỏ qua"
+            continue
+        fi
+
+        echo "-------------------------------------------------------------------------"
+        echo -e "\033[1;31m → Đang xử lý: $subfolder_name\033[0m"
+
+        # Đếm tất cả file trong folder
+        temp_all_files="/tmp/all_files_$subfolder_name.txt"
+        rclone lsf "$remote_subfolder" --recursive --format "tsp" 2>/dev/null > "$temp_all_files" || true
+
+        if [ -s "$temp_all_files" ]; then
+            total_files=$(wc -l < "$temp_all_files")
+            echo "   → Tìm thấy $total_files bản backup trong $subfolder_name"
+            
+            if [ $total_files -gt $max_backups ]; then
+                files_to_delete=$((total_files - max_backups))
+                echo "   → Số bản backup cần xóa: $files_to_delete"
+                
+                # Lấy danh sách file cũ nhất để xóa bằng cut
+                temp_to_delete="/tmp/to_delete_$subfolder_name.txt"
+                sort -k1,1 "$temp_all_files" | head -n $files_to_delete | cut -d';' -f3 > "$temp_to_delete"
+                
+                echo "   → File sẽ xóa:"
+                cat "$temp_to_delete"
+                
+                # Xóa từng file - KHÔNG dùng subshell
+                local_deleted=0
+                while IFS= read -r file_path; do
+                    if [ -n "$file_path" ]; then
+                        echo "   → Đang xóa: $file_path"
+                        if rclone deletefile "$remote_subfolder/$file_path" --quiet 2>/dev/null; then
+                            local_deleted=$((local_deleted + 1))
+                            echo "   → ✓ Đã xóa: $file_path"
+                        else
+                            echo "   → ✗ Lỗi xóa: $file_path"
+                        fi
+                    fi
+                done < "$temp_to_delete"
+                
+                # Cập nhật biến global
+                deleted_files=$((deleted_files + local_deleted))
+                echo "   → Đã xóa $local_deleted bản backup trong folder này"
+                
+                rm -f "$temp_to_delete"
+            else
+                echo "   → Số bản backup hiện tại: $total_files <= $max_backups ==> không cần xóa"
+            fi
+        else
+            echo "   → Không tìm thấy bản backup nào trong folder"
+        fi
+
+        rm -f "$temp_all_files"
+    done < "$temp_gdrive_folders"
+    
+    # Dọn dẹp file tạm chính
+    rm -f "$temp_gdrive_folders"
+    
+    echo " → Hoàn tất xóa file cũ. Đã xóa tổng cộng: $deleted_files file(s)"
+}
+
+# Gọi hàm xóa file cũ theo số lượng bản backup
+deleted_files=0
+delete_old_files_by_count "$nameaction:$serverip" "$sobanbackup"
+
+# Xóa các thư mục rỗng trong $serverip trên Google Drive
+echo "-------------------------------------------------------------------------"
+echo -e "\033[31mĐang tìm và xóa thư mục rỗng trong $serverip trên Drive...\033[0m"
+
+# Xóa thư mục rỗng trong từng subfolder trước
+for backup_subfolder in "$backup_base_dir"/*; do
+    if [ ! -d "$backup_subfolder" ]; then
+        continue
+    fi
+  
+    subfolder_name=$(basename "$backup_subfolder")
+    remote_subfolder="$nameaction:$serverip/$subfolder_name"
+  
+    # Kiểm tra thư mục có tồn tại trên Google Drive không trước khi xóa
+    if rclone lsf "$remote_subfolder" >/dev/null 2>&1; then
+        echo " → Đang kiểm tra: $subfolder_name"
+        rclone rmdirs "$remote_subfolder" --quiet
+    fi
+done
+
+# Sau đó xóa thư mục $serverip nếu rỗng và tồn tại
+if rclone lsf "$nameaction:$serverip" >/dev/null 2>&1; then
+    echo " → Đang kiểm tra thư mục gốc: $serverip"
+    rclone rmdirs "$nameaction:$serverip" --quiet
+fi
+
+# Dọn dẹp thùng rác trên Google Drive
+echo "-------------------------------------------------------------------------"
+echo -e "\033[31mĐang dọn dẹp thùng rác trên Google Drive...\033[0m"
+rclone cleanup "$nameaction:" --quiet
+
+echo "-------------------------------------------------------------------------"
+echo -e "\033[31mĐã hoàn tất backup và dọn dẹp.\033[0m"
+echo " → Tổng file đã upload: $total_uploaded"
+echo " → Tổng file đã xóa (giữ lại $sobanbackup bản mới nhất): $deleted_files"
+if [ "$action" = "move" ]; then
+    echo " → Tổng folder local đã xóa: $total_deleted_folders"
+fi
+
+# Gửi thông báo Telegram chi tiết
+if [[ -f /etc/dsnvps/telegram.conf && -f /etc/dsnvps/backup.gdriver.telegram.conf ]]; then
+    source /etc/dsnvps/telegram.conf
+    source /etc/dsnvps/backup.gdriver.telegram.conf
+  
+    # Tạo thông báo chi tiết
+    MESSAGE="VPS: $serverip - Báo cáo backup Google Drive (Action: $action)
+
+📊 Tổng kết:
+• Upload thành công: $total_uploaded file(s)
+• Upload thất bại: $total_failed file(s)
+• File bỏ qua (không có backup mới): $total_skipped file(s)
+• File cũ đã xóa: $deleted_files file(s)"
+
+    if [ "$action" = "move" ]; then
+        MESSAGE="$MESSAGE
+• Folder local đã xóa: $total_deleted_folders folder(s)"
+    fi
+
+    # Thêm danh sách website đã backup
+    if [ ${#uploaded_websites[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Website đã backup:"
+        for website in "${uploaded_websites[@]}"; do
+            MESSAGE="$MESSAGE
+• $website"
+        done
+    fi
+  
+    # Thêm danh sách database đã backup
+    if [ ${#uploaded_databases[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Database đã backup:"
+        for database in "${uploaded_databases[@]}"; do
+            MESSAGE="$MESSAGE
+• $database"
+        done
+    fi
+  
+    # Thêm danh sách file đã bỏ qua nếu có
+    if [ ${#skipped_items[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Không cần backup (không có backup mới):"
+        for skipped_item in "${skipped_items[@]}"; do
+            MESSAGE="$MESSAGE
+• $skipped_item"
+        done
+    fi
+  
+    # Thêm danh sách folder đã xóa nếu có
+    if [ ${#deleted_folders[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Folder local đã xóa:"
+        for deleted_folder in "${deleted_folders[@]}"; do
+            MESSAGE="$MESSAGE
+• $deleted_folder"
+        done
+    fi
+  
+    # Thêm thông tin lỗi nếu có
+    if [ ${#failed_items[@]} -gt 0 ]; then
+        MESSAGE="$MESSAGE
+==> Backup thất bại:"
+        for failed_item in "${failed_items[@]}"; do
+            MESSAGE="$MESSAGE
+• $failed_item"
+        done
+    fi
+  
+    # Thêm trạng thái tổng quát
+    if [ $total_failed -eq 0 ]; then
+        if [ $total_uploaded -eq 0 ]; then
+            if [ $total_skipped -gt 0 ]; then
+                MESSAGE="$MESSAGE
+--> Trạng thái: Tất cả file đã được backup trước đó"
+            else
+                MESSAGE="$MESSAGE
+--> Trạng thái: Không có file backup nào được tìm thấy"
+            fi
+        else
+            MESSAGE="$MESSAGE
+--> Trạng thái: Backup hoàn tất thành công"
+        fi
+    else
+        MESSAGE="$MESSAGE
+--> Trạng thái: Backup hoàn tất với một số lỗi"
+    fi
+  
+    MESSAGE="$MESSAGE
+--> Thời gian: $(date '+%H:%M:%S %d/%m/%Y')"
+  
+    # Gửi thông báo Telegram
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$MESSAGE" \
+        -d parse_mode="HTML" > /dev/null 2>&1
+fi
+
+# Dọn dẹp file tạm
+rm -f /tmp/rclone_check.log /tmp/rclone_result.log

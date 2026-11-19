@@ -1,0 +1,157 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+# Sử dụng API token đã được verify
+cloudflare_zone_api_token="$final_api_token"
+
+# Lấy zone_id từ file cấu hình (chính xác hơn)
+zoneid=$(grep -oP 'zoneid="([^"]+)"' /etc/dsnvps/ddns-cloudflare/$website.conf | cut -d '"' -f 2)
+
+# Kiểm tra xem zone_id có tồn tại không
+if [ -z "$zoneid" ]; then
+    clear
+    echo "========================================================================="  
+    echo "Không tìm thấy Zone ID trong file cấu hình của $website"
+    echo "-------------------------------------------------------------------------"
+    echo "File cấu hình có thể bị hỏng hoặc thiếu thông tin."
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng cấu hình lại DDNS cho $website."
+    echo "========================================================================="
+    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+    exit 1
+fi
+
+# Verify zone_id có hợp lệ với API hiện tại không
+if [ -n "$final_api_email" ]; then
+    # Global API Key
+    verify_zone_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid" \
+         -H "X-Auth-Email: $final_api_email" \
+         -H "X-Auth-Key: $final_api_token" \
+         -H "Content-Type: application/json")
+else
+    # API Token
+    verify_zone_response=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid" \
+         -H "Authorization: Bearer $final_api_token" \
+         -H "Content-Type: application/json")
+fi
+
+if ! echo "$verify_zone_response" | grep -q '"success":true'; then
+    clear
+    echo "========================================================================="  
+    echo "Zone ID không hợp lệ hoặc không có quyền truy cập."
+    echo "-------------------------------------------------------------------------"
+    echo "Website: $website"
+    echo "Zone ID: $zoneid"
+    echo "Sử dụng: $api_source"
+    echo "-------------------------------------------------------------------------"
+    echo "Có thể API Token đã thay đổi hoặc domain đã bị xóa khỏi Cloudflare."
+    echo "========================================================================="
+    /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+    exit 1
+fi
+if [ -n "$final_api_email" ]; then
+    # Global API Key
+    proxied=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records?type=A&name=$website" \
+      -H "X-Auth-Email: $final_api_email" \
+      -H "X-Auth-Key: $final_api_token" \
+      -H "Content-Type: application/json" | jq -r '.result[0].proxied')
+else
+    # API Token
+    proxied=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$zoneid/dns_records?type=A&name=$website" \
+      -H "Authorization: Bearer $final_api_token" \
+      -H "Content-Type: application/json" | jq -r '.result[0].proxied')
+fi
+
+websiteTO=$(echo "$website" | tr 'a-z' 'A-Z')
+echo "========================================================================="
+echo "$website hiện đã thiết lập CloudFlare DDNS."
+echo "========================================================================="
+
+if [ "$proxied" = "true" ]; then
+    echo "Cloudflare Proxy: BẬT"
+    while true; do
+        echo "========================================================================="
+echo "CÀI ĐẶT CLOUDFLARE PROXY CHO $website"
+echo "-------------------------------------------------------------------------"
+echo "1. TẮT Cloudflare Proxy"
+echo "0. Thoát (Không thay đổi)"
+        read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+        # Kiểm tra xem người dùng nhập một số hợp lệ không
+        if [[ ! "$choice" =~ ^[0-9]+$ ]]; then
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập số."
+            continue
+        fi
+
+        if [ "$choice" -eq 1 ]; then
+            echo "========================================================================="
+ echo "Bạn Chọn TẮT Cloudflare Proxy cho $website"; sleep 2
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ ..."; sleep 2
+            echo "-------------------------------------------------------------------------"
+            sed -i 's/proxied="[^"]*"/proxied="false"/g' /etc/dsnvps/ddns-cloudflare/$website.conf
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-script-chay-goc /etc/dsnvps/ddns-cloudflare/$website.conf
+            clear
+            echo "========================================================================="  
+            echo "Đã TẮT Cloudflare Proxy cho $website"      
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            break
+        elif [ "$choice" -eq 0 ]; then
+            clear
+            echo "========================================================================="
+            echo "Hủy thiết lập."
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            break
+        else
+            echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+        fi
+    done
+else    
+echo "Cloudflare Proxy: TẮT"
+while true; do
+    echo "========================================================================="
+    echo "CÀI ĐẶT CLOUDFLARE PROXY CHO $websiteTO"
+    echo "-------------------------------------------------------------------------"
+    echo "1. BẬT Cloudflare Proxy"
+    echo "0. Thoát (Không thay đổi)"
+
+        read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+        # Kiểm tra xem người dùng nhập một số hợp lệ không
+        if [[ ! "$choice" =~ ^[0-9]+$ ]]; then
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập số."
+            continue
+        fi
+
+        if [ "$choice" -eq 1 ]; then
+            echo "========================================================================="
+echo "Bạn Chọn BẬT Cloudflare Proxy cho $website"; sleep 2
+            echo "-------------------------------------------------------------------------"
+            echo "Vui lòng chờ ..."; sleep 2
+            echo "-------------------------------------------------------------------------"
+            sed -i 's/proxied="[^"]*"/proxied="true"/g' /etc/dsnvps/ddns-cloudflare/$website.conf
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-script-chay-goc /etc/dsnvps/ddns-cloudflare/$website.conf
+            clear
+            echo "========================================================================="  
+            echo "Đã BẬT Cloudflare Proxy cho $website"      
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            break
+        elif [ "$choice" -eq 0 ]; then
+            clear
+            echo "========================================================================="
+            echo "Hủy thiết lập."
+            /etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
+            break
+        else
+            echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+        fi
+    done
+fi
+
+

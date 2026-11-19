@@ -1,0 +1,72 @@
+#!/bin/bash
+dsnvpsroot=/etc/dsnvps/menu
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2781"
+echo "========================================================================="
+while true; do
+    printf "%-27s %s\n" "--------------------------------|" "2) Cập Nhật Nginx"
+    printf "%-27s %s\n" "--------------------------------|" "3) Cập Nhật PHP"
+    printf "%-27s %s\n" "       1) DSNVPS Shortcut       |" "4) Cập Nhật MariaDB"
+    printf "%-27s %s\n" "--------------------------------|" "5) Cập Nhật Full System (All Services)"
+    echo "========================================================================="
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+    case $choice in
+        1) clear && $dsnvpsroot/inc/dsnvps-dsnvpssc-shortcut;;
+        2)
+            echo "========================================================================="
+            echo "Đang kiểm tra và cập nhật Nginx..."
+            apt-get update -qq
+            apt list --upgradable 2>/dev/null | grep -i nginx
+            read -p "Cho phép DSNVPS cập nhật Nginx? (y/N): " c
+            if [[ "$c" =~ ^[Yy]$ ]]; then
+                DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y nginx
+                systemctl restart nginx
+                echo "Hoàn tất cập nhật Nginx!"
+            fi
+            read -p "Nhấn [Enter] để tiếp tục..."
+            clear
+            ;;
+        3)
+            echo "========================================================================="
+            echo "Đang kiểm tra và cập nhật PHP..."
+            phpver=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+            apt-get update -qq
+            apt list --upgradable 2>/dev/null | grep -i "php${phpver}"
+            read -p "Cho phép DSNVPS cập nhật PHP $phpver? (y/N): " c
+            if [[ "$c" =~ ^[Yy]$ ]]; then
+                DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y "php${phpver}-*"
+                systemctl restart php-fpm
+                echo "Hoàn tất cập nhật PHP!"
+            fi
+            read -p "Nhấn [Enter] để tiếp tục..."
+            clear
+            ;;
+        4)
+            echo "========================================================================="
+            echo "Đang kiểm tra và cập nhật MariaDB..."
+            apt-get update -qq
+            apt list --upgradable 2>/dev/null | grep -i mariadb
+            read -p "Cho phép DSNVPS cập nhật MariaDB? (y/N): " c
+            if [[ "$c" =~ ^[Yy]$ ]]; then
+                DEBIAN_FRONTEND=noninteractive apt-get install --only-upgrade -y mariadb-server mariadb-client
+                systemctl restart mariadb
+                echo "Hoàn tất cập nhật MariaDB!"
+            fi
+            read -p "Nhấn [Enter] để tiếp tục..."
+            clear
+            ;;
+        5)
+            echo "========================================================================="
+            read -p "Cho phép DSNVPS cập nhật toàn bộ hệ thống? (y/N): " c
+            if [[ "$c" =~ ^[Yy]$ ]]; then
+                DEBIAN_FRONTEND=noninteractive apt-get update && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+                systemctl restart nginx php-fpm mariadb
+                echo "Hoàn tất cập nhật hệ thống!"
+            fi
+            read -p "Nhấn [Enter] để tiếp tục..."
+            clear
+            ;;
+        0) clear; exit 0;;
+        *) echo "Bạn nhập sai!"; sleep 2; clear;;
+    esac
+done

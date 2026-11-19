@@ -1,0 +1,455 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Lấy thông tin server
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace để tránh xung đột
+# Anti-debug removed
+
+re='^[0-9]+$'
+
+# Kiểm tra Rclone
+if [ ! -f /bin/rclone ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt Rclone trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+# Kiểm tra cấu hình Rclone
+if [ ! -f /root/.config/rclone/rclone.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Cloud (G-Drive, Dropbox) chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/checkrclonedropbox
+awk '/^\[dropbox\]/ {print}' /root/.config/rclone/rclone.conf > /etc/dsnvps/.tmp/checkrclonedropbox
+
+checka=$(cat /etc/dsnvps/.tmp/checkrclonedropbox)
+wc -l < /etc/dsnvps/.tmp/checkrclonedropbox > /etc/dsnvps/.tmp/checkrclonedropboxline
+checkb=$(cat /etc/dsnvps/.tmp/checkrclonedropboxline)
+
+if [ "$checkb" -lt "1" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối server với Dropbox trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+if [ "$checkb" -gt "1" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Hiện tại DSNVPS chỉ hỗ trợ backup VPS với 1 config Dropbox. Hãy chạy "
+    echo "-------------------------------------------------------------------------"
+    echo "chức năng [Xóa Tất Cả Cấu Hình], sau đó chạy lại chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/chckshxn0
+grep -B 1 "type = dropbox" /root/.config/rclone/rclone.conf | awk 'NR==1' | sed 's/\[//' | sed 's/\]//' > /etc/dsnvps/.tmp/chckshxn0
+
+uservue=$(cat /etc/dsnvps/.tmp/chckshxn0)
+
+if [ -z "$uservue" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng kiểm tra lại."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+sotu=$(wc -w /etc/dsnvps/.tmp/chckshxn0 | cut -d' ' -f1)
+
+if [ "$sotu" -gt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng [Xóa Tất Cả Cấu Hình] và thực hiện kết nối lại."
+    echo "-------------------------------------------------------------------------"
+    echo "name> [ Chỉ điền Một Từ Duy Nhất ]"
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+
+# Kiểm tra kết nối Dropbox
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới Dropbox"; sleep 2
+REMOTE_NAME="dropbox"
+success=0
+> /tmp/rclone_connect.log
+for attempt in {1..3}; do
+    if [ $attempt -eq 1 ] || [ $attempt -eq 3 ]; then
+        rclone about "$REMOTE_NAME": > /tmp/rclone_connect.log 2>&1
+        if [ $? -eq 0 ]; then
+            success=1
+            break
+        fi
+    elif [ $attempt -eq 2 ]; then
+        rclone config show "$REMOTE_NAME": > /tmp/rclone_connect.log 2>&1
+        if [ $? -eq 0 ]; then
+            success=1
+            break
+        fi
+    fi
+    if [ $attempt -lt 3 ]; then
+        echo "Check kết nối thất bại. DSNVPS sẽ check lại một lần nữa."
+        sleep 5
+    fi
+done
+if [ $success -eq 0 ]; then
+    clear
+    echo "========================================================================="
+    echo "Kết nối tới Dropbox thất bại !"
+    echo "-------------------------------------------------------------------------"
+    echo "Chi tiết lỗi:"
+    cat /tmp/rclone_connect.log
+    echo "-------------------------------------------------------------------------"
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi
+sleep 3 && tput cuu 2 && tput ed
+################
+
+# Kiểm tra cấu hình hiện tại
+if [ -f /etc/dsnvps/backup.dropbox.conf ]; then
+    if [ -f /etc/cron.d/dsnvps.rclone.backup.dropbox.cron ]; then
+        # Đọc toàn bộ dòng cron
+        cron_line=$(cat /etc/cron.d/dsnvps.rclone.backup.dropbox.cron | awk 'NR==2')
+        abc=$(echo "$cron_line" | awk '{print $2}')  # Giờ
+        phut=$(echo "$cron_line" | awk '{print $1}')  # Phút
+        ngay=$(echo "$cron_line" | awk '{print $3}')  # Ngày trong tháng
+        thang=$(echo "$cron_line" | awk '{print $4}') # Tháng
+        thu=$(echo "$cron_line" | awk '{print $5}')   # Thứ trong tuần
+        
+        # Đọc số bản backup từ config
+        sobanbackup=$(grep "^sobanbackup=" /etc/dsnvps/backup.dropbox.conf | cut -d'=' -f2)
+        
+        # Xác định tần suất dựa trên các trường cron
+        if [ -z "$cron_line" ]; then
+            tan_suat_hien_thi="Không xác định"
+        elif [ "$ngay" = "*" ] && [ "$thang" = "*" ] && [ "$thu" = "*" ]; then
+            # Hàng ngày (tất cả trường đều là *)
+            tan_suat_hien_thi="hàng ngày"
+        elif [[ "$ngay" =~ ^\*/([0-9]+)$ ]]; then
+            # Pattern */số trong trường ngày (day of month)
+            frequency_num=$(echo "$ngay" | sed 's/^\*\///')
+            tan_suat_hien_thi="$frequency_num ngày 1 lần"
+        elif [[ "$thu" =~ ^\*/([0-9]+)$ ]]; then
+            # Pattern */số trong trường thứ (day of week)
+            frequency_num=$(echo "$thu" | sed 's/^\*\///')
+            case $frequency_num in
+                1) tan_suat_hien_thi="hàng ngày" ;;
+                2) tan_suat_hien_thi="2 ngày 1 lần" ;;
+                3) tan_suat_hien_thi="3 ngày 1 lần" ;;
+                4) tan_suat_hien_thi="4 ngày 1 lần" ;;
+                5) tan_suat_hien_thi="5 ngày 1 lần" ;;
+                6) tan_suat_hien_thi="6 ngày 1 lần" ;;
+                7) tan_suat_hien_thi="7 ngày 1 lần (Hàng Tuần)" ;;
+                *) tan_suat_hien_thi="$frequency_num ngày 1 lần" ;;
+            esac
+        elif [[ "$ngay" =~ ^[0-9]+$ ]]; then
+            # Ngày cố định trong tháng
+            tan_suat_hien_thi="Ngày $ngay hàng tháng"
+        elif [[ "$thu" =~ ^[0-6]$ ]]; then
+            # Thứ cố định trong tuần
+            case $thu in
+                0) tan_suat_hien_thi="Chủ Nhật hàng tuần" ;;
+                1) tan_suat_hien_thi="Thứ 2 hàng tuần" ;;
+                2) tan_suat_hien_thi="Thứ 3 hàng tuần" ;;
+                3) tan_suat_hien_thi="Thứ 4 hàng tuần" ;;
+                4) tan_suat_hien_thi="Thứ 5 hàng tuần" ;;
+                5) tan_suat_hien_thi="Thứ 6 hàng tuần" ;;
+                6) tan_suat_hien_thi="Thứ 7 hàng tuần" ;;
+            esac
+        else
+            # Trường hợp phức tạp khác
+            tan_suat_hien_thi="Lịch tùy chỉnh"
+        fi
+        
+        # Xử lý hiển thị thời gian
+        if [ "$phut" = "0" ]; then
+            thoigian_hien_thi="${abc}:00"
+        else
+            thoigian_hien_thi="${abc}:${phut}"
+        fi
+        
+        echo "========================================================================="
+        echo "Bạn đã hoàn tất config backup dùng Dropbox."
+        echo "-------------------------------------------------------------------------"
+        echo "Thời gian auto backup: $thoigian_hien_thi $tan_suat_hien_thi"
+        echo "-------------------------------------------------------------------------"
+        echo "Số bản backup lưu trữ: $sobanbackup bản"
+        echo "========================================================================="
+        read -r -p "Bạn muốn cấu hình lại chức năng này ? [y/N] " response
+        if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Ok ! Vui lòng chờ ..."
+            sleep 2 && tput cuu 10 && tput ed
+        else
+            clear
+            echo "========================================================================="
+            echo "Hủy bỏ."
+            /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+            exit
+        fi
+    fi
+fi
+
+# Hàm chọn giờ
+chongio() {
+    while true; do
+        echo "-------------------------------------------------------------------------"
+        read -p "Bạn muốn upload các file backup tới Dropbox vào mấy giờ? [0-23]: " gio
+        if [ -z "$gio" ]; then
+            echo "========================================================================="
+            echo "Bạn chưa nhập thời gian backup"
+            echo "-------------------------------------------------------------------------"
+            echo "Thời gian backup phải là số tự nhiên nằm trong khoảng (0 - 23)."
+            sleep 3 && tput cuu 6 && tput ed
+            continue
+        fi
+        if ! [[ "$gio" =~ $re ]]; then
+            echo "========================================================================="
+            echo "$gio không đúng!"
+            echo "-------------------------------------------------------------------------"
+            echo "Thời gian backup phải là số tự nhiên nằm trong khoảng (0 - 23)."
+            sleep 3 && tput cuu 6 && tput ed
+            continue
+        fi
+        if ! [[ "$gio" -ge 0 && "$gio" -le 23 ]]; then
+            echo "========================================================================="
+            echo "$gio không đúng!"
+            echo "-------------------------------------------------------------------------"
+            echo "Thời gian backup phải là số tự nhiên nằm trong khoảng (0 - 23)."
+            sleep 3 && tput cuu 6 && tput ed
+            continue
+        fi
+        if [ -f /etc/cron.d/auto.backup.all.websites.cron ] && [ -f /etc/dsnvps/auto.backup.all.websites.conf ]; then
+            abc=$(cat /etc/cron.d/auto.backup.all.websites.cron | awk 'NR==2 {print $2}')
+            if [ "$gio" = "$abc" ]; then
+                echo "========================================================================="
+                echo "DSNVPS đang được cấu hình tự động sao lưu tất cả websites vào: "
+                echo "-------------------------------------------------------------------------"
+                echo "${abc}h hằng ngày. Bạn nên chọn thời gian khác."
+                sleep 8 && tput cuu 6 && tput ed
+                continue
+            fi
+        fi
+        if [ -f /etc/cron.d/auto.backup.all.databases.cron ] && [ -f /etc/dsnvps/auto.backup.all.databases.conf ]; then
+            abc2=$(cat /etc/cron.d/auto.backup.all.databases.cron | awk 'NR==2 {print $2}')
+            if [ "$gio" = "$abc2" ]; then
+                echo "========================================================================="
+                echo "DSNVPS đang được cấu hình tự động sao lưu tất cả Database vào: "
+                echo "-------------------------------------------------------------------------"
+                echo "${abc2}h hằng ngày. Bạn nên chọn thời gian khác."
+                sleep 8 && tput cuu 6 && tput ed
+                continue
+            fi
+        fi
+        break
+    done
+}
+
+# Menu chọn tần suất
+echo "========================================================================="
+echo "LỰA CHỌN TẦN SUẤT SAO LƯU"
+echo "========================================================================="
+options=("Hàng ngày" "2 ngày 1 lần" "3 ngày 1 lần" "4 ngày 1 lần" "5 ngày 1 lần" "6 ngày 1 lần" "7 ngày 1 lần")
+while true; do
+    printf "%-33s %-20s\n" "1) ${options[0]}" "5) ${options[4]}"
+    printf "%-34s %-20s\n" "2) ${options[1]}" "6) ${options[5]}"
+    printf "%-34s %-20s\n" "3) ${options[2]}" "7) ${options[6]}"
+    printf "%-34s %-20s\n" "4) ${options[3]}"  
+    echo -n "Nhập lựa chọn của bạn [0 -Thoát]: "
+    read choice
+    case "$choice" in
+        1) khoangcachngay=1; break;;
+        2) khoangcachngay=2; break;;
+        3) khoangcachngay=3; break;;
+        4) khoangcachngay=4; break;;
+        5) khoangcachngay=5; break;;
+        6) khoangcachngay=6; break;;
+        7) khoangcachngay=7; break;;
+        0) khoangcachngay=0; break;;
+        *) echo "Bạn nhập sai! Vui lòng chọn số từ 0-7."; continue;;
+    esac
+done
+
+if [ "$khoangcachngay" = "0" ]; then
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    exit
+fi
+
+# Chọn số bản backup lưu trữ
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=("3 Bản" "5 Bản" "7 Bản" "10 Bản" "15 Bản" "20 Bản")
+echo "========================================================================="
+echo "Để Dropbox không bị đầy khi lưu trữ, chọn số bản backup DSNVPS sẽ giữ"
+echo "-------------------------------------------------------------------------"
+echo "trên Dropbox cho mỗi website/database (xóa bản cũ nhất khi vượt quá):"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do
+    case "$REPLY" in
+    1) soban="3ban"; break;;
+    2) soban="5ban"; break;;
+    3) soban="7ban"; break;;
+    4) soban="10ban"; break;;
+    5) soban="15ban"; break;;
+    6) soban="20ban"; break;;
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách."; continue;;
+    esac
+done
+
+if [ "$soban" = "3ban" ]; then
+    sobanbackup=3
+elif [ "$soban" = "5ban" ]; then
+    sobanbackup=5
+elif [ "$soban" = "7ban" ]; then
+    sobanbackup=7
+elif [ "$soban" = "10ban" ]; then
+    sobanbackup=10
+elif [ "$soban" = "15ban" ]; then
+    sobanbackup=15
+else
+    sobanbackup=20
+fi
+
+sleep 3 && tput cuu 8 && tput ed
+echo "========================================================================="
+echo "=> Số bản backup được giữ cho mỗi website/database: $sobanbackup bản"
+
+# Chọn thời điểm upload
+echo "========================================================================="
+chongio
+echo "-------------------------------------------------------------------------"
+if [ "$khoangcachngay" = "1" ]; then
+    tan_suat_hien_thi="hàng ngày"
+else
+    tan_suat_hien_thi="$khoangcachngay ngày 1 lần"
+fi
+echo "Backup file sẽ upload lên Dropbox vào $gio:00 $tan_suat_hien_thi."
+
+# Chọn giữ/xóa file backup
+prompt="Nhập lựa chọn của bạn: "
+options=("Giữ Các File Backup Trên VPS (<= Nên Chọn)" "Xóa File Backup")
+echo "========================================================================="
+echo "Lựa chọn xử lý backup file trên VPS sau khi upload lên Dropbox."
+echo "-------------------------------------------------------------------------"
+echo "GIỮ FILE BACKUP: File backup sẽ xóa theo cấu hình thiết lập trong phần "
+echo "-------------------------------------------------------------------------"
+echo "[Tự động sao lưu Website] & [Tự động sao lưu Database]."
+echo "-------------------------------------------------------------------------"
+echo "XÓA FILE BACKUP: File backup sẽ bị xóa ngay sau khi upload lên Dropbox"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do
+    case "$REPLY" in
+    1) luachonxoafile="giunguyen"; break;;
+    2) luachonxoafile="xoafile"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách."; continue;;
+    esac
+done
+if [ "$luachonxoafile" = "xoafile" ]; then
+    luachon=xoa
+    cauhinh=move
+else
+    luachon=giunguyen
+    cauhinh=copy
+fi
+sleep 3 && tput cuu 14 && tput ed
+
+# Hiển thị xác nhận
+if [ "$luachon" = "giunguyen" ]; then
+    echo "========================================================================="
+    echo "=> Bạn chọn: Giữ Các File Backup Trên VPS Sau Khi Upload Lên Dropbox."
+else
+    echo "========================================================================="
+    echo "=> Bạn chọn: Xóa File Backup sau khi upload lên Dropbox."
+fi
+echo "========================================================================="
+echo "Vào $gio:00 $tan_suat_hien_thi, Backup file sẽ upload lên Dropbox."
+echo "-------------------------------------------------------------------------"
+echo "Để đảm bảo Dropbox không bị đầy, DSNVPS sẽ giữ $sobanbackup bản backup"
+echo "-------------------------------------------------------------------------"
+echo "mới nhất cho mỗi website/database và tự động xóa bản cũ nhất."
+echo "========================================================================="
+read -r -p "Bạn đồng ý với cấu hình này? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "OK, Vui lòng chờ ...."; sleep 3
+    # Check Ban Pro
+    if [ ! -f /usr/bin/gxred ]; then
+        touch /etc/dsnvps/.tmp/ckla
+        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+        clear
+        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    fi
+    # Tạo file cấu hình
+    cat <<END > "/etc/dsnvps/backup.dropbox.conf"
+sobanbackup=$sobanbackup
+nameaction=$uservue
+action=$cauhinh
+END
+    # Tạo file cron
+    echo "SHELL=/bin/sh" > /etc/cron.d/dsnvps.rclone.backup.dropbox.cron
+    echo "0 $gio */$khoangcachngay * * root /etc/dsnvps/menu/backup-dropbox-rclone-run >/dev/null 2>&1" >> /etc/cron.d/dsnvps.rclone.backup.dropbox.cron
+    systemctl restart crond >/dev/null 2>&1
+    clear
+    echo "========================================================================="
+    echo "Cấu hình auto backup các file backup lên Dropbox thành công."
+    echo "-------------------------------------------------------------------------"
+    echo "Các file backup sẽ tự động gửi lên Dropbox vào $gio:00 $tan_suat_hien_thi."
+    echo "-------------------------------------------------------------------------"
+    echo "Số bản backup giữ lại: $sobanbackup bản cho mỗi website/database"
+    echo "-------------------------------------------------------------------------"
+    echo "Folder Backup trong Dropbox: $serverip"
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
+    exit
+fi

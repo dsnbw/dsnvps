@@ -1,0 +1,10 @@
+#!/bin/bash
+. /etc/dsnvps/pwprotect.default
+echo "-------------------------------------------------------------------------"
+echo "Thông tin truy cập:"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Mật khẩu: $passdefault"
+echo "-------------------------------------------------------------------------"
+echo "Để thay Username & mật khẩu bảo vệ:"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS menu ==> Bảo Mật Server & Website ==> Thay Đổi Mật Khẩu Mặc Định"

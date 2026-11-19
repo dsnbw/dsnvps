@@ -1,0 +1,53 @@
+#!/bin/bash 
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+mkdir -p /etc/dsnvps/.tmp && touch /etc/dsnvps/.tmp/sllokie && touch /etc/dsnvps/.tmp/ckla
+
+if [ -f /etc/dsnvps/.tmp/pbphpbb ]; then
+phpbb=$(cat /etc/dsnvps/.tmp/pbphpbb)
+fi
+if [ -f /etc/dsnvps/.tmp/pbsmf  ]; then
+smfpb=$(cat /etc/dsnvps/.tmp/pbsmf )
+fi
+if [ -f /etc/dsnvps/.tmp/pbmybb ]; then
+mybbpb=$(cat /etc/dsnvps/.tmp/pbmybb)
+fi
+
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/addwcode"
+echo "========================================================================="
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+options=( "PhpBB $phpbb" "SMF $smfpb" "MyBB $mybbpb")
+printf "=========================================================================\n"
+printf "LUA CHON FORUM CODE BAN MUON DOWNLOAD CHO WEBSITE BAN SE Thêm vào Server\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) vhostconfig="phpbb"; break;;
+    2) vhostconfig="smf"; break;;
+    3) vhostconfig="mybb"; break;;
+    0) vhostconfig="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+    esac  
+done
+###################################
+if [ "$vhostconfig" = "phpbb" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-va-forum-phpbb
+###################################
+elif [ "$vhostconfig" = "smf" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-va-forum-smf
+###################################
+elif [ "$vhostconfig" = "mybb" ]; then
+/etc/dsnvps/menu/dsnvps-them-website-va-forum-mybb
+else
+clear
+exit 0
+fi

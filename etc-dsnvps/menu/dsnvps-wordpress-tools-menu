@@ -1,0 +1,374 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+#######################################################
+#Kiem tra va cai lai wp-cli neu can thiet #########
+# Hàm kiểm tra kết nối internet
+check_internet() {
+    ping -q -c 1 -W 1 8.8.8.8 >/dev/null 2>&1
+    return $?  # Trả về 0 nếu có kết nối, 1 nếu không có kết nối
+}
+
+# Hàm kiểm tra và cài đặt WP-CLI
+install_wpcli() {
+    attempt=0
+    max_attempts=2
+
+    # Kiểm tra xem wp-cli đã cài chưa và có chạy được không
+    if [ -f /usr/local/bin/wp ] || [ -f /bin/wp ]; then
+        wp --info > /dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            return 0  # Nếu wp-cli đã có và chạy được, thoát luôn
+        fi
+    fi
+
+    # Nếu không có wp-cli hoặc không chạy được, cài đặt
+    while [ $attempt -lt $max_attempts ]; do
+        # Kiểm tra kết nối internet trước khi tải WP-CLI
+        if ! check_internet; then
+clear
+echo "========================================================================="
+echo "Không có kết nối mạng, không thể tải WP-CLI."
+dsnvps
+            exit 1
+        fi
+
+        # Tải về wp-cli.phar
+        curl -s -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        if [ $? -eq 0 ]; then
+            chmod +x wp-cli.phar
+            sudo mv wp-cli.phar /usr/local/bin/wp
+            wp --info > /dev/null 2>&1
+            if [ $? -eq 0 ]; then
+               # echo "WP-CLI cài đặt thành công!"
+                return 0
+            fi
+        fi
+
+        # Tăng số lần thử
+        attempt=$((attempt+1))
+    done
+
+    # Nếu tải lỗi hai lần, thoát
+    clear
+echo "========================================================================="
+echo "Cài đặt WP-CLI thất bại sau 2 lần thử."
+dsnvps
+    #echo "Cài đặt WP-CLI thất bại sau 2 lần thử."
+    exit 1
+}
+
+# Gọi hàm kiểm tra và cài đặt WP-CLI
+install_wpcli
+##############################################################
+
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -rf /etc/dsnvps/menu/inc/htpasswd.py /usr/local/bin/htpasswd.py
+chmod +x /usr/local/bin/htpasswd.py
+fi
+if [ ! -f /etc/dsnvps/pwprotect.default ]; then
+echo "" > /etc/dsnvps/pwprotect.default
+fi
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+rm -rf /etc/dsnvps/.tmp/function.php.check*
+grep "disable_functions\ =\ " /etc/php.ini > /etc/dsnvps/.tmp/function.php.check
+if [ ! "$(grep ,exec, /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "exec" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep shell_exec /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "shell_exec" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep proc_close /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "proc_close" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep proc_open /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "proc_open" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+if [ ! "$(grep escapeshellarg /etc/dsnvps/.tmp/function.php.check)" == ""  ]; then
+echo "escapeshellarg" >> /etc/dsnvps/.tmp/function.php.check1
+fi
+
+if [ -f /etc/dsnvps/.tmp/function.php.check1 ]; then
+echo "========================================================================="
+echo "Bạn đang disable các hàm PHP cần thiết để chức năng này nay. Danh sách: "
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/function.php.check1 | pr -4 -t 
+echo "-------------------------------------------------------------------------"
+echo "Để enable các hàm php này, bạn có thể tu config file php.ini hoặc sử dụng "
+echo "-------------------------------------------------------------------------"
+echo "chức năng: DSNVPS Menu ==> [ Tùy Chỉnh Cấu Hình PHP ] => "
+echo "-------------------------------------------------------------------------"
+echo "=> [ BẬT/TẮT hàm PHP ] . Sau đó, lựa chọn hàm để enable "
+echo "-------------------------------------------------------------------------"
+echo "hoặc dùng chức năng [ Hàm Nguy Hiểm Nên Tắt ] => Y => Enter "
+echo "========================================================================="
+echo " "
+read -p "Press [Enter] to continue  ..."
+clear
+exit 0
+fi
+
+menu_wordpress_blog_tools () {
+	
+show_phan_tren_menu()
+{
+	
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                        Wordpress Website Tools\n"
+echo "========================================================================="
+echo "Để bảo mật hơn => Bạn nên BẬT các chức năng 13 & 14"
+echo "-------------------------------------------------------------------------"
+echo "Để an toàn hơn => Bạn nên BẬT sao lưu tự động tất cả Website & Database"
+printf "=========================================================================\n"
+}
+while true; do
+clear
+show_phan_tren_menu
+printf "%-36s %s\n" " 1) Nâng Cấp WordPress Core An Toàn" " 10) Sao Lưu Full Web & Database"
+printf "%-38s %s\n" " 2) Nâng Cấp Themes & Plugins" " 11) Phục Hồi Full Web & Database"
+printf "%-48s %s\n" " 3) Bật/Tắt Tự Động Cập Nhật" " 12) Cấu Hình Vhost Dùng Plugin Cache"
+printf "%-39s %b\n" " 4) Bật/Tắt WP-Cron.php" " \e[33m13) BẬT/TẮT Bảo Vệ wp-login.php\e[0m"
+printf "%-38s %s\n" " 5) Xem Trạng Thái Themes/Plugins" " 14) Tắt/Bật Chỉnh Sửa Themes/Plugins"
+printf "%-39s %s\n" " 6) Bật/Tắt Redis Cache" " 15) Sửa Lỗi Missed Schedule"
+printf "%-42s %s\n" " 7) Tối Ưu/Sửa Lỗi Database" " 16) Sửa Lỗi Permission & Chmod"
+printf "%-36s %s\n" " 8) Sao Lưu 1 Database" " 17) Xem Thông Tin Database"
+printf "%-35s %s\n" " 9) Phục Hồi 1 Database" "18) Khám Sức Khỏe WP & Autoload DB"
+printf "%-36s %s\n" "19) Dọn Rác Database WordPress" "23) Đổi Table Prefix & Salt Keys"
+printf "%-36s %s\n" "20) Tạo Link Login 1-Click (Magic)" "24) Search & Replace URL Database"
+printf "%-36s %s\n" "21) Bật/Tắt XML-RPC & Heartbeat" "25) Quét Mã Độc YARA & Checksum"
+printf "%-36s %s\n" "22) Bật/Tắt Bảo Trì & WP_DEBUG" "26) Preload Cache Sitemap Website"
+
+echo "========================================================================="
+
+# Lua chon cua nguoi dung
+read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+case $choice in
+    1 ) /etc/dsnvps/menu/dsnvps-update-code-wordpress-menu-wordpress;;
+    2) /etc/dsnvps/menu/dsnvps-update-themes-plugins-wordpress-menu-wordpress;;
+    3) /etc/dsnvps/menu/dsnvps-enable-disable-tu-dong-update-wordpress;;
+    4) /etc/dsnvps/menu/dsnvps-enable-disable-wp-cron.php-wordpress;;
+    5) /etc/dsnvps/menu/dsnvps-xem-danh-sach-plugins-website-wordpress;;
+    6) /etc/dsnvps/menu/dsnvps-enable-disable-redis-cho-wordpress-website;;
+    7) /etc/dsnvps/menu/dsnvps-toi-uu-repair-database-wordpress;;
+    8) /etc/dsnvps/menu/dsnvps-sao-luu-database-wordpress;;
+    9) /etc/dsnvps/menu/dsnvps-phuc-hoi-database-chon-dinh-dang-wordpress;;
+    10) /etc/dsnvps/menu/dsnvps-sao-luu-full-wordpress-database-code;;
+    11) /etc/dsnvps/menu/dsnvps-phuc-hoi-full-wordpress-database-code;;
+    12) /etc/dsnvps/menu/dsnvps-re-config-vhost-cho-website-wordpress;;
+    13) /etc/dsnvps/menu/dsnvps-dat-mat-khau-bao-ve-wp-login;;
+    14) /etc/dsnvps/menu/dsnvps-wordpress-tat-chinh-sua-themes-va-plugins;;
+    #15) /etc/dsnvps/menu/dsnvps-move-wp-config.php-outside-public_html;; Sau nay Thêm lai sau
+    15) /etc/dsnvps/menu/dsnvps-fix-loi-missed-schedule-wordpress;;
+    16) /etc/dsnvps/menu/dsnvps-sua-loi-permision-chmod-chown-wordpress;;
+    17) /etc/dsnvps/menu/dsnvps-xem-thong-tin-database-wordpress;;
+    18) /etc/dsnvps/menu/wp-pro/dsnvps-wp-health; read -r -p "Nhấn [Enter]..." ;;
+    19) /etc/dsnvps/menu/wp-pro/dsnvps-wp-db-clean; read -r -p "Nhấn [Enter]..." ;;
+    20) /etc/dsnvps/menu/wp-pro/dsnvps-wp-magic-login; read -r -p "Nhấn [Enter]..." ;;
+    21) /etc/dsnvps/menu/wp-pro/dsnvps-wp-xmlrpc-heartbeat; read -r -p "Nhấn [Enter]..." ;;
+    22) /etc/dsnvps/menu/wp-pro/dsnvps-wp-maint-debug; read -r -p "Nhấn [Enter]..." ;;
+    23) /etc/dsnvps/menu/wp-pro/dsnvps-wp-prefix-salt; read -r -p "Nhấn [Enter]..." ;;
+    24) /etc/dsnvps/menu/wp-pro/dsnvps-wp-search-replace; read -r -p "Nhấn [Enter]..." ;;
+    25) /etc/dsnvps/menu/security/dsnvps-yara-scan; read -r -p "Nhấn [Enter]..." ;;
+    26) /etc/dsnvps/menu/optimize/dsnvps-preload-cache; read -r -p "Nhấn [Enter]..." ;;
+0) clear; exit 0;;
+    *)
+ 
+            echo "========================================================================="
+            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+           tput cuu 13; for ((i=0; i<13; i++)); do tput el; tput cud1; done; tput cuu 13;; esac; done
+}
+
+check_wpcli_version() {
+
+    # Kiểm tra xem wp-cli đã được cài đặt chưa, nếu chưa cài đặt thì cài đặt
+    if [ ! -f /usr/local/bin/wp ] && [ ! -f /bin/wp ]; then
+        echo "WP-CLI chưa được cài đặt, đang cài đặt..."
+        curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+        chmod +x wp-cli.phar
+        sudo mv wp-cli.phar /usr/local/bin/wp
+    fi
+
+    # Kiểm tra file wpcli.version, nếu không có thì tạo mới
+    if [ ! -f /etc/dsnvps/wpcli.version ]; then
+        touch -a -m -t 201601180130.09 /etc/dsnvps/wpcli.version
+    fi
+
+    # Kiểm tra kết nối internet
+    if ping -q -c 1 -W 1 8.8.8.8 >/dev/null 2>&1; then
+        fileTime3=$(date -r /etc/dsnvps/wpcli.version +%d)
+        curTime3=$(date +%d)
+        
+        # Nếu ngày của wpcli.version khác ngày hiện tại, tiến hành kiểm tra bản cập nhật
+        if [ "$fileTime3" != "$curTime3" ]; then
+            wp --version --allow-root > /etc/dsnvps/wpcli.version
+            wp cli check-update --allow-root > /etc/dsnvps/.tmp/ailsod
+            
+            # Nếu có bản cập nhật, thực hiện cập nhật WP-CLI
+            if ! grep -q "latest" /etc/dsnvps/.tmp/ailsod; then
+                echo "========================================================================="
+                echo "Có cập nhật cho WP-CLI! Đang cập nhật WP-CLI..."
+                echo "-------------------------------------------------------------------------"
+                echo "Vui lòng chờ ..."
+                sleep 4
+                /etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+                echo y | wp cli update --allow-root
+                wp --version --allow-root > /etc/dsnvps/wpcli.version
+                /etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+            fi
+        fi
+    fi
+
+    # Quay lại menu WordPress Blog Tools
+    menu_wordpress_blog_tools
+}
+
+
+check_mariaDB_service () {
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ MySQL không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+rm -rf /var/lib/mysql/ib_logfile*
+/etc/dsnvps/menu/inc/start-mysql-fix-error
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ MySQL!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+	if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ MySQL"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, MySQL đang dừng. Hãy bật lên trước khi dùng chức năng này!"
+		#echo "Sorry, MySQL stopped. Start it before use this function!"
+	dsnvps
+	else
+	rm -rf /var/lib/mysql/dsnvpsCheckDB
+check_wpcli_version 
+	fi
+else
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+check_wpcli_version 
+fi
+}
+
+check_php_fpm_service () {
+
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+
+if [ ! "$UPPHP" -ne 1 ]; then
+check_mariaDB_service
+	else
+clear
+echo "========================================================================"
+echo "Hiện tại, dịch vụ php-fpm không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+	echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/inc/start-php-fpm-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ php-fpm !"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+
+UPPHP=$(/bin/systemctl status php-fpm.service | grep running | grep -v not | wc -l);
+
+if [ ! "$UPPHP" -ne 1 ]; then
+check_mariaDB_service
+		else
+		clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ PHP"
+sleep 4 ;
+phpsetup=`command -v php >/dev/null 2>&1 && echo php-common`
+    if [ -z "$phpsetup" ]; then
+    /etc/dsnvps/menu/dsnvps-fix-loi-chua-cai-php
+    else
+	clear
+	echo "========================================================================="
+	#echo "Xin lỗi, PHP-FPM đã dừng. Hãy BẬT lại trước khi sử dụng chức năng này!"
+	echo "Xin lỗi, PHP-FPM đang dừng. Hãy Bật lên trước khi dùng chức năng này!"
+	dsnvps
+     fi
+fi
+fi
+}
+
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ]; then
+check_php_fpm_service
+	else
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+		echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ]; then
+check_php_fpm_service
+		else
+		clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ Nginx"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Rất tiếc, Nginx đang dừng. Hãy bật lên trước khi dùng chức năng này!"
+			echo "-------------------------------------------------------------------------"
+	echo "Trạng thái Nginx:"
+	echo "-------------------------------------------------------------------------"
+	nginx -t
+	#echo "Xin lỗi, Nginx đã dừng. Vui lòng bật lại trược khi sử dụng chức năng này !"
+	dsnvps
+fi
+fi

@@ -1,0 +1,30 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ -f /etc/csf/csf.conf ]; then
+clear
+echo "========================================================================= "
+echo "CSF Firewall đã được cài đặt trên server !"
+/etc/dsnvps/menu/dsnvps-tien-ich
+else
+echo "-------------------------------------------------------------------------"
+echo "Đang cài CSF Firewall...."
+sleep 2
+/etc/dsnvps/menu/dsnvps-cai-csf-firewall-cai-dat-CSF-FIREWALL
+if [ -f /etc/csf/csf.conf ]; then
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình thành công CSF Firewall trên server"
+/etc/dsnvps/menu/dsnvps-tien-ich
+else
+clear
+echo "========================================================================= "
+echo "Cài đặt CSF Firewall thất bại! Bạn vui lòng thử cài đặt lại!"
+/etc/dsnvps/menu/dsnvps-tien-ich
+fi
+fi

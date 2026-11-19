@@ -1,0 +1,24 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+matkhau=`date |md5sum |cut -c '1-8'`
+unzip /etc/dsnvps/menu/inc/phpsys/vsupload.zip -d /home/dsnvps.demo/private_html
+unzip /etc/dsnvps/menu/inc/phpsys/svm.zip -d /home/dsnvps.demo/private_html
+chown -R nginx:nginx /home/dsnvps.demo/private_html
+rm -rf /home/dsnvps.demo/private_html/vsupload/config/.htusers.php
+cat > "/home/dsnvps.demo/private_html/vsupload/config/.htusers.php" <<END
+<?php
+        // ensure this file is being included by a parent file
+        if( !defined( '_JEXEC' ) && !defined( '_VALID_MOS' ) ) die( 'Restricted access' );
+        \$GLOBALS["users"]=array(
+        array('dsnvps','$(echo -n "$matkhau" | md5sum | awk '{print $1}')','/home','http://localhost','1','','7',1),
+);
+?>
+END
+sed -i "s/dsnvps123321/${matkhau}/g" /home/dsnvps.demo/private_html/svm/left.html
+

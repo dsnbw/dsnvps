@@ -1,0 +1,27 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*ip*
+rm -rf /etc/dsnvps/.tmp/showthongbao 
+rm -rf /etc/nginx/conf.d/dsnvpscheck.del.conf
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+if [ -d /var/lib/php/session ]; then
+chmod -R 777 /var/lib/php/session/
+fi
+
+if [ ! -f /home/$mainsite/logs ]; then
+mkdir -p /home/$mainsite/logs
+chmod -R 777 /home/$mainsite/logs
+fi
+if [ ! -f /usr/bin/dsnvpssc ]; then
+echo "#!/bin/bash" > /usr/bin/dsnvpssc
+echo "/etc/dsnvps/menu/inc/dsnvps-dsnvpssc-shortcut" >> /usr/bin/dsnvpssc
+chmod +x /usr/bin/dsnvpssc
+fi
+
+

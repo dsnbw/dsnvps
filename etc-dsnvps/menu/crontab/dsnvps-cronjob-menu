@@ -1,0 +1,54 @@
+#!/bin/bash
+rm -rf /etc/dsnvps/.tmp/check_crontab_acme
+crontab -l > /etc/dsnvps/.tmp/check_crontab_acme
+if [ "$(grep "acme.sh" /etc/dsnvps/.tmp/check_crontab_acme)" == "" ]; then
+/root/.acme.sh/acme.sh --installcronjob >/dev/null 2>&1
+if [ -f /bin/systemctl ]; then
+/bin/systemctl restart crond.service >/dev/null 2>&1
+else
+systemctl restart crond >/dev/null 2>&1
+fi
+fi
+show_phan_tren_menu()
+{
+	
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+printf "=========================================================================\n"
+printf "                              Quản Lý Cronjob \n"
+echo "========================================================================="
+if [ ! -f /var/spool/cron/crontabs/root ]; then
+printf "                            Cronjob đang chạy: 0 \n"
+else
+printf "                            Cronjob đang chạy: $(wc -l /var/spool/cron/crontabs/root | awk '{print $1}') \n"
+fi
+printf "=========================================================================\n"
+echo "Hướng dẫn sử dụng: http://go.dsnvps/5622"
+echo "========================================================================="
+}
+while true; do
+clear
+show_phan_tren_menu
+
+printf "%-32s %s\n" "1) Thêm Cronjob" "4) Sao lưu tất cả Cronjob"
+printf "%-32s %s\n" "2) Xóa 1 Cronjob" "5) Phục hồi Cronjob từ backup file"
+printf "%-33s %s\n" "3) Kiểm tra Cronjob" "6) Liệt kê Cronjob đang chạy"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in 
+
+    1 ) /etc/dsnvps/menu/crontab/dsnvps-them-cronjob;;
+    2 ) /etc/dsnvps/menu/crontab/dsnvps-xoa-mot-crontab;;
+    3 ) /etc/dsnvps/menu/crontab/dsnvps-giai-thich-chi-tiet-cronjob;;
+    4 ) /etc/dsnvps/menu/crontab/dsnvps-backup-crontab-hien-tai;;
+    5 ) /etc/dsnvps/menu/crontab/dsnvps-phuc-hoi-crontab-tu-backup;;
+    6 ) /etc/dsnvps/menu/crontab/dsnvps-crontab-hien-tai;;
+0) clear; exit 0;;
+    
+        *)
+        echo "========================================================================="
+        echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"; sleep 3
+        #echo "You typed wrong, Please type in the ordinal number on the list.";sleep 3
+        tput cuu 7; for ((i=0; i<7; i++)); do tput el; tput cud1; done; tput cuu 7;; esac; done
+

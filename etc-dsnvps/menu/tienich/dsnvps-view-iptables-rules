@@ -1,0 +1,30 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+echo "Cổng bạn muốn đóng: $portclose"
+printf "=========================================================================\n"
+rm -rf /home/$mainsite/private_html/IPtablesRules*
+randomcode=`date |md5sum |cut -c '1-5'`
+echo "============================================================================" > /home/$mainsite/private_html/IPtablesRules-$randomcode.txt
+echo "Quy tắc tường lửa IPtables trên máy chủ: $serverip - Được tạo bởi DSNVPS" >> /home/$mainsite/private_html/IPtablesRules-$randomcode.txt
+echo "============================================================================" >>/home/$mainsite/private_html/IPtablesRules-$randomcode.txt
+echo "" >> /home/$mainsite/private_html/IPtablesRules-$randomcode.txt
+iptables-save >> /home/$mainsite/private_html/IPtablesRules-$randomcode.txt
+iptables-save
+echo "========================================================================= "
+echo "Link xem IPtables Firewall Rules:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/IPtablesRules-$randomcode.txt"
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại menu DSNVPS ..."
+clear
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+

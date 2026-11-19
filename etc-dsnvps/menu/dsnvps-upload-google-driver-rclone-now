@@ -1,0 +1,176 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+# Xác định serverip_priport
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Kiểm tra dung lượng thư mục backup
+dungluong=$(du -sh /home/$mainsite/private_html/backup 2>/dev/null | awk '{print $1}')
+if [ -z "$dungluong" ] || [ "$dungluong" == "0" ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Trên server không tồn tại các file backup."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn hãy sao lưu Website & Database trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+# Kiểm tra Rclone
+if [ ! -f /bin/rclone ]; then
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy cài đặt Rclone trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+# Kiểm tra cấu hình auto backup và cron
+if [ -f /etc/dsnvps/backup.gdriver.conf ]; then
+    if [ ! -f /etc/cron.d/dsnvps.rclone.backup.gdriver.cron ]; then
+        rm -rf /etc/dsnvps/backup.gdriver.conf
+    fi
+fi
+if [ -f /etc/cron.d/dsnvps.rclone.backup.gdriver.cron ]; then
+    if [ ! -f /etc/dsnvps/backup.gdriver.conf ]; then
+        rm -rf /etc/cron.d/dsnvps.rclone.backup.gdriver.cron
+    fi
+fi
+
+if [ ! -f /etc/dsnvps/backup.gdriver.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn phải hoàn thành [Cấu Hình Tự Động Sao Lưu] "
+    echo "-------------------------------------------------------------------------"
+    echo "trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+# Kiểm tra cấu hình Rclone
+if [ ! -f /root/.config/rclone/rclone.conf ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Chức năng sao lưu Cloud (G-Drive, OneDrive) chưa được cấu hình."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+# Kiểm tra cấu hình Google Drive
+rm -rf /etc/dsnvps/.tmp/checkrcclonedrvier
+awk '/^\[gdrive\]/ {print}' /root/.config/rclone/rclone.conf > /etc/dsnvps/.tmp/checkrcclonedrvier
+checkb=$(wc -l < /etc/dsnvps/.tmp/checkrcclonedrvier)
+
+if [ "$checkb" -lt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Bạn hãy kết nối VPS với G-Drive trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+if [ "$checkb" -gt 1 ]; then
+    echo "-------------------------------------------------------------------------"
+    echo "Đang kiểm tra kết nối ..."; sleep 2
+    echo "-------------------------------------------------------------------------"
+    echo "Phát hiện lỗi !"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Hiện tại DSNVPS chỉ hỗ trợ backup VPS với 1 config G-Drive"
+    echo "-------------------------------------------------------------------------"
+    echo "Hãy chạy chức năng [ Xóa Tất Cả Cấu Hình ], và thực hiện config lại."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+# Lấy tên remote từ cấu hình Rclone
+rm -rf /etc/dsnvps/.tmp/chckshxn0
+grep -B 1 "type = drive" /root/.config/rclone/rclone.conf | awk 'NR==1' | sed 's/\[//' | sed 's/\]//' > /etc/dsnvps/.tmp/chckshxn0
+uservue=$(cat /etc/dsnvps/.tmp/chckshxn0)
+if [ -z "$uservue" ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Bạn vui lòng kiểm tra lại."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+# Kiểm tra file thực thi upload
+upload_script="/etc/dsnvps/menu/backup-google-driver-rclone-run-now"
+if [ ! -f "$upload_script" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file thực thi: $upload_script"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra lại cấu hình DSNVPS."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi
+
+##################################################################
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết nối tới G-Drive"; sleep 2
+REMOTE_NAME="gdrive"
+if ! rclone about "$REMOTE_NAME": &>/dev/null; then
+clear
+echo "========================================================================="
+echo "Kết nối tới G-Drive thất bại !"
+echo "-------------------------------------------------------------------------"
+echo "Bạn hãy thử lại hoặc [Xóa Tất Cả Cấu Hình] để kết nối G-drive lại."
+/etc/dsnvps/menu/dsnvps-rclone-menu
+fi
+sleep 3 && tput cuu 2 && tput ed
+######################################################
+
+# Hỏi người dùng về việc upload
+echo "========================================================================="
+echo "Dùng chức năng này để upload backup files lên G-Drive ngay và luôn."
+echo "========================================================================="
+read -r -p "Bạn muốn upload backup files lên G-Drive ngay bây giờ? [y/N] " response
+if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
+    echo "-------------------------------------------------------------------------"
+    echo "OK, Vui lòng chờ ..."; sleep 3
+    echo "-------------------------------------------------------------------------"
+    echo "Uploading ..."; sleep 3
+    
+    # Thực hiện upload và kiểm tra kết quả
+    "$upload_script"
+    
+    echo "-------------------------------------------------------------------------"
+    echo "Upload thành công!"; sleep 3
+    clear
+    echo "========================================================================="
+    echo "Tất cả các file backup đã được upload lên tài khoản Google Drive!"
+    echo "-------------------------------------------------------------------------"
+    echo "Tên folder: $serverip"
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+else
+    clear
+    echo "========================================================================="
+    echo "Hủy bỏ."
+    /etc/dsnvps/menu/dsnvps-rclone-menu
+    exit
+fi

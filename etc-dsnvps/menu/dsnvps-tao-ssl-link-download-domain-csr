@@ -1,0 +1,104 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html/paidssl ]; then
+mkdir -p /home/$mainsite/private_html/paidssl
+fi
+
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+if [ -d /home/$checksite/public_html ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không có website nào trên hệ thống"
+echo "--------------------------------------------------------------------------"
+echo "Bạn không thể sử dụng chức năng này !"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+fi
+echo "========================================================================="
+read -r -p "Bạn muốn xem danh sách website trên server? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+echo "========================================================================="
+echo "Danh sách website:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/checksite-list | pr -2 -t 
+fi
+
+rm -rf /etc/dsnvps/.tmp/checksite-list 
+echo "========================================================================="
+echo -n "Nhập domain [ENTER]: "
+read domainlaycsr
+domainlaycsr=`echo $domainlaycsr | tr '[A-Z]' '[a-z]'`
+if [ "$domainlaycsr" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại !"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,12}$";
+if [[ ! "$domainlaycsr" =~ $kiemtradomain3 ]]; then
+
+clear
+echo "========================================================================="
+echo "$domainlaycsr có lẽ không phải là domain hợp lệ!"
+echo "-------------------------------------------------------------------------"
+echo "Bạn vui lòng thử lại  !"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi 
+#################################################################
+## Check WWW or NON_WWW Domain                                 ##
+if [ -d /home/www.$domainlaycsr/public_html ] && [ -f /etc/nginx/conf.d/www.$domainlaycsr.conf ]; then
+domainlaycsr=www.$domainlaycsr
+fi
+#################################################################
+if [ -f /etc/nginx/paidssl/$domainlaycsr/$domainlaycsr.csr ]; then
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..." 
+sleep 2
+if [ ! -d /home/$mainsite/private_html/paidssl/$domainlaycsr ]; then
+mkdir -p /home/$mainsite/private_html/paidssl/$domainlaycsr
+fi
+\cp -uf /etc/nginx/paidssl/$domainlaycsr/$domainlaycsr.csr /home/$mainsite/private_html/paidssl/$domainlaycsr/
+clear
+echo "========================================================================= "
+echo "Link tải $domainlaycsr.csr:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/paidssl/$domainlaycsr/$domainlaycsr.csr"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+else
+clear
+echo "========================================================================= "
+echo "Bạn chưa tạo $domainlaycsr.csr trên Server!"
+/etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+exit
+fi

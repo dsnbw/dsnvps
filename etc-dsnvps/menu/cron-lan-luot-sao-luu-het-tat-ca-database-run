@@ -1,0 +1,160 @@
+#!/bin/bash
+. /root/dsnvps.conf
+. /etc/dsnvps/auto.backup.all.databases.conf
+#####
+## 
+# Check ban quyen
+touch /etc/dsnvps/.tmp/ckla
+# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed)
+##
+###
+##
+
+# Thoát nếu MySQL bị stop
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+    rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8_general_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+    exit
+fi
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+code=`date |md5sum |cut -c '1-19'`
+
+echo "$(mysql --user=root --password=$mariadbpass -e "SHOW DATABASES;" | grep -Ev "(Database|information_schema|mysql|sys|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)")" > /etc/dsnvps/.tmp/listdabasehostingaz
+checksize=$(du -sb /etc/dsnvps/.tmp/listdabasehostingaz | awk 'NR==1 {print $1}')
+if [ "$checksize" = "0" ]; then
+    exit
+fi
+
+sodatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz | wc -l)
+listdatabasetrenserver=$(cat /etc/dsnvps/.tmp/listdabasehostingaz)
+
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz
+rm -rf /etc/dsnvps/.tmp/*check*
+
+for database in $listdatabasetrenserver; do
+    if [ ! "$(ls -1 /var/lib/mysql/$database | wc -l)" = "1" ]; then
+        echo "$database" >> /etc/dsnvps/.tmp/checkdatabase-list
+    fi
+done
+
+if [ ! -f /etc/dsnvps/.tmp/checkdatabase-list ]; then
+    rm -rf /etc/dsnvps/.tmp/*hostingaz*
+    rm -rf /etc/dsnvps/.tmp/*list*
+    exit
+fi
+
+saoluudata () {
+    randomcode=-`date |md5sum |cut -c '1-11'`
+    if [ -f /bin/auto-backupdb-$dataname ]; then
+        if [ ! "$(grep auto-backupdb-$dataname /etc/cron.d/dsnvps.db.cron)" = "" ]; then
+            # Lấy tên file đích từ dòng gzip > ...sql.gz trong script auto-backupdb
+            pathname=$(awk '/gzip[[:space:]]+-6[[:space:]]*>[[:space:]]*[^[:space:]]+\.sql\.gz/ { 
+                               for (i=NF; i>=1; i--) if ($i ~ /\.sql\.gz$/) { print $i; exit }
+                           }' /bin/auto-backupdb-$dataname | tail -n1)
+            filename=$(basename "$pathname")
+            # Fallback nếu không lấy được tên hợp lệ
+            if [ -z "$filename" ] || printf '%s' "$filename" | grep -q '\$'; then
+                filename="$dataname$randomcode.sql.gz"
+            fi
+
+            mkdir -p /home/$mainsite/private_html/backup/$dataname
+            cd /home/$mainsite/private_html/backup/$dataname || exit
+
+            # Nếu file đích đã tồn tại (tên cố định từ auto-backup), rename trước khi tạo mới
+            if [ -f "/home/$mainsite/private_html/backup/$dataname/$filename" ]; then
+                if ! printf '%s' "$filename" | grep -qE '\.[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}$'; then
+                    time=$(date -r "/home/$mainsite/private_html/backup/$dataname/$filename" +%Hh%Mm-%d-%m-%y)
+                    base_name=$(basename "$filename" .sql.gz)
+                    mv "/home/$mainsite/private_html/backup/$dataname/$filename" "/home/$mainsite/private_html/backup/$dataname/${base_name}.sql.gz.${time}"
+                fi
+            fi
+
+            # Đổi tên các file cũ khác nếu cần
+            if ls /home/$mainsite/private_html/backup/$dataname/*.sql.gz >/dev/null 2>&1; then
+                for file in *.sql.gz; do
+                    if [ "$file" != "$filename" ] && ! printf '%s' "$file" | grep -qE '\.[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}$'; then
+                        time=$(date -r "$file" +%Hh%Mm-%d-%m-%y)
+                        mv "$file" "`basename "$file" .sql.gz`.sql.gz.$time"
+                    fi
+                done
+            fi
+
+            enginecheck=$(grep "default_storage_engine =" /etc/my.cnf | grep MyISAM)
+            if [ -z "$enginecheck" ]; then
+                mysqldump --force -u root -p$mariadbpass $dataname --single-transaction | gzip -6 > "$filename"
+            else
+                mysqldump --force -u root -p$mariadbpass $dataname --lock-tables=false | gzip -6 > "$filename"
+            fi
+
+            # Xóa các file backup cũ nếu vượt quá số bản tối đa
+            file_count=$(ls /home/$mainsite/private_html/backup/$dataname/*.sql.gz* | wc -l 2>/dev/null || echo 0)
+            if [ "$file_count" -gt "$sobansaoluu" ]; then
+                ls -t /home/$mainsite/private_html/backup/$dataname/*.sql.gz* | tail -n +$(($sobansaoluu + 1)) | xargs -I {} rm {}
+            fi
+        fi
+    else
+        mkdir -p /home/$mainsite/private_html/backup/$dataname
+        cd /home/$mainsite/private_html/backup/$dataname || exit
+        if ls /home/$mainsite/private_html/backup/$dataname/*.sql.gz >/dev/null 2>&1; then
+            for file in *.sql.gz; do
+                time=$(date -r "$file" +%Hh%Mm-%d-%m-%y)
+                mv "$file" "`basename $file .sql.gz`.sql.gz.$time"
+            done
+        fi
+        enginecheck=$(grep "default_storage_engine =" /etc/my.cnf | grep MyISAM)
+        if [ -z "$enginecheck" ]; then
+            mysqldump --force -u root -p$mariadbpass $dataname --single-transaction | gzip -6 > "$dataname$randomcode.sql.gz"
+        else
+            mysqldump --force -u root -p$mariadbpass $dataname --lock-tables=false | gzip -6 > "$dataname$randomcode.sql.gz"
+        fi
+        
+        # Xóa các file backup cũ nếu vượt quá số bản tối đa
+        file_count=$(ls /home/$mainsite/private_html/backup/$dataname/*.sql.gz* | wc -l 2>/dev/null || echo 0)
+        if [ "$file_count" -gt "$sobansaoluu" ]; then
+            ls -t /home/$mainsite/private_html/backup/$dataname/*.sql.gz* | tail -n +$(($sobansaoluu + 1)) | xargs -I {} rm {}
+        fi
+    fi
+
+    # Kiểm tra thành công hay thất bại
+    if [ $? -eq 0 ]; then
+        echo "$dataname" >> /etc/dsnvps/.tmp/saoluudatabasethanhconghostingaz/list.txt
+    else
+        echo "$dataname" >> /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz/list.txt
+    fi
+    cd || exit
+}
+
+listdatabases=$(cat /etc/dsnvps/.tmp/checkdatabase-list)
+for dataname in $listdatabases; do
+    saoluudata
+done
+
+# Gửi thông báo Telegram nếu được bật
+if [ -f /etc/dsnvps/telegram.conf ] && [ -f /etc/dsnvps/auto.backup.all.databases.telegram.conf ]; then
+    . /etc/dsnvps/telegram.conf
+    . /etc/dsnvps/auto.backup.all.databases.telegram.conf
+
+    if [ -f /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz/list.txt ]; then
+        failed_dbs=$(cat /etc/dsnvps/.tmp/saoluudatabasethatbaihostingaz/list.txt | paste -sd ", " -)
+        MESSAGE="$serverip: DSNVPS đã sao lưu thành công các database, ngoại trừ: $failed_dbs."
+    else
+        MESSAGE="$serverip: DSNVPS đã sao lưu thành công toàn bộ database trên hệ thống."
+    fi
+
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$MESSAGE" > /dev/null 2>&1
+fi
+
+# Dọn dẹp
+rm -rf /etc/dsnvps/.tmp/checkdatabase-list
+rm -rf /etc/dsnvps/.tmp/*hostingaz*

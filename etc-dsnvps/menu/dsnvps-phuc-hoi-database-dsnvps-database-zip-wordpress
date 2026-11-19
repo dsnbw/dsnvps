@@ -1,0 +1,47 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+website=$(cat /etc/dsnvps/.tmp/dsnvps-tensitephuchoi)
+dataname=$(cat /etc/dsnvps/.tmp/dsnvps-tendatabasephuchoi)
+randomcode=`date |md5sum |cut -c '1-18'`
+echo "========================================================================="
+	echo "Tìm thấy file backup DSNVPS-DATABASE.zip"
+	echo "-------------------------------------------------------------------------"
+	echo "Chuẩn bị phục hồi .... "
+	echo "-------------------------------------------------------------------------"
+	sleep 2
+	rm -rf /etc/dsnvps/.tmp/dsnvps-sql
+	mkdir -p /etc/dsnvps/.tmp/dsnvps-sql
+	unzip /home/$website/public_html/DSNVPS-DATABASE.zip -d /etc/dsnvps/.tmp/dsnvps-sql
+	ls /etc/dsnvps/.tmp/dsnvps-sql > /etc/dsnvps/.tmp/dsnvps-datasql-name
+	tenbackup=$(cat /etc/dsnvps/.tmp/dsnvps-datasql-name)
+	mysql -u root -p$mariadbpass -f $dataname < /etc/dsnvps/.tmp/dsnvps-sql/$tenbackup > /etc/dsnvps/.tmp/abc
+	date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+	rm -rf /etc/dsnvps/.tmp/dsnvps-sql/$tenbackup
+	check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+	check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+		if [ "$check1" == "$check2" ]; then
+		rm -rf /etc/dsnvps/.tmp/*dsnvps*
+		sleep 8
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thất bại "
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng kiểm tra file backup và thử lại !"
+		/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+		else	
+		rm -rf /etc/dsnvps/.tmp/*dsnvps*
+		mv /home/$website/public_html/DSNVPS-DATABASE.zip /home/$website/public_html/DSNVPS-DATABASE.zip.$randomcode
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thành công !"
+		echo "-------------------------------------------------------------------------"
+		echo "File backup được đổi tên thành DSNVPS-DATABASE.zip.$randomcode"
+		/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+		exit
+		fi

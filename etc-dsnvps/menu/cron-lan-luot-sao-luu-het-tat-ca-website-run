@@ -1,0 +1,192 @@
+#!/bin/bash
+. /root/dsnvps.conf
+. /etc/dsnvps/auto.backup.all.websites.conf
+
+# Thêm lock để tránh chạy đồng thời
+LOCK_FILE="/var/lock/dsnvps-backup.lock"
+if [ -f "$LOCK_FILE" ]; then
+    echo "Backup is already running. Exiting."
+    exit 1
+fi
+touch "$LOCK_FILE"
+trap 'rm -f "$LOCK_FILE"' EXIT
+
+#####
+## 
+# Check ban quyen
+touch /etc/dsnvps/.tmp/ckla
+# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed)
+##
+###
+##
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+mkdir -p /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz
+mkdir -p /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz
+
+for D in /home/*; do
+ if [ -d "${D}" ]; then
+ domain=${D##*/}
+ echo "$domain" >> /etc/dsnvps/.tmp/dsnvps-websitelist
+ fi
+done
+
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i '/0-DSNVPS-SHORTCUT/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i '/oanh/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+
+acction1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r checksite; do
+    rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+    if [ -d /home/$checksite/public_html ] && [ -f /etc/nginx/conf.d/$checksite.conf ]; then
+        find /home/$checksite/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+        sodong=$(wc -l < /etc/dsnvps/.tmp/dsnvps_check_site)
+        if [ "$sodong" -gt 3 ]; then
+            echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+        fi
+    fi
+done < "$acction1"
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+    rm -f "$LOCK_FILE"
+    exit
+fi
+
+sowebsitecodulieu=$(cat /etc/dsnvps/.tmp/checksite-list | wc -l)
+randomcode=-$(date | md5sum | cut -c '1-10')
+ls /bin/ > /etc/dsnvps/.tmp/checkautobackuphostingaz.txt
+
+saoluucode () {
+    # Thêm lock cho từng website để tránh sao lưu trùng lặp
+    WEBSITE_LOCK="/var/lock/backup-$website.lock"
+    if [ -f "$WEBSITE_LOCK" ]; then
+        echo "Backup for $website is already running. Skipping."
+        return
+    fi
+    touch "$WEBSITE_LOCK"
+    
+    # Cleanup function cho website lock
+    cleanup_website() {
+        rm -f "$WEBSITE_LOCK"
+    }
+    trap cleanup_website RETURN
+
+    if grep -q "auto-backupcode-$website" /etc/dsnvps/.tmp/checkautobackuphostingaz.txt; then
+        if grep -q "auto-backupcode-$website" /etc/cron.d/dsnvps.code.cron; then
+            pathname=$(awk -v site="$website" -v mainsite="$mainsite" '$1=="mv" && $2 ~ (site "\\.zip$") && $3 ~ ("/home/" mainsite "/private_html/backup/" site "/") { last=$3 } END { if (last) print last }' /bin/auto-backupcode-$website | tail -n1)
+            filename=$(basename "$pathname")
+            if [[ -z "$filename" || "$filename" == *"$"* ]]; then
+                filename=$website$randomcode.zip
+            fi
+        else
+            filename=$website$randomcode.zip
+        fi
+    else
+        filename=$website$randomcode.zip
+    fi
+
+    if [ ! -d /home/$mainsite/private_html/backup/$website ]; then
+        mkdir -p /home/$mainsite/private_html/backup/$website
+    fi
+
+    cd /home/$mainsite/private_html/backup/$website
+    
+    
+
+        # Nếu file backup đã tồn tại (tên cố định từ auto-backup), rename nó trước khi tạo mới
+    if [ -f "/home/$mainsite/private_html/backup/$website/$filename" ]; then
+        # Chỉ rename nếu chưa có timestamp
+        if [[ ! "$filename" =~ \.[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]]; then
+            time=$(date -r "$filename" +%Hh%Mm-%d-%m-%y)
+            base_name=$(basename "$filename" .zip)
+            mv "$filename" "${base_name}.zip.${time}"
+            echo "Renamed existing backup file: $filename -> ${base_name}.zip.${time}"
+        fi
+    fi
+
+    # Đổi tên các file .zip cũ khác (không phải file vừa tạo)
+    if ls *.zip >/dev/null 2>&1; then
+        for file in *.zip; do
+            # Kiểm tra file có phải là file backup mới tạo không
+            if [[ "$file" != "$website.zip" && "$file" != "$filename" ]]; then
+                # Chỉ đổi tên nếu chưa có timestamp
+                if [[ ! "$file" =~ \.[0-9]{2}h[0-9]{2}m-[0-9]{2}-[0-9]{2}-[0-9]{2}$ ]]; then
+                    time=$(date -r "$file" +%Hh%Mm-%d-%m-%y)
+                    base_name=$(basename "$file" .zip)
+                    mv "$file" "${base_name}.zip.${time}"
+                fi
+            fi
+        done
+    fi
+
+    # Kiểm tra xem file backup đã tồn tại chưa để tránh tạo trùng
+   # if [ -f "/home/$mainsite/private_html/backup/$website/$filename" ]; then
+    #    echo "Backup file $filename already exists for $website. Skipping."
+    #    echo "$website" >> /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz/$website
+   #     cd
+   #     return
+   # fi
+
+    cd /home/$website/public_html/
+    
+    # Thêm timestamp vào tên file để tránh trùng lặp
+    current_time=$(date +%Y%m%d_%H%M%S)
+    temp_zip_name="$website.$current_time.zip"
+    
+    zip -r -q --exclude=*Full-DSNVPS* --exclude=*0-DSNVPS* --exclude=*full_backup.* "$temp_zip_name" * >/dev/null 2>&1
+
+    if [ -f "$temp_zip_name" ]; then
+        mv "$temp_zip_name" /home/$mainsite/private_html/backup/$website/$filename
+        # Xóa các file backup cũ nếu vượt quá số bản tối đa
+        file_count=$(ls /home/$mainsite/private_html/backup/$website/*.zip* | wc -l 2>/dev/null || echo 0)
+        if [ "$file_count" -gt "$sobansaoluu" ]; then
+            ls -t /home/$mainsite/private_html/backup/$website/*.zip* | tail -n +$(($sobansaoluu + 1)) | xargs -I {} rm {}
+        fi
+        echo "$website" >> /etc/dsnvps/.tmp/saoluuwebsitethanhconghostingaz/$website
+        echo "Successfully backed up $website as $filename"
+    else
+        echo "$website" >> /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz/$website
+        echo "Failed to backup $website"
+    fi
+
+    cd
+}
+
+# Xử lý từng website với log để tracking
+dobackup=$(cat /etc/dsnvps/.tmp/checksite-list)
+for website in $dobackup; do
+    echo "Starting backup for: $website at $(date)"
+    saoluucode
+    echo "Finished backup for: $website at $(date)"
+done
+
+# Gửi thông báo Telegram nếu có cấu hình
+if [[ -f /etc/dsnvps/telegram.conf && -f /etc/dsnvps/auto.backup.all.websites.telegram.conf ]]; then
+    source /etc/dsnvps/telegram.conf
+    source /etc/dsnvps/auto.backup.all.websites.telegram.conf
+
+    thatbai_list=$(ls /etc/dsnvps/.tmp/saoluuwebsitethatbaihostingaz 2>/dev/null)
+    if [[ -z "$thatbai_list" ]]; then
+        MESSAGE="$serverip: DSNVPS đã sao lưu thành công toàn bộ website trên hệ thống."
+    else
+        thatbai_text=$(echo $thatbai_list | tr '\n' ' ')
+        MESSAGE="$serverip: DSNVPS đã sao lưu website, tuy nhiên các website sau sao lưu thất bại: $thatbai_text"
+    fi
+
+    curl -s -X POST "https://api.telegram.org/bot$BOT_TOKEN/sendMessage" \
+        -d chat_id="$CHAT_ID" \
+        -d text="$MESSAGE" > /dev/null 2>&1
+fi
+
+# Cleanup
+rm -rf /etc/dsnvps/.tmp/checkautobackuphostingaz.txt
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /var/lock/backup-*.lock 2>/dev/null
+
+echo "Backup process completed at $(date)"

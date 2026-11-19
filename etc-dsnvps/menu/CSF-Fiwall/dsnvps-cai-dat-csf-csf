@@ -1,0 +1,24 @@
+#!/bin/bash
+if [ -f /etc/csf/csf.conf ]; then
+clear
+echo "========================================================================= "
+echo "CSF Firewall đã được cài đặt và cấu hình trên server!"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+else
+echo "-------------------------------------------------------------------------"
+echo "Đang cài CSF Firewall...."
+sleep 2
+/etc/dsnvps/menu/dsnvps-cai-csf-firewall-cai-dat-CSF-FIREWALL
+clear
+if [ -f /etc/csf/csf.conf ]; then
+clear
+echo "========================================================================= "
+echo "Cài đặt và cấu hình thành công CSF Firewall trên server"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+else
+clear
+echo "========================================================================= "
+echo "Cài đặt CSF Firewall thất bại! Bạn vui lòng thử cài đặt lại!"
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-csf-firewall-menu
+fi
+fi

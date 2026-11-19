@@ -1,0 +1,63 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ MySQL không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/restart-mysql-fix-error
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ MySQL!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+	if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+	clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ MySQL"
+sleep 4 ;
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, DSNVPS không thể khởi động được dịch vụ MySQL"
+    #echo "Sorry, DSNVPS can not start MySQL service"
+	/etc/dsnvps/menu/dsnvps-tien-ich
+	else
+	rm -rf /var/lib/mysql/dsnvpsCheckDB
+	clear
+	echo "========================================================================="
+    service mysql restart
+    /etc/dsnvps/menu/dsnvps-tien-ich
+	fi
+else
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+clear
+echo "========================================================================="
+service mysql restart
+/etc/dsnvps/menu/dsnvps-tien-ich
+fi

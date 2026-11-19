@@ -1,0 +1,4 @@
+; Ignore all ini files
+*.ini
+*.conf
+conf.d/

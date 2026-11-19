@@ -1,0 +1,13 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/csf/csf.conf ]; then
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-cai-dat-csf-csf
+else
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-update-csf-firewall
+fi

@@ -1,0 +1,2 @@
+#!/bin/bash
+/etc/dsnvps/menu/dsnvps-ghi-log-dang-nhap-ssh-va-thong-bao-login-telegram-run /etc/dsnvps/telegram.conf

@@ -1,0 +1,127 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/ipvpsinfo.txt
+randomcode=`date |md5sum |cut -c '1-6'`
+rm -rf /home/$mainsite/private_html/servervpsinfo*
+curl -ss ipinfo.io > /etc/dsnvps/ipvpsinfo.txt
+sed -i 's/,//g' /etc/dsnvps/ipvpsinfo.txt
+sed -i 's/"//g' /etc/dsnvps/ipvpsinfo.txt
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "THONG TIN DIA CHI IP SERVER" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "-------------------------------------------------------------------------" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "IP Server: $serverip" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Host name: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==3 {print $2,$3,$4,$5,$6}')" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "City: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==4 {print $2,$3,$4,$5,$6}')" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Region: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==5 {print $2,$3,$4,$5,$6}')" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Country: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==6 {print $2,$3,$4,$5,$6}')" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Latitude/Longitude: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==7 {print $2,$3,$4,$5,$6}')" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Network: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==8 {print $2,$3,$4,$5,$6}')" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+
+###################
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "THONG TIN CO BAN" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "-------------------------------------------------------------------------" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+tencpu=$( lscpu | grep "Model name" | head -n 1 | awk -F: '{print $2}' | sed 's/^[ \t]*//' )
+soloi=$( lscpu | grep "^CPU(s):" | awk '{print $2}' )
+if [ "$(arch)" = "aarch64" ]; then
+tocdo=$( dmidecode | grep "Current Speed" | awk -F: '{print $2}' | sed 's/^[ \t]*//' )
+else
+tocdo=$( awk -F: ' /cpu MHz/ {freq=$2} END {print freq}' /proc/cpuinfo )
+fi
+
+#tocdo=$(cat /proc/cpuinfo|grep MHz|head -1|awk '{ print $4 }')
+ramsize=$(free -m | awk 'NR==2'|awk '{ print $2 }')
+swap=$(free -m | awk '/Swap/ {print $2}')
+tocdohdd=$( (dd if=/dev/zero of=test_$$ bs=64k count=16k conv=fdatasync &&rm -f test_$$) 2>&1 | tail -1| awk '{ print $(NF-1) $NF }')
+echo "Cong nghe ao hoa : $(virt-what)" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "CPU model : $tencpu"  >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "So loi CPU : $soloi"  >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Toc do CPU : $tocdo MHz"  >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Dung luong RAM : $ramsize MB"  >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Dung luong Swap : $swap MB"  >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "Toc do I/O : $tocdohdd"  >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "THONG TIN DISC" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "-------------------------------------------------------------------------" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+df -h >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+#######################
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "=========================================================================" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "THONG TIN CHI TIET CPU" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+echo "-------------------------------------------------------------------------" >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+cat /proc/cpuinfo >> /home/$mainsite/private_html/servervpsinfo-$randomcode.txt
+
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                            Server Info \n"
+printf "=========================================================================\n"
+echo "Nhan [Enter] de quay tro lai DSNVPS menu"
+echo "========================================================================="
+echo "THÔNG TIN ĐỊA CHỈ IP SERVER"
+echo "-------------------------------------------------------------------------"
+echo "IP Server: $serverip"
+echo "Tên máy chủ: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==3 {print $2,$3,$4,$5,$6}')"
+echo "Thành phố: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==4 {print $2,$3,$4,$5,$6}')"
+echo "Khu vực: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==5 {print $2,$3,$4,$5,$6}')"
+echo "Quốc gia: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==6 {print $2,$3,$4,$5,$6}')"
+echo "Vĩ độ/Kinh độ: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==7 {print $2,$3,$4,$5,$6}')"
+echo "Mạng: $(cat /etc/dsnvps/ipvpsinfo.txt | awk 'NR==8 {print $2,$3,$4,$5,$6}')"
+
+###################
+echo "========================================================================="
+echo "========================================================================="
+echo "THÔNG TIN CƠ BẢN"
+echo "-------------------------------------------------------------------------"
+tencpu=$( lscpu | grep "Model name" | head -n 1 | awk -F: '{print $2}' | sed 's/^[ \t]*//' )
+soloi=$( lscpu | grep "^CPU(s):" | awk '{print $2}' )
+if [ "$(arch)" = "aarch64" ]; then
+tocdo=$( dmidecode | grep "Current Speed" | awk -F: '{print $2}' | sed 's/^[ \t]*//' )
+else
+tocdo=$( awk -F: ' /cpu MHz/ {freq=$2} END {print freq}' /proc/cpuinfo )
+fi
+
+#tocdo=$(cat /proc/cpuinfo|grep MHz|head -1|awk '{ print $4 }')
+ramsize=$(free -m | awk 'NR==2'|awk '{ print $2 }')
+swap=$(free -m | awk '/Swap/ {print $2}')
+tocdohdd=$( (dd if=/dev/zero of=test_$$ bs=64k count=16k conv=fdatasync &&rm -f test_$$) 2>&1 | tail -1| awk '{ print $(NF-1) $NF }')
+echo "Công nghệ ảo hóa: $(virt-what)"
+echo "Mẫu CPU: $tencpu" 
+echo "Số lõi CPU: $soloi" 
+echo "Tốc độ CPU: $tocdo MHz" 
+echo "Dung lượng RAM: $ramsize MB" 
+echo "Dung lượng Swap: $swap MB" 
+echo "Tốc độ I/O: $tocdohdd" 
+
+echo "========================================================================="
+echo "========================================================================="
+echo "THÔNG TIN Ổ ĐĨA"
+echo "-------------------------------------------------------------------------"
+df -h
+#######################
+echo "========================================================================="
+echo "========================================================================="
+echo "THÔNG TIN CHI TIẾT CPU"
+echo "-------------------------------------------------------------------------"
+cat /proc/cpuinfo
+echo "========================================================================="
+echo "Link xem trên trình duyệt:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/servervpsinfo-$randomcode.txt"
+echo "========================================================================="
+read -p "Nhấn [Enter] để quay trở lại menu DSNVPS ..."
+clear
+dsnvps
+
+
+
+

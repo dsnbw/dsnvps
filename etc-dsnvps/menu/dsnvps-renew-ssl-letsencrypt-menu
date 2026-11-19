@@ -1,0 +1,79 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/checksite-list
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist| wc -l)
+listwebsite=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+for checksite in $listwebsite 
+do
+if [ -d /home/$checksite/public_html ]; then
+echo "$checksite" >> /etc/dsnvps/.tmp/checksite-list
+fi
+ done
+
+if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+rm -rf /etc/dsnvps/.tmp/*dsnvps*
+rm -rf /etc/dsnvps/.tmp/*hostingaz*
+clear
+echo "========================================================================="
+echo "Không có website nào trên hệ thống"
+echo "--------------------------------------------------------------------------"
+echo "You can not need using this function !"
+/etc/dsnvps/menu/dsnvps-letsencrypt-menu
+fi
+echo "========================================================================="
+echo "Neu website cua ban da qua han renew SSL. Bạn phải su dung chuc nang "
+echo "-------------------------------------------------------------------------"
+echo "[ Force Renew SSL For All Domains ] de renew SSL cho domain do."
+echo "========================================================================="
+prompt="Lựa chọn của bạn [0 -Thoát]: "
+options=( "Force Renew SSL For 1 Domain" "Force Renew SSL For All Domains")
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachon="1"; break;;
+    2) luachon="2"; break;;
+    0) luachon="0"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    #*) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+    esac  
+done
+###################################
+#Update 1 website
+###################################
+if [ "$luachon" = "1" ]; then
+/etc/dsnvps/menu/dsnvps-renew-ssl-letsencrypt
+###################################
+#Update tat ca cac website
+###################################
+elif [ "$luachon" = "2" ]; then
+/etc/dsnvps/menu/dsnvps-renew-ssl-letsencrypt-force-all-domains
+###################################
+#Huỷ bỏ
+###################################
+else
+clear
+exit 0
+fi
+
+

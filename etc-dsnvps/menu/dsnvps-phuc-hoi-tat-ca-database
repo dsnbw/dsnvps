@@ -1,0 +1,326 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Dùng chức năng này để phục hồi tất cả database từ file FULL backup "
+echo "-------------------------------------------------------------------------"
+echo "database cho server. Để phục hồi, hãy đổi tên file backup bạn đã lưu trữ: "
+echo "-------------------------------------------------------------------------"
+echo "[ AllDB_xxxxxx.sql.gz ] thành [ AllDB.sql.gz ]"
+echo "-------------------------------------------------------------------------"
+echo "và upload vào /home. "
+echo "========================================================================="
+echo "==> Nếu phục hồi Full Database trên VPS cũ: Tất cả thông tin user và mật"
+echo "-------------------------------------------------------------------------"
+echo "khẩu của database sẽ giữ nguyên. DSNVPS sẽ replace tất cả database bằng "
+echo "-------------------------------------------------------------------------"
+echo "dữ liệu từ file backup nếu database đó đang tồn tại trên server. Hãy  "
+echo "-------------------------------------------------------------------------"
+echo "cẩn thận khi chạy chức năng này."
+echo "========================================================================="
+echo "==> Nếu phục hồi Full Database trên VPS mới: DSNVPS sẽ tự động tạo user"
+echo "-------------------------------------------------------------------------"
+echo "và mật khẩu mới cho tất cả database trong file backup. Bạn phải edit web "
+echo "-------------------------------------------------------------------------"
+echo "sử dụng thông tin user và mật khẩu mới của database. Nếu server đang BẬT"
+echo "-------------------------------------------------------------------------"
+echo "Zend Opcache, edit xong, Bạn phải CLEAR Zend Opcache không sẽ mắc lỗi kết"
+echo "-------------------------------------------------------------------------"
+echo "nối database."
+echo "========================================================================="
+read -p "Bạn đã upload xong? Nhấn [ Enter ] để bắt đầu phục hồi."
+
+
+if [ ! -f /home/AllDB.sql.gz ]; then 
+echo "-------------------------------------------------------------------------"
+echo "Bạn chưa upload file backup vào /home"
+echo "-------------------------------------------------------------------------"
+read -p "Hãy upload [ AllDB.sql.gz ] vào /home rồi nhấn [ Enter ] để phục hồi."
+
+fi
+
+if [ ! -f /home/AllDB.sql.gz ]; then 
+echo "-------------------------------------------------------------------------"
+echo "Không tìm thấy file AllDB.sql.gz ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Bạn hãy upload file AllDB.sql.gz vào /home để phục hồi Full Database."
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy AllDB.sql.gz"
+echo "========================================================================="
+read -r -p "Bạn chắc chắn phục hồi tất cả database từ file backup này? [y/N] " response
+
+case $response in
+    [yY][eE][sS]|[yY]) 
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập [ OK ] để xác nhận: " 
+read xacnhan
+if [ "$xacnhan" != "OK" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập không chính xác!"
+echo "-------------------------------------------------------------------------"
+echo "Hãy chạy lại chức năng này."
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/listdatacheck.txt
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|sys|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/listdatacheck.txt
+if [ -f /etc/dsnvps/.tmp/listdatacheck.txt ]; then
+linecheck=`cat /etc/dsnvps/.tmp/listdatacheck.txt | wc -l`
+if [ "$linecheck" == "0" ]; then
+vpsmoi=1
+fi
+fi
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ kiểm tra file backup này."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Nếu hợp lệ, quá trình phục hồi sẽ bắt đầu."; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Bắt đầu kiểm tra ..."; sleep 3
+echo "-------------------------------------------------------------------------"
+
+echo "Vui lòng chờ ..."; sleep 2
+rm -rf /etc/dsnvps/.tmp/alldbdsnvps
+mv /home/AllDB.sql.gz /home/AllDB.sql.gz.zip
+unzip -q /home/AllDB.sql.gz.zip -d /etc/dsnvps/.tmp
+mv /home/AllDB.sql.gz.zip /home/AllDB.sql.gz
+if [ ! -f /etc/dsnvps/.tmp/alldbdsnvps/readme.txt ]; then 
+rm -rf /etc/dsnvps/.tmp/alldbdsnvps
+mv /home/AllDB.sql.gz /home/AllDB.sql.gz.WRONG
+clear
+echo "-------------------------------------------------------------------------"
+echo "File AllDB.sql.gz có vấn đề ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Đây không phải là file AllDB.sql.gz nguyên gốc do DSNVPS tạo ra."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+
+if [ ! -f /etc/dsnvps/.tmp/alldbdsnvps/AllDB2.sql.gz ]; then 
+rm -rf /etc/dsnvps/.tmp/alldbdsnvps
+mv /home/AllDB.sql.gz /home/AllDB.sql.gz.WRONG
+clear
+echo "-------------------------------------------------------------------------"
+echo "File AllDB.sql.gz có vấn đề ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Đây không phải là file AllDB.sql.gz nguyên gốc do DSNVPS tạo ra."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+if [ ! -f /etc/dsnvps/.tmp/alldbdsnvps/listdata.txt ]; then 
+rm -rf /etc/dsnvps/.tmp/alldbdsnvps
+mv /home/AllDB.sql.gz /home/AllDB.sql.gz.WRONG.gz
+clear
+echo "-------------------------------------------------------------------------"
+echo "File AllDB.sql.gz có vấn đề ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Đây không phải là file AllDB.sql.gz nguyên gốc do DSNVPS tạo ra."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+
+#echo "-------------------------------------------------------------------------"
+#echo "Bat dau check database tren server hien tai. Neu server co database moi."; sleep 4
+#echo "-------------------------------------------------------------------------"
+#echo "Bạn phải xoa tat ca cac database base do di va chay lai chuc nang nay."; sleep 4
+#echo "-------------------------------------------------------------------------"
+#echo "Checking ..."; sleep 2
+
+#rm -rf /etc/dsnvps/.tmp/listdatacheck.txt
+#ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/listdatacheck.txt
+#if [ -f /etc/dsnvps/.tmp/listdatacheck.txt ]; then
+#linecheck=`cat /etc/dsnvps/.tmp/listdatacheck.txt | wc -l`
+#if [ "$linecheck" != "0" ]; then
+#clear
+#echo "========================================================================="
+#echo "DSNVPS không thể chạy chức năng này."
+#echo "-------------------------------------------------------------------------"
+#echo "Bạn phải xoa tat ca database phia duoi truoc khi chay lai chuc nang nay."
+#echo "-------------------------------------------------------------------------"
+#echo "List database:"
+#echo "-------------------------------------------------------------------------"
+#cat /etc/dsnvps/.tmp/listdatacheck.txt | pr -2 -t  
+#rm -rf /etc/dsnvps/.tmp/listdatacheck.txt
+#/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+#fi
+#fi
+echo "-------------------------------------------------------------------------"
+echo "File Backup hop le."; sleep 4
+echo "-------------------------------------------------------------------------"
+echo "Chuẩn bị phục hồi Database tu file Backup ..."; sleep 2
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+fi
+###################################################################
+###################################################################
+cd /etc/dsnvps/.tmp/alldbdsnvps
+gunzip < AllDB2.sql.gz  | mysql -u root -p$mariadbpass
+cd
+mv /home/AllDB.sql.gz /home/AllDB.sql.gz.Done.gz
+echo "-------------------------------------------------------------------------"
+echo "Phục hồi xong. DSNVPS sẽ kiểm tra kết quả phục hồi ..."; sleep 3
+
+databaseold=$(cat /etc/dsnvps/.tmp/alldbdsnvps/listdata.txt )
+for data in $databaseold 
+do
+if [ ! -f /var/lib/mysql/$data/db.opt ]; then
+clear
+echo "========================================================================="
+echo "Phục hồi Full Database thất bại."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể phục hồi database từ file backup được."
+/etc/dsnvps/menu/dsnvps-sao-lưu-phục-hồi-tất-cả-database-menu
+else
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra database: $data => Done !"; sleep 2
+
+fi
+ done
+rm -rf /etc/dsnvps/.tmp/alldbdsnvps
+rm -rf /etc/dsnvps/.tmp/listdatasauphuchoi.txt
+ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|dsnvpsCheckDB|sys|dsnvpscheckauto)" > /etc/dsnvps/.tmp/listdatasauphuchoi.txt
+
+if [ "$vpsmoi" == "1" ]; then
+echo "========================================================================="
+echo "Bắt đầu tạo user và password cho các database:"; sleep 5
+
+danhsachdatabasetaouser=$(cat /etc/dsnvps/.tmp/listdatasauphuchoi.txt )
+for dataaz in $danhsachdatabasetaouser 
+do
+if [ ! -f /var/lib/mysql/dataaz/db.opt ]; then
+if [ -f /root/DBinfo.txt ]; then
+rm -rf /etc/dsnvps/.tmp/creckdb.txt
+rm -rf /etc/dsnvps/.tmp/datanamecheckx
+grep "Data name: ${dataaz}" /root/DBinfo.txt > /etc/dsnvps/.tmp/creckdb.txt
+if [ -f /etc/dsnvps/.tmp/creckdb.txt ]; then
+checknumber=$(cat /etc/dsnvps/.tmp/creckdb.txt | wc -l)
+if [ "$checknumber" == "2" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${dataaz}/{/Data name:\ ${dataaz}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+
+if [ "$checknumber" == "3" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${dataaz}/{/Data name:\ ${dataaz}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+if [ "$checknumber" == "4" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${dataaz}/{/Data name:\ ${dataaz}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+if [ "$checknumber" == "5" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${dataaz}/{/Data name:\ ${dataaz}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+if [ "$checknumber" == "6" ]; then
+ cat > "/etc/dsnvps/.tmp/datanamecheckx" <<END
+sed -i '0,/Data name:\ ${dataaz}/{/Data name:\ ${dataaz}/d}' /root/DBinfo.txt
+END
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+sh /etc/dsnvps/.tmp/datanamecheckx
+fi
+fi
+fi
+
+password=`date +%s|md5sum |cut -c '1-16'`
+hauuser=`date +%s|md5sum |cut -c '1-3'`
+tienuser=`echo $dataaz | tr '[A-Z]' '[a-z]' | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | sed "s/\_//" | cut -c1-11`
+username=$tienuser$hauuser
+echo "========================================================================="
+echo "Tạo User cho database $dataaz:"; sleep 5
+
+echo "-------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/config.temp
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE USER '$username'@'localhost' IDENTIFIED BY '$password';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -rf /etc/dsnvps/.tmp/config.temp
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+GRANT ALL PRIVILEGES ON $dataaz . * TO '$username'@'localhost';
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -rf /etc/dsnvps/.tmp/config.temp
+    cat > "/etc/dsnvps/.tmp/config.temp" <<END
+FLUSH PRIVILEGES;
+END
+	mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+	rm -rf /etc/dsnvps/.tmp/config.temp
+	
+echo "User: $username"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Password: $password" ; sleep 2
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Database: $dataaz - Duoc tao vao: $(date +%d/%m/%Y)" >> /root/DBinfo.txt
+echo "=========================================================================" >> /root/DBinfo.txt
+echo "Tên database: $dataaz" >> /root/DBinfo.txt
+echo "Username: $username" >> /root/DBinfo.txt
+echo "password: $password" >> /root/DBinfo.txt
+echo "" >> /root/DBinfo.txt
+fi
+ done
+fi
+clear
+echo "========================================================================="
+echo "Phục hồi Full database đã hoàn thành !"
+echo "-------------------------------------------------------------------------"
+echo "Danh sách database đã phục hồi:"
+echo "-------------------------------------------------------------------------"
+cat /etc/dsnvps/.tmp/listdatasauphuchoi.txt | pr -2 -t
+rm -rf /etc/dsnvps/.tmp/listdatasauphuchoi.txt 
+if [ "$vpsmoi" == "1" ]; then
+echo "========================================================================="
+echo "Xem thông tin user và password các database: "
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS Menu => Quản Lý & Kiểm Tra Database => Xem User & Password Của Database"
+fi
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+       ;;
+    *)
+    clear
+    echo "========================================================================="
+echo "Hủy bỏ  !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
+        ;;
+esac
+

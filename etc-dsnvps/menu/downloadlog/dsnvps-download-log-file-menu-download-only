@@ -1,0 +1,50 @@
+#!/bin/bash
+
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html/server-log ]; then
+mkdir -p /home/$mainsite/private_html/server-log
+fi
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=( "Nginx Log" "PHP-FPM Log" "MySQL Log" "Secure Log" "Exim Log" )
+echo "========================================================================="
+echo "Nếu file log có dung lượng nhỏ hơn hoặc bằng 1 MB"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ tự động convert thành file text để bạn xem trên trình duyệt"
+echo "========================================================================="
+echo "CHỌN FILE LOG BẠN MUỐN DOWNLOAD"
+echo "========================================================================="
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) downloadcase="NginxLog"; break;;
+    2) downloadcase="phpfpmlog"; break;;
+    3) downloadcase="mysqllog"; break;;
+    4) downloadcase="securelog"; break;;
+    5) downloadcase="eximlog"; break;;
+    0) downloadcase="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+    esac  
+done
+
+if [ "$downloadcase" = "NginxLog" ]; then
+/etc/dsnvps/menu/downloadlog/dsnvps-download-log-nginx
+elif [ "$downloadcase" = "phpfpmlog" ]; then
+/etc/dsnvps/menu/downloadlog/dsnvps-download-log-php-fpm
+elif [ "$downloadcase" = "mysqllog" ]; then
+/etc/dsnvps/menu/downloadlog/dsnvps-download-log-mysql
+elif [ "$downloadcase" = "securelog" ]; then
+/etc/dsnvps/menu/downloadlog/dsnvps-download-log-secure
+elif [ "$downloadcase" = "eximlog" ]; then
+/etc/dsnvps/menu/downloadlog/dsnvps-download-log-exim
+else
+clear
+exit 0
+fi

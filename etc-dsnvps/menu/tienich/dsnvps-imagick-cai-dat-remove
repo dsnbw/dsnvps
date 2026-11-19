@@ -1,0 +1,94 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+if [ -f /etc/php.d/imagick.ini ]; then
+echo "========================================================================="
+echo "Sử dụng chức năng này để Cài đặt / Gỡ bỏ Imagick cho server"
+echo "-------------------------------------------------------------------------"
+echo "Server đã cài đặt Imagick"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/3721"
+echo "========================================================================="
+read -r -p "Bạn muốn gỡ bỏ Imagick? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ....";sleep 2
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+rm -rf /etc/php.d/*imagick*.ini 
+#dnf remove ImageMagick ImageMagick-devel -y
+phpver=$(php -r "echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;"); apt-get remove -y -qq php${phpver}-imagick
+apt-get update -qq && apt-get install -y -qq libdjvulibre21 libfftw3-double3 libheif1 libzip4
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+####### Restart PHP-FPM ###############
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+clear
+echo "========================================================================="
+echo "Gỡ cài đặt Imagick thành công!"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+    *)
+       clear
+    echo "========================================================================="
+   echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+        ;;
+esac
+exit
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để Cài đặt/Gỡ bỏ PHP-Imagick cho server"
+echo "-------------------------------------------------------------------------"
+echo "Server hiện chưa cài đặt PHP-Imagick"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/3721"
+echo "========================================================================="
+read -r -p "Bạn muốn cài đặt Imagick? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng chờ....";sleep 2
+/etc/dsnvps/menu/dsnvps-enable-tat-ca-cac-ham-php-php.ini
+rm -rf /etc/php.d/*imagick*.ini 
+#dnf remove ImageMagick ImageMagick-devel -y
+phpver=$(php -r "echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;"); apt-get remove -y -qq php${phpver}-imagick
+################################################
+apt-get install -y -qq imagemagick libmagickwand-dev
+phpver=$(php -r "echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;"); apt-get install -y -qq php${phpver}-imagick
+php_version=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;")
+rm -rf /etc/php.d/*imagick*.ini 
+echo "extension=imagick.so" > /etc/php.d/imagick.ini
+if [ ! -f /home/$mainsite/private_html/check-imagick.php ]; then
+cp -r /etc/dsnvps/menu/inc/check-imagick.php.zip /home/$mainsite/private_html/check-imagick.php
+fi
+/etc/dsnvps/menu/dsnvps-re-config-cac-ham-php-disable-php.ini
+####### Restart PHP-FPM ###############
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+clear
+echo "========================================================================="
+echo "Cài đặt IMAGICK thành công!"
+echo "-------------------------------------------------------------------------"
+echo "Kiểm tra kết quả cài đặt Imagick:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/check-imagick.php"
+echo "-------------------------------------------------------------------------"
+echo "Nếu Imagick cài thành công, trang này sẽ hiển thị ảnh thông báo của DSNVPS"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+       ;;
+    *)
+    clear
+    echo "========================================================================="
+   echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-config-php.ini-menu
+exit
+        ;;
+esac
+exit
+fi

@@ -1,0 +1,194 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps*
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ. DSNVPS is checking ..."; sleep 2
+if [ ! -f /etc/memcached.conf ]; then
+echo "Memcached: Chưa cài đặt" > /etc/dsnvps/.tmp/dsnvps-memcached-info.txt
+else
+if [ ! "$(/sbin/service memcached status | grep running | grep -v not | wc -l)" -ne 1 ]; then
+    echo "Memcached: đang chạy | Ram Usage: `grep CACHESIZE= /etc/memcached.conf | grep -o '[0-9]*'` MB"  > /etc/dsnvps/.tmp/dsnvps-memcached-info.txt
+else
+	echo "Memcached: dừng hoạt động"  > /etc/dsnvps/.tmp/dsnvps-memcached-info.txt
+fi
+fi
+if [ ! -f /etc/dsnvps/uploadsite ]; then 
+echo "File Manager: Chưa cài đặt " > /etc/dsnvps/.tmp/dsnvps-filemanager-info.txt
+else
+uploadsite=$(cat /etc/dsnvps/uploadsite)
+echo "File Manager: Installed | Domain: $uploadsite" > /etc/dsnvps/.tmp/dsnvps-filemanager-info.txt
+fi
+
+if [ ! -f /etc/dsnvps/net2ftpsite.info ]; then 
+echo "Net2FTP: Chưa cài đặt " > /etc/dsnvps/.tmp/dsnvps-net2ftp-info.txt
+else
+net2ftpsite=$(cat /etc/dsnvps/net2ftpsite.info)
+echo "Net2FTP: Installed | Domain: $net2ftpsite" > /etc/dsnvps/.tmp/dsnvps-net2ftp-info.txt
+fi
+
+if [ ! -f /etc/dsnvps/netdatasite.info ]; then 
+echo "NetData: Chưa cài đặt " > /etc/dsnvps/.tmp/dsnvps-netdata-info.txt
+else
+netdatasite=$(cat /etc/dsnvps/netdatasite.info)
+if [ ! "$(/sbin/service netdata status | grep running | grep -v not | wc -l)" -ne 1 ]; then
+echo "NetData: Installed & Enable | Domain: $netdatasite" > /etc/dsnvps/.tmp/dsnvps-netdata-info.txt
+	else
+echo "NetData: Installed But Disable | Domain: $netdatasite" > /etc/dsnvps/.tmp/dsnvps-netdata-info.txt
+fi
+fi
+
+
+if [ ! -f "/etc/csf/csf.conf" ]; then
+echo "CSF Firewall: Chưa cài đặt" > /etc/dsnvps/.tmp/dsnvps-csf-firewall-info.txt
+else
+csf -v > /etc/dsnvps/.tmp/dsnvpscheckcscfstatus
+if [ "$(grep disabled /etc/dsnvps/.tmp/dsnvpscheckcscfstatus)" = "" ]; then
+echo "CSF Firewall: đã cài đặt | Version: $(csf -v | awk 'NR==1 {print $2}' | sed 's/v//') " > /etc/dsnvps/.tmp/dsnvps-csf-firewall-info.txt
+else
+echo "CSF Firewall: đã cài đặt nhưng đang Tắt" > /etc/dsnvps/.tmp/dsnvps-csf-firewall-info.txt
+fi
+fi
+
+
+if [ ! -f /etc/redis/redis.conf ]; then
+echo "Chưa cài đặt" > /etc/dsnvps/.tmp/dsnvps-redis-info.txt
+else
+rm -rf /etc/dsnvps/.tmp/checkredis
+upredis=$(/bin/systemctl is-active --quiet redis-server || systemctl is-active --quiet redis && echo 1 || echo 0)
+if [ "$upredis" -lt 1 ]; then
+redis-cli ping 2> /etc/dsnvps/.tmp/checkredis
+else
+redis-cli ping > /etc/dsnvps/.tmp/checkredis
+fi
+redistt=`cat /etc/dsnvps/.tmp/checkredis`
+if [ -f /etc/dsnvps/.tmp/checkredis ]; then
+if [ "$redistt" = "PONG" ]; then
+echo "đang chạy" > /etc/dsnvps/.tmp/dsnvps-redis-info.txt
+else
+echo "dừng hoạt động" > /etc/dsnvps/.tmp/dsnvps-redis-info.txt
+fi
+fi
+fi
+
+
+
+
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ MySQL không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5
+# safe mariadb check (no ib_logfile delete)
+/etc/dsnvps/menu/inc/start-mysql-fix-error
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ MySQL!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+	if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+	clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ MySQL"
+sleep 4 ;
+echo "MySQL Status: dừng hoạt động" > /etc/dsnvps/.tmp/dsnvps-mysql-info.txt
+	else
+	rm -rf /var/lib/mysql/dsnvpsCheckDB
+echo "MySQL Status: đang chạy" > /etc/dsnvps/.tmp/dsnvps-mysql-info.txt
+	fi
+else
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+echo "MySQL Status: đang chạy" > /etc/dsnvps/.tmp/dsnvps-mysql-info.txt
+fi
+
+
+
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ]; then
+echo "Trạng thái Nginx: đang chạy" > /etc/dsnvps/.tmp/dsnvps-nginx-info.txt
+	else
+clear
+echo "========================================================================"
+echo "Dịch vụ Nginx không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+/etc/dsnvps/menu/inc/start-nginx-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ Nginx!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+UP=$(systemctl status nginx | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ]; then
+echo "Trạng thái Nginx: đang chạy" > /etc/dsnvps/.tmp/dsnvps-nginx-info.txt
+		else
+		clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ Nginx"
+sleep 4 ;
+echo "Trạng thái Nginx: dừng hoạt động" > /etc/dsnvps/.tmp/dsnvps-nginx-info.txt
+
+fi
+fi
+
+UPPHP=$(/sbin/service php-fpm status  | grep running | grep -v not | wc -l);
+if [ ! "$UPPHP" -ne 1 ]; then
+	echo "Trạng thái PHP: đang chạy" > /etc/dsnvps/.tmp/dsnvps-php-info.txt
+	echo "PHP: $(php -i | grep 'PHP Version' | awk 'NR==1 {print $4}') " >> /etc/dsnvps/.tmp/dsnvps-php-info.txt
+	else
+clear
+echo "========================================================================"
+echo "Hiện tại, dịch vụ php-fpm không chạy"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+	echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/inc/start-php-fpm-service
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ php-fpm !"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5 ; clear
+UPPHP=$(/sbin/service php-fpm status  | grep running | grep -v not | wc -l);
+if [ ! "$UPPHP" -ne 1 ]; then
+	echo "Trạng thái PHP: đang chạy" > /etc/dsnvps/.tmp/dsnvps-php-info.txt
+	echo "Phiên bản PHP: $(php -i | grep 'PHP Version' | awk 'NR==1 {print $4}') " >> /etc/dsnvps/.tmp/dsnvps-php-info.txt
+		else
+	clear
+echo "========================================================================"
+echo "DSNVPS không thể khởi động dịch vụ php-fpm"
+sleep 4 ;
+	echo "Trạng thái PHP: dừng hoạt động" >> /etc/dsnvps/.tmp/dsnvps-php-info.txt
+fi
+fi

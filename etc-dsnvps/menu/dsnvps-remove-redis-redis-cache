@@ -1,0 +1,28 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "=========================================================================="
+read -r -p "Bạn muốn gỡ cài đặt Redis Cache ? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+
+systemctl stop redis-server.service
+systemctl disable redis-server.service
+
+phpver=$(php -r "echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;"); apt-get remove -y -qq redis-server php${phpver}-redis 
+rm -rf /etc/redis
+clear
+echo "=========================================================================="
+echo "Gỡ cài đặt Redis Cache thành công."
+dsnvps
+else
+clear
+echo "=========================================================================="
+echo "Hủy bỏ!"
+/etc/dsnvps/menu/dsnvps-redis-menu
+fi
+

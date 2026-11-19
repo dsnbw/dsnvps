@@ -1,0 +1,345 @@
+#!/bin/bash
+
+# Nạp file cấu hình DSNVPS
+. /root/dsnvps.conf
+
+# Xác định server IP và port
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+
+# Kiểm tra strace
+# Anti-debug removed
+
+# Tạo thư mục tạm
+if [ ! -d /etc/dsnvps/.tmp ]; then
+    mkdir -p /etc/dsnvps/.tmp
+fi
+
+# Xóa file tạm cũ
+rm -rf /etc/dsnvps/.tmp/klaioxzaz.txt
+rm -rf /etc/dsnvps/.tmp/klaoxcy
+rm -rf /etc/dsnvps/.tmp/klaoxcypark
+rm -rf /etc/dsnvps/.tmp/thanh_cong_SSL
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+
+# Thu thập danh sách website
+ls /etc/nginx/conf.d > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+
+# Loại bỏ mainsite khỏi danh sách
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+
+# Thu thập danh sách domain dùng SSL Origin/PaidSSL
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist | wc -l)
+domainlist=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+: > /etc/dsnvps/.tmp/thanh_cong_SSL
+for domain in $domainlist; do
+    if [ -f /etc/nginx/paidssl/$domain/$domain.crt ]; then
+        if grep -q "/etc/nginx/paidssl/$domain/$domain.crt" /etc/nginx/conf.d/$domain.conf; then
+            echo "$domain" >> /etc/dsnvps/.tmp/thanh_cong_SSL
+        fi
+    fi
+done
+
+# Thu thập park domain dùng SSL Origin/PaidSSL
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/klaoxcy"
+: > "$output_file"
+for vhost in "$nginx_conf_folder"/*.conf; do
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+    if [[ -d "$domain_home" && -f "$vhost" && "$domain" != "$mainsite" ]]; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+
+if [[ ! -s "$output_file" ]]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy website trên server"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit 1
+fi
+
+klaoxcy_file="/etc/dsnvps/.tmp/klaoxcy"
+output_file="/etc/dsnvps/.tmp/klaoxcypark"
+: > "$output_file"
+while IFS= read -r mainsite; do
+    domain_conf_folder="$home_folder/$mainsite/conf.d"
+    if [[ -d "$domain_conf_folder" ]] && compgen -G "$domain_conf_folder/*.conf" > /dev/null; then
+        for vhost in "$domain_conf_folder"/*.conf; do
+            subdomain=$(basename "$vhost" .conf)
+            if [[ "$subdomain" != "$mainsite" ]] && grep -q "/etc/nginx/paidssl/$subdomain/$subdomain.crt" "$vhost"; then
+                echo "$subdomain" >> "$output_file"
+            fi
+        done
+    fi
+done < "$klaoxcy_file"
+
+if [[ -s "$output_file" ]]; then
+    cat "$output_file" >> /etc/dsnvps/.tmp/thanh_cong_SSL
+fi
+
+# Thu thập WordPress Multisite Subsite dùng SSL Origin/PaidSSL
+for vhost in /etc/nginx/conf.d/*.conf; do
+    [[ -f "$vhost" ]] || continue
+    domain=$(basename "$vhost" .conf)
+    multisite_folder="/home/$domain/multisite.conf.d"
+    if [[ -d "$multisite_folder" ]]; then
+        for subsite_vhost in "$multisite_folder"/*.conf; do
+            [[ -f "$subsite_vhost" ]] || continue
+            subsite=$(basename "$subsite_vhost" .conf)
+            if [ -f /etc/nginx/paidssl/$subsite/$subsite.crt ]; then
+                if grep -q "/etc/nginx/paidssl/$subsite/$subsite.crt" "$subsite_vhost"; then
+                    echo "$subsite" >> /etc/dsnvps/.tmp/thanh_cong_SSL
+                fi
+            fi
+        done
+    fi
+done
+
+# Kiểm tra domain quản lý
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    if [ -f /etc/nginx/paidssl/$domainquanly/$domainquanly.crt ] && grep -q "/etc/nginx/paidssl/$domainquanly/$domainquanly.crt" /etc/dsnvps/domainquanly/domainquanly.conf; then
+        echo "$domainquanly" >> /etc/dsnvps/.tmp/thanh_cong_SSL
+    fi
+fi
+
+# Nếu không có website nào dùng SSL Origin/PaidSSL
+if [ ! -f /etc/dsnvps/.tmp/thanh_cong_SSL ] || [ ! -s /etc/dsnvps/.tmp/thanh_cong_SSL ]; then
+    clear
+    echo "========================================================================="
+    echo "Hiện tại không có website nào đã cài đặt SSL Origin/PaidSSL."
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit 1
+fi
+
+# Hiển thị danh sách website/park domain dùng SSL
+echo "========================================================================="
+echo "Sử dụng chức năng này để xóa SSL Origin/PaidSSL và quay về HTTP cho"
+echo "-------------------------------------------------------------------------"
+echo "Domain/Park Domain đã cài SSL Origin/PaidSSL."
+echo "========================================================================="
+echo "Danh sách Website & Park Domain dùng SSL Origin/PaidSSL:"
+echo "-------------------------------------------------------------------------"
+mapfile -t file_list < /etc/dsnvps/.tmp/thanh_cong_SSL
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))
+    right_index=$((half + i + 1))
+    left_db="${file_list[i]:- }"
+    if (( right_index <= total )); then
+        right_db="${file_list[right_index-1]}"
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+
+# Chọn website
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng website [0 -Thoát]: "
+    read -r choice
+    if [[ $choice == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit 0
+    fi
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+        website=${file_list[choice-1]}
+        break
+    else
+        echo "Bạn nhập sai, vui lòng nhập lại."
+    fi
+done
+
+echo "========================================================================="
+echo "Bạn chọn: $website"
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn chắc chắn muốn chuyển Vhost từ HTTPS về HTTP? [y/N] " response
+if [[ "${response,,}" != "y" ]]; then
+    echo "========================================================================="
+    echo "Hủy bỏ!"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi
+
+echo "========================================================================="
+echo "DSNVPS sẽ chuyển Vhost từ HTTPS về HTTP cho $website"
+echo "-------------------------------------------------------------------------"
+echo "Nhấn Enter để tiếp tục. [Ctrl + C] để Hủy bỏ .."
+read
+
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+
+# Xử lý Park Domains
+if [[ -s "/etc/dsnvps/.tmp/klaoxcypark" ]] && grep -Fx "$website" /etc/dsnvps/.tmp/klaoxcypark; then
+    for domain in "$home_folder"/*; do
+        domain_name=$(basename "$domain")
+        park_vhost="$domain/conf.d/$website.conf"
+        if [[ -f "$park_vhost" ]]; then
+            echo "$domain_name" > /etc/dsnvps/.tmp/kl0zx
+            break
+        fi
+    done
+    mainwebsite=$(cat /etc/dsnvps/.tmp/kl0zx)
+    rm -rf /etc/dsnvps/.tmp/ookasZA5
+    mkdir -p /etc/dsnvps/.tmp/ookasZA5
+    mv /home/$mainwebsite/conf.d/$website.conf /etc/dsnvps/.tmp/ookasZA5
+    cp -r /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf /home/$mainwebsite/conf.d/$website.conf
+    if nginx -t >/dev/null 2>&1; then
+        /etc/dsnvps/menu/inc/re-start-nginx-service
+        clear
+        echo "========================================================================="
+        echo "Hoàn thành đưa $website quay trở lại HTTP (xóa SSL Origin/PaidSSL)!"
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    else
+        nginx -t &>/etc/dsnvps/.tmp/klaioxzaz.txt
+        rm -rf /home/$mainwebsite/conf.d/$website.conf
+        mv /etc/dsnvps/.tmp/ookasZA5/$website.conf /home/$mainwebsite/conf.d
+        rm -rf /etc/dsnvps/.tmp/ookasZA5
+        clear
+        echo "========================================================================="
+        echo "Lỗi cấu hình Nginx. DSNVPS không thể thực hiện chức năng này."
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi xuất hiện khi thực hiện chuyển:"
+        echo "-------------------------------------------------------------------------"
+        cat /etc/dsnvps/.tmp/klaioxzaz.txt
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    fi
+fi
+
+# Xử lý Domain Quản Lý
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ] && [ "$website" = "$domainquanly" ]; then
+    domain_vhost_path="/etc/dsnvps/domainquanly/domainquanly.conf"
+    domain_vhost_backup="/etc/dsnvps/.tmp/domainquanly.conf.bak"
+    rm -rf /etc/dsnvps/.tmp/ookasZA5
+    mkdir -p /etc/dsnvps/.tmp/ookasZA5
+    mv "$domain_vhost_path" /etc/dsnvps/.tmp/ookasZA5
+    
+    # Sử dụng backup từ folder domain quản lý
+    if [ -f "/etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTP" ]; then
+        cp -r "/etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTP" "$domain_vhost_path"
+    else
+        # Fallback về backup cũ nếu không tìm thấy backup mới
+        cp -r /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf "$domain_vhost_path"
+    fi
+    
+    if nginx -t >/dev/null 2>&1; then
+        /etc/dsnvps/menu/inc/re-start-nginx-service
+        clear
+        echo "========================================================================="
+        echo "Hoàn thành đưa $website quay trở lại HTTP (xóa SSL Origin/PaidSSL)!"
+        echo "-------------------------------------------------------------------------"
+        echo "Đã sử dụng backup từ: /etc/dsnvps/domainquanly/backup.vhost/${website}.conf_HTTP"
+        echo "========================================================================="
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    else
+        nginx -t &>/etc/dsnvps/.tmp/klaioxzaz.txt
+        rm -rf "$domain_vhost_path"
+        mv /etc/dsnvps/.tmp/ookasZA5/domainquanly.conf "$domain_vhost_path"
+        rm -rf /etc/dsnvps/.tmp/ookasZA5
+        clear
+        echo "========================================================================="
+        echo "Lỗi cấu hình Nginx. DSNVPS không thể thực hiện chức năng này."
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi xuất hiện khi thực hiện chuyển:"
+        echo "-------------------------------------------------------------------------"
+        cat /etc/dsnvps/.tmp/klaioxzaz.txt
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    fi
+fi
+
+# Xử lý WordPress Multisite Subsite
+domain_goc_website=$(echo "$website" | awk -F '.' '{print $(NF-1)"."$NF}')
+multisite_vhost_path="/home/$domain_goc_website/multisite.conf.d/$website.conf"
+if [[ -f "$multisite_vhost_path" && -d "/home/$domain_goc_website/public_html" ]]; then
+    rm -rf /etc/dsnvps/.tmp/ookasZA5
+    mkdir -p /etc/dsnvps/.tmp/ookasZA5
+    mv "$multisite_vhost_path" /etc/dsnvps/.tmp/ookasZA5
+    # Sử dụng backup HTTP
+    if [ -f "/home/$domain_goc_website/Backup.Vhost/$website.conf_HTTP" ]; then
+        cp -r "/home/$domain_goc_website/Backup.Vhost/$website.conf_HTTP" "$multisite_vhost_path"
+    elif [ -f "/etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf" ]; then
+        cp -r "/etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf" "$multisite_vhost_path"
+    else
+        mv /etc/dsnvps/.tmp/ookasZA5/$website.conf "$multisite_vhost_path"
+        rm -rf /etc/dsnvps/.tmp/ookasZA5
+        clear
+        echo "========================================================================="
+        echo "Không tìm thấy file backup HTTP cho $website"
+        echo "-------------------------------------------------------------------------"
+        echo "DSNVPS không thể thực hiện chức năng này."
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit 1
+    fi
+    if nginx -t >/dev/null 2>&1; then
+        /etc/dsnvps/menu/inc/re-start-nginx-service
+        clear
+        echo "========================================================================="
+        echo "Hoàn thành đưa $website quay trở lại HTTP (xóa SSL Origin/PaidSSL)!"
+        echo "-------------------------------------------------------------------------"
+        echo "$website là Subsite của WordPress Multisite ($domain_goc_website)"
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    else
+        nginx -t &>/etc/dsnvps/.tmp/klaioxzaz.txt
+        rm -rf "$multisite_vhost_path"
+        mv /etc/dsnvps/.tmp/ookasZA5/$website.conf "$multisite_vhost_path"
+        rm -rf /etc/dsnvps/.tmp/ookasZA5
+        clear
+        echo "========================================================================="
+        echo "Lỗi cấu hình Nginx. DSNVPS không thể thực hiện chức năng này."
+        echo "-------------------------------------------------------------------------"
+        echo "Lỗi xuất hiện khi thực hiện chuyển:"
+        echo "-------------------------------------------------------------------------"
+        cat /etc/dsnvps/.tmp/klaioxzaz.txt
+        /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+        exit
+    fi
+fi
+
+# Xử lý Domain thông thường
+rm -rf /etc/dsnvps/.tmp/ookasZA5
+mkdir -p /etc/dsnvps/.tmp/ookasZA5
+mv /etc/nginx/conf.d/$website.conf /etc/dsnvps/.tmp/ookasZA5
+cp -r /etc/dsnvps/Backup.Vhost.SSL/$website/$website.conf /etc/nginx/conf.d/$website.conf
+if nginx -t >/dev/null 2>&1; then
+    /etc/dsnvps/menu/inc/re-start-nginx-service
+    clear
+    echo "========================================================================="
+    echo "Hoàn thành đưa $website quay trở lại HTTP (xóa SSL Origin/PaidSSL)!"
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+else
+    nginx -t &>/etc/dsnvps/.tmp/klaioxzaz.txt
+    rm -rf /etc/nginx/conf.d/$website.conf
+    mv /etc/dsnvps/.tmp/ookasZA5/$website.conf /etc/nginx/conf.d
+    rm -rf /etc/dsnvps/.tmp/ookasZA5
+    clear
+    echo "========================================================================="
+    echo "Lỗi cấu hình Nginx. DSNVPS không thể thực hiện chức năng này."
+    echo "-------------------------------------------------------------------------"
+    echo "Lỗi xuất hiện khi thực hiện chuyển:"
+    echo "-------------------------------------------------------------------------"
+    cat /etc/dsnvps/.tmp/klaioxzaz.txt
+    /etc/dsnvps/menu/dsnvps-tao-paidssl-menu
+    exit
+fi

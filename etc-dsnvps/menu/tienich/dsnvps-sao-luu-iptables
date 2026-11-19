@@ -1,0 +1,59 @@
+#!/bin/bash
+
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+saoluuiptables ()
+{
+# Kiểm tra xem iptables có được cài đặt không
+if ! command -v iptables &> /dev/null; then
+    echo "Lỗi: iptables không được cài đặt trên hệ thống này!"
+    echo "--------------------------------------------------------------------------"
+    echo "Vui lòng cài đặt iptables trước khi sử dụng chức năng này."
+    sleep 3
+    /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+    exit 1
+fi
+
+# Tạo thư mục backup nếu chưa tồn tại
+mkdir -p /etc/dsnvps/iptablesbak
+
+# Tạo số ngẫu nhiên 5 chữ số
+random=$(shuf -i 10000-99999 -n 1)
+
+# Sao lưu iptables rules
+iptables-save > /etc/dsnvps/iptablesbak/iptables_$random.bak
+echo "--------------------------------------------------------------------------"
+echo "Vui lòng chờ..."
+sleep 2
+clear
+echo "========================================================================="
+echo "Sao lưu IPtables Firewall Rules hoàn thành!"
+echo "--------------------------------------------------------------------------"
+echo "File backup được lưu tại: /etc/dsnvps/iptablesbak/iptables_$random.bak"
+/etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+}
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để sao lưu IPtables Rules cho server"
+echo "--------------------------------------------------------------------------"
+read -r -p "Bạn có muốn sao lưu IPtables Rules? [y/N] " response
+case $response in
+    [yY][eE][sS]|[yY]) 
+        echo "--------------------------------------------------------------------------"
+        echo "Chuẩn bị sao lưu IPtables Rules"
+        sleep 3
+        saoluuiptables
+        ;;
+    *)
+        clear
+        echo "========================================================================="
+        echo "Hủy bỏ !"
+        /etc/dsnvps/menu/dsnvps-IPtables-firewall-manager-menu
+        ;;
+esac

@@ -1,0 +1,45 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+
+if [ -f "/etc/dsnvps/menu/dsnvps-reverse-proxy-common" ]; then
+    . /etc/dsnvps/menu/dsnvps-reverse-proxy-common
+else
+    get_reverse_proxy_domains_list() {
+        true > /etc/dsnvps/.tmp/reverse_proxy_domains_list
+        for vhost in /etc/nginx/conf.d/*.conf; do
+            [ -f "$vhost" ] || continue
+            domain=$(basename "$vhost" .conf)
+            if [ -d "/home/$domain/proxy_html" ]; then
+                echo "$domain" >> /etc/dsnvps/.tmp/reverse_proxy_domains_list
+            fi
+        done
+    }
+fi
+
+get_reverse_proxy_domains_list
+
+if [ ! -s /etc/dsnvps/.tmp/reverse_proxy_domains_list ]; then
+	/etc/dsnvps/menu/dsnvps-menu-all-function
+    echo "========================================================================="
+    echo "                 Cài Đặt REVERSE PROXY (Website Proxy)"
+    echo "========================================================================="
+    echo "Chưa có domain Reverse Proxy nào trên server."
+    echo "========================================================================="
+/etc/dsnvps/menu/dsnvps-reverse-proxy-menu
+exit
+fi
+
+mapfile -t danh_sach < /etc/dsnvps/.tmp/reverse_proxy_domains_list
+echo "========================================================================="
+echo "DANH SÁCH REVERSE PROXY DOMAIN"
+echo "-------------------------------------------------------------------------"
+[ -f "/etc/dsnvps/menu/dsnvps-reverse-proxy-common" ] && . /etc/dsnvps/menu/dsnvps-reverse-proxy-common
+if type display_reverse_proxy_domains_2cols &>/dev/null; then
+    display_reverse_proxy_domains_2cols /etc/dsnvps/.tmp/reverse_proxy_domains_list
+else
+    for ((i=0; i<${#danh_sach[@]}; i++)); do printf "%s. %s\n" $((i+1)) "${danh_sach[i]}"; done
+fi
+echo "========================================================================="
+read -p "Nhấn [Enter] để quay lại menu..." dummy
+clear

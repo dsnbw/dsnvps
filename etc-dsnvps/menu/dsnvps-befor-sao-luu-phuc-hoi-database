@@ -1,0 +1,57 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+
+if [ -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+fi
+ cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+
+if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+clear
+echo "========================================================================"
+echo "Dịch vụ MySQL đang dừng"
+echo "------------------------------------------------------------------------"
+echo "DSNVPS đang cố gắng khởi động nó"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5
+rm -rf /var/lib/mysql/ib_logfile0
+rm -rf /var/lib/mysql/ib_logfile1
+/etc/dsnvps/menu/inc/restart-mysql-fix-error
+clear
+echo "========================================================================"
+echo "Kiểm tra lại dịch vụ MySQL!"
+echo "------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+sleep 5
+cat > "/etc/dsnvps/.tmp/config.temp" <<END
+CREATE DATABASE dsnvpsCheckDB COLLATE utf8mb4_unicode_ci;
+END
+mysql -u root -p$mariadbpass < /etc/dsnvps/.tmp/config.temp
+rm -f /etc/dsnvps/.tmp/config.temp
+	if [ ! -f /var/lib/mysql/dsnvpsCheckDB/db.opt ]; then
+	clear
+	echo "========================================================================="
+	echo "Xin lỗi, dịch vụ MySQL đang dừng. DSNVPS không thể bật MySQL lên được!"
+	dsnvps
+	else
+	rm -rf /var/lib/mysql/dsnvpsCheckDB
+	clear
+	/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+	fi
+else
+rm -rf /var/lib/mysql/dsnvpsCheckDB
+clear
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+fi

@@ -1,0 +1,203 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/checktmp
+echo "Check /etc/dsnvps/.tmp by DSNVPS" > /etc/dsnvps/.tmp/checktmp
+if [ ! -f /etc/dsnvps/.tmp/checktmp ]; then
+clear
+echo "========================================================================="
+echo "Server của bạn gặp vấn đề với /etc/dsnvps/.tmp "
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng sửa lỗi trước khi sử dụng chức năng này."
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+
+rm -rf /etc/dsnvps/.tmp/checktmp
+
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+if [ "$(cat /etc/dsnvps/.tmp/checkallwebsites | wc -l)" -lt "1" ]; then
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+clear
+echo "========================================================================="
+echo "Hiện tại bạn chưa thêm Website mới vào server !"
+/etc/dsnvps/menu/dsnvps-them-website-menu
+exit
+fi
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+
+
+
+rm -rf /home/$mainsite/private_html/ListWebsite*
+randomcode=-`date |md5sum |cut -c '1-12'`
+rm -rf /etc/dsnvps/.tmp/*check*
+clear
+/etc/dsnvps/menu/dsnvps-menu-all-function   
+printf "=========================================================================\n"
+printf "                    Danh Sách Website Trên Server \n"
+printf "=========================================================================\n"
+echo "Website Có Dữ Liệu:"
+echo "-------------------------------------------------------------------------"
+echo "$(ls /etc/nginx/conf.d | sed 's/.conf//')" > /etc/dsnvps/.tmp/checkallwebsites
+## Remove DSNVPS.DEMO
+ cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/checkallwebsites
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+###
+
+cat /etc/dsnvps/.tmp/checkallwebsites > /etc/dsnvps/.tmp/checkpare
+# Đường dẫn file chứa danh sách các giá trị
+input_file="/etc/dsnvps/.tmp/checkpare"
+output_file="/etc/dsnvps/.tmp/checkpare4"
+
+# Xóa file output cũ nếu có
+> "$output_file"
+
+# Đọc từng giá trị từ input_file
+while IFS= read -r a; do
+    # Kiểm tra nếu thư mục /home/a/conf.d tồn tại
+    conf_dir="/home/$a/conf.d"
+    if [[ -d "$conf_dir" ]]; then
+        # Lặp qua tất cả các file .conf trong thư mục conf.d
+        for conf_file in "$conf_dir"/*.conf; do
+            # Kiểm tra nếu file .conf tồn tại
+            if [[ -f "$conf_file" ]]; then
+                # Lấy tên file và bỏ 5 ký tự cuối
+                conf_name=$(basename "$conf_file" .conf)
+                # Ghi tên file đã được xử lý vào output_file
+                echo "$conf_name" >> "$output_file"
+            fi
+        done
+    fi
+done < "$input_file"
+
+# Thông báo kết quả sau khi hoàn tất
+if [[ -s "$output_file" ]]; then
+echo "1" > /etc/dsnvps/.tmp/checkpare5
+fi
+sowebsitetrenserver=$(cat /etc/dsnvps/.tmp/checkallwebsites)
+rm -rf /etc/dsnvps/.tmp/checksite-list
+rm -rf /etc/dsnvps/.tmp/checksiteempty
+for website in $sowebsitetrenserver 
+do
+rm -rf /etc/dsnvps/.tmp/dsnvps_check_site
+if [ -d /home/$website/public_html ]; then
+find /home/$website/public_html -name "*.*" > /etc/dsnvps/.tmp/dsnvps_check_site
+sodong=`cat /etc/dsnvps/.tmp/dsnvps_check_site | wc -l`
+if [ "$sodong" -gt 4 ]; then
+echo "$website" >> /etc/dsnvps/.tmp/checksite-list
+else
+echo "$website" >> /etc/dsnvps/.tmp/checksiteempty
+fi
+fi
+ done
+ if [ ! -f /etc/dsnvps/.tmp/checksite-list ]; then
+ websitedulieu=0
+ else
+ websitedulieu=$(cat /etc/dsnvps/.tmp/checksite-list | wc -l)
+ fi
+ if [ -f /etc/dsnvps/.tmp/checksite-list ]; then
+#cat /etc/dsnvps/.tmp/checksite-list | pr -2 -t
+
+dsnvps_check_size=`cat /etc/dsnvps/.tmp/checksite-list`
+rm -rf /etc/dsnvps/.tmp/checksiztungsiteshow
+for website123 in $dsnvps_check_size 
+do
+sizetungsize=`du -sh /home/$website123 | awk 'NR==1 {print $1}'`
+echo "$website123 ($sizetungsize)" >> /etc/dsnvps/.tmp/checksiztungsiteshow
+done
+cat /etc/dsnvps/.tmp/checksiztungsiteshow | pr -2 -t
+else
+echo "Không có website nào có dữ liệu trên server"
+fi
+ if [ -f /etc/dsnvps/.tmp/checksiteempty ]; then
+	websitedatabaseempty=$(cat /etc/dsnvps/.tmp/checksiteempty | wc -l)
+	sowebsitedatabaseempty=$(echo "| No Data: $websitedatabaseempty")
+	echo "========================================================================="
+	echo "Website Chưa Có Dữ Liệu:"
+	echo "-------------------------------------------------------------------------" 
+	cat /etc/dsnvps/.tmp/checksiteempty | pr -2 -t  
+	####
+	else
+websitedatabaseempty=0
+	fi	
+	echo "========================================================================="
+	echo "Park & Redirect Domains (P&R Domains):"
+	echo "-------------------------------------------------------------------------" 
+	if [ -f /etc/dsnvps/.tmp/checkpare5 ]; then
+	cat /etc/dsnvps/.tmp/checkpare4 | pr -2 -t
+	parkredirect_count=$(wc -l < "/etc/dsnvps/.tmp/checkpare4")
+	rm -rf /etc/dsnvps/.tmp/checkpare*
+	else
+	echo "Không có."
+	parkredirect_count=0
+	rm -rf /etc/dsnvps/.tmp/checkpare*
+	fi
+	
+    echo "========================================================================"
+     echo "Subsite (Sub-domain Multisite):"
+    echo "------------------------------------------------------------------------"
+rm -rf /etc/dsnvps/.tmp/klaixx.txt
+klaixx_file="/etc/dsnvps/.tmp/klaixx.txt"
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+
+# Xóa file cũ nếu tồn tại
+> "$klaixx_file"
+
+# Duyệt qua tất cả các file .conf trong thư mục cấu hình Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    # Lấy tên miền từ file vhost
+    domain=$(basename "$vhost" .conf)
+    domain_home="$home_folder/$domain/public_html"
+
+    # Kiểm tra nếu domain chạy WordPress (tồn tại wp-config.php)
+    if [[ -f "$domain_home/wp-config.php" ]]; then
+        multisite_folder="$home_folder/$domain/multisite.conf.d"
+
+        # Nếu thư mục multisite.conf.d tồn tại và có file vhost
+        if [[ -d "$multisite_folder" && $(ls -A "$multisite_folder"/*.conf 2>/dev/null) ]]; then
+            for subsite_vhost in "$multisite_folder"/*.conf; do
+                subsite=$(basename "$subsite_vhost" .conf)
+                echo "$subsite" >> "$klaixx_file"
+            done
+        fi
+    fi
+
+done
+
+# Kiểm tra kết quả
+if [[ -s "$klaixx_file" ]]; then
+    subsite_count=$(wc -l < "$klaixx_file")
+	cat "$klaixx_file" | pr -2 -t
+else
+    echo "Không có subsite nào trên server."
+    subsite_count=0
+fi
+	
+total=$(calc $websitedulieu+$websitedatabaseempty+$subsite_count+$parkredirect_count)		
+echo "========================================================================="
+echo "Tổng Web: $total | Có data: $websitedulieu $sowebsitedatabaseempty | P&R Domain: $parkredirect_count | Subsite: $subsite_count  "
+rm -rf /etc/dsnvps/.tmp/*check*
+rm -rf /etc/dsnvps/.tmp/checkallwebsites
+rm -rf /etc/dsnvps/.tmp/checkpare*
+printf "=========================================================================\n"
+read -p "Nhấn [Enter] để quay trở lại DSNVPS menu ..."
+clear
+/etc/dsnvps/menu/dsnvps-them-website-menu

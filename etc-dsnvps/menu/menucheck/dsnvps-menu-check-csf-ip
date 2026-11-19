@@ -1,0 +1,51 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/*ip*
+who am i| awk '{ print $5}' | sed 's/(//'| sed 's/)//' > /etc/dsnvps/.tmp/checkip
+checksize=$(du -sb /etc/dsnvps/.tmp/checkip | awk 'NR==1 {print $1}')
+if [ $checksize -gt 8 ]; then
+if [ -f /etc/csf/csf.conf ]; then
+test_csf=$(csf -v | awk 'NR==1 {print $NF}')
+checkip=$(cat /etc/dsnvps/.tmp/checkip)
+if [ "$test_csf" != "enable" ]; then
+	if [ ! -f /etc/csf/csf.ignore ]; then
+	echo "" > /etc/csf/csf.ignore
+	fi
+if [ "$(grep $checkip /etc/csf/csf.ignore)" == "" ]; then 
+cat >> "/etc/dsnvps/.tmp/addcheckip" <<END
+echo "$checkip" >> /etc/csf/csf.ignore
+echo "$checkip" >> /etc/csf/csf.allow
+echo "========================================================================="
+echo "Địa chỉ IP hiện tại của bạn: $checkip" 
+echo "-------------------------------------------------------------------------"
+echo "Địa chỉ IP này không có trong whitelist của CSF Firewall"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đã thêm IP này vào CSF whitelist để không bị CSF Firewall chặn"
+echo "-------------------------------------------------------------------------"
+echo "Để thay đổi có hiệu lực, CSF Firewall cần khởi động lại"
+echo "========================================================================="
+read -p "Nhấn [Enter] để khởi động lại CSF Firewall và truy cập DSNVPS ..."
+#iptables -I INPUT -p tcp --dport $priport -j ACCEPT
+#iptables -A INPUT -p tcp -s $checkip --dport $priport -j ACCEPT
+#if command -v nft >/dev/null 2>&1; then nft list ruleset > /etc/nftables.conf 2>/dev/null || true; else service iptables save 2>/dev/null || true; fi
+#service iptables restart
+/etc/dsnvps/menu/CSF-Fiwall/dsnvps-re-start-khoi-dong-lai-csf-lfd
+clear
+echo "========================================================================="
+echo "IP: $checkip đã được thêm vào CSF Firewall's Whitelist"
+echo "-------------------------------------------------------------------------"
+echo "IP này sẽ không bị chặn khi đăng nhập sai mật khẩu vào server."; sleep 3
+END
+chmod +x /etc/dsnvps/.tmp/addcheckip
+/etc/dsnvps/.tmp/addcheckip
+rm -rf /etc/dsnvps/.tmp/addcheckip
+fi
+fi
+fi
+fi

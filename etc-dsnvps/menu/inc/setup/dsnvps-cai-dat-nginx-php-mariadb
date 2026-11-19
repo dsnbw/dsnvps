@@ -1,0 +1,667 @@
+#!/bin/bash
+/etc/dsnvps/menu/dsnvps-maldet-check-disc-truoc-khi-cai
+#MariaDB version cai dat: /etc/dsnvps/.tmp/mariadbversionsetup.txt
+#Nginx version mainline co the cai dat: /etc/dsnvps/.tmp/cuijhht
+#Nginx Stable: /etc/dsnvps/.tmp/9otgfgh
+#PHP version choose: /etc/dsnvps/.tmp/phpchoose.txt 
+DATABASE_PASS=$(cat /etc/dsnvps/.tmp/mysqlroot)
+
+vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
+
+if [[ "$vercheck" =~ ^(7|8|9)$ ]]; then
+    dnf -y -q install iptables-services iptables
+fi
+
+
+
+#Fix CA
+/etc/dsnvps/menu/inc/setup/dsnvps-fix-dst-root-cA-x3-expiration
+####################### Check Centos Version
+
+##################################
+#Cai dat vnstat cho RHEL 10
+###########################################
+###Cài đặt vnstat
+if [[ "$vercheck" == "10" ]]; then
+/etc/dsnvps/menu/inc/setup/dsnvps-setup-vnstat
+fi
+#########################################
+#########################################
+
+### cau hinh vnstat #####################
+# Tạo cơ sở dữ liệu vnStat cho tất cả interface đang hoạt động
+interfaces=$(ip -o link show | awk -F': ' '/state UP/ {print $2}')
+#echo "Tạo cơ sở dữ liệu vnStat cho các interface..."
+for iface in $interfaces; do
+    vnstat --add -i "$iface"
+    systemctl restart vnstat
+done
+# Khởi động và kích hoạt vnStat chạy cùng hệ thống
+#echo "Khởi động vnStat..."
+systemctl enable vnstat --now
+##############################################
+################
+#
+
+CENTOSVER=$(awk '{ print $3 }' /etc/redhat-release)
+if [ "$CENTOSVER" == 'release' ]; then
+    CENTOSVER=$(awk '{ print $4 }' /etc/redhat-release | cut -d . -f1,2)
+    if [[ "$(cat /etc/redhat-release | awk '{ print $4 }' | cut -d . -f1)" = '7' ]]; then
+        CENTOS_SEVEN='7'
+        reepel=7
+    elif [[ "$(cat /etc/redhat-release | awk '{ print $4 }' | cut -d . -f1)" = '8' ]]; then
+        CENTOS_EIGHT='8'
+        reepel=8
+    elif [[ "$(cat /etc/redhat-release | awk '{ print $4 }' | cut -d . -f1)" = '9' ]]; then
+        CENTOS_NINE='9'
+        reepel=9
+    fi
+fi
+
+# ensure only el8+ OS versions are being looked at for alma linux, rocky linux
+# oracle linux, vzlinux, circle linux, navy linux, euro linux
+
+EL_VERID=$(awk -F '=' '/VERSION_ID/ {print $2}' /etc/os-release | sed -e 's|"||g' | cut -d . -f1)
+
+if [ -f /etc/almalinux-release ] && [[ "$EL_VERID" -eq 8 || "$EL_VERID" -eq 9 ]]; then
+  CENTOSVER=$(awk '{ print $3 }' /etc/almalinux-release | cut -d . -f1,2)
+  ALMALINUXVER=$(awk '{ print $3 }' /etc/almalinux-release | cut -d . -f1,2 | sed -e 's|\.|000|g')
+  if [[ "$(echo $CENTOSVER | cut -d . -f1)" -eq '8' ]]; then
+    CENTOS_EIGHT='8'
+    ALMALINUX_EIGHT='8'
+    reepel=8
+  elif [[ "$(echo $CENTOSVER | cut -d . -f1)" -eq '9' ]]; then
+    CENTOS_NINE='9'
+    ALMALINUX_NINE='9'
+    reepel=9
+  fi
+
+elif [ -f /etc/rocky-release ] && [[ "$EL_VERID" -eq 8 || "$EL_VERID" -eq 9 ]]; then
+  CENTOSVER=$(awk '{ print $4 }' /etc/rocky-release | cut -d . -f1,2)
+  ROCKYLINUXVER=$(awk '{ print $3 }' /etc/rocky-release | cut -d . -f1,2 | sed -e 's|\.|000|g')
+  if [[ "$(echo $CENTOSVER | cut -d . -f1)" -eq '8' ]]; then
+    CENTOS_EIGHT='8'
+    ROCKYLINUX_EIGHT='8'
+    reepel=8
+  elif [[ "$(echo $CENTOSVER | cut -d . -f1)" -eq '9' ]]; then
+    CENTOS_NINE='9'
+    ROCKYLINUX_NINE='9'
+    reepel=9
+  fi
+fi
+
+
+
+
+###################################### Het Check Centos Version#############
+if [ ! -d /etc/nginx ]; then
+mkdir -p /etc/nginx
+fi
+
+### Cai Dat Nginx###########################################################################
+rm -rf /etc/yum.repos.d/nginx.repo
+# Kiểm tra phiên bản OS
+vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
+    # Thực hiện cài đặt dựa trên phiên bản
+    case "$vercheck" in
+        7)
+            yum install -y https://repo.dsnvps/pub/aeris-release-7.rpm
+
+            ;;
+        8)
+            dnf install -y https://repo.dsnvps/pub/aeris-release-8.rpm
+  
+            ;;
+        9)
+            dnf install -y https://repo.dsnvps/pub/aeris-release-9.rpm
+
+            ;;
+        10)
+            dnf install -y https://repo.dsnvps/pub/aeris-release-10.rpm
+
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+
+
+#### Cập nhật Repo cho Nginx-More dùng Repo cua DSNVPS.COM
+###################
+rm -rf /etc/yum.repos.d/aeris.repo
+
+vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
+
+case "$vercheck" in
+    7)
+        yum install -y https://repo.dsnvps/pub/aeris-release-7.rpm
+        ;;
+    8)
+        cat > /etc/yum.repos.d/aeris.repo <<'EOF'
+[aeris]
+name=Aeris Packages for Enterprise Linux 8 - stable - $basearch
+baseurl=https://repo.dsnvps/stable/el/8/$basearch
+				https://repo2.dsnvps/stable/el/8/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+
+[aeris-testing]
+name=Aeris Packages for Enterprise Linux 8 - testing - $basearch
+baseurl=https://repo.dsnvps/testing/el/8/$basearch
+        https://repo2.dsnvps/testing/el/8/$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+EOF
+        ;;
+    9)
+        cat > /etc/yum.repos.d/aeris.repo <<'EOF'
+[aeris]
+name=Aeris Packages for Enterprise Linux 9 - stable - $basearch
+baseurl=https://repo.dsnvps/stable/el/9/$basearch
+				https://repo2.dsnvps/stable/el/9/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+
+[aeris-testing]
+name=Aeris Packages for Enterprise Linux 9 - testing - $basearch
+baseurl=https://repo.dsnvps/testing/el/9/$basearch
+				https://repo2.dsnvps/testing/el/9/$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+EOF
+        ;;
+    10)
+        cat > /etc/yum.repos.d/aeris.repo <<'EOF'
+[aeris]
+name=Aeris Packages for Enterprise Linux 10 - stable - $basearch
+baseurl=https://repo.dsnvps/stable/el/10/$basearch
+				https://repo2.dsnvps/stable/el/10/$basearch
+enabled=1
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+
+[aeris-testing]
+name=Aeris Packages for Enterprise Linux 10 - testing - $basearch
+baseurl=https://repo.dsnvps/testing/el/10/$basearch
+				https://repo2.dsnvps/testing/el/10/$basearch
+enabled=0
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-AERIS
+EOF
+        ;;
+    *)
+        echo "Phiên bản RHEL không được hỗ trợ"
+        ;;
+esac
+
+
+#################
+#########################################
+
+
+
+
+
+
+
+
+#########
+## Cập nhật Repo
+sudo dnf clean all
+sudo dnf makecache
+sudo dnf repolist
+
+dnf install -y libmaxminddb-devel
+
+groupadd nginx
+useradd -g nginx -d /dev/null -s /sbin/nologin nginx
+
+# Cài đặt Nginx tương thích RHEL 10
+case "$vercheck" in
+8|9)
+dnf -y install nginx-more    
+;;
+10)
+dnf -y install nginx-more
+;;
+*)
+echo "Phiên bản RHEL không được hỗ trợ: $vercheck"
+;;
+esac 
+
+yum install nginx-more-module-modsecurity -y
+yum install nginx-more-module-modsecurity -y
+yum install mod_security mod_security_crs -y
+
+
+rm -rf /usr/lib/systemd/system/nginx.service
+cat > /usr/lib/systemd/system/nginx.service <<EOF
+[Unit]
+Description=The Nginx Server
+After=syslog.target network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/nginx.pid
+ExecStartPre=/usr/sbin/nginx -t
+ExecStart=/usr/sbin/nginx
+ExecReload=/usr/sbin/nginx -s reload
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+sudo systemctl daemon-reload
+
+systemctl enable nginx.service 
+mkdir -p /var/log/nginx
+chown -R nginx:nginx /var/log/nginx
+
+
+#########################################################################
+# Download init & config file for nginx
+rm -rf /etc/nginx/nginx.conf
+cp -r /etc/dsnvps/menu/inc/nginxFrepo/nginx.conf /etc/nginx/nginx.conf
+chmod +x /usr/sbin/nginx
+#########################################################################
+#########################################################################
+# Download /etc/nginx/conf
+cp -avr /etc/dsnvps/menu/inc/conf/ /etc/nginx
+#unzip /etc/dsnvps/menu/inc/conf.zip -d /etc/nginx/
+find /etc/nginx/conf -type f -exec chmod 644 {} \;
+
+###################
+systemctl start nginx
+
+#####################
+##
+##
+##
+# Toi Uu Nginxx
+#
+#
+#
+/etc/dsnvps/menu/inc/setup/dsnvps-toi-uu-nginx-brotli
+#
+#
+#
+#
+####################################
+
+
+
+# #####################################################
+#
+#   Cau Hinh Mode Security Cho Nginx-More
+#
+################################################
+
+if { [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ] || nginx -V 2>&1 | grep -q "nginx-more"; }; then
+if [ ! -f /var/log/modsec_audit.log ]; then
+touch /var/log/modsec_audit.log
+chown -R nginx:nginx /var/log/modsec_audit.log
+chmod 640 /var/log/modsec_audit.log
+chown -R nginx:nginx /var/log/modsec_audit.log
+chmod 640 /var/log/modsec_audit.log
+fi
+fi
+
+
+###########################################################################################################################################################################
+if [ ! -d /etc/nginx/modsec-crs ]; then
+if ! command -v git &> /dev/null
+then
+apt-get install -y -qq git
+fi
+git clone https://github.com/coreruleset/coreruleset.git /etc/nginx/modsec-crs
+cd /etc/nginx/modsec-crs
+mv crs-setup.conf.example crs-setup.conf
+cd
+fi
+
+if [ ! -d /etc/nginx/modsec ]; then
+mkdir -p /etc/nginx/modsec
+fi
+
+if [ ! -f /etc/nginx/modsec/modsecurity.conf ]; then
+rm -rf /etc/nginx/modsec/modsecurity.conf
+rm -rf /etc/nginx/modsec/unicode.mapping
+cp /etc/dsnvps/menu/inc/ModSecurity/modsecurity.conf-recommended /etc/nginx/modsec/modsecurity.conf
+cp /etc/dsnvps/menu/inc/ModSecurity/unicode.mapping /etc/nginx/modsec/unicode.mapping
+fi
+
+if grep -q "SecRuleEngine DetectionOnly" "/etc/nginx/modsec/modsecurity.conf"; then
+DetectionOnly=1
+#sed -i 's/^SecRuleEngine DetectionOnly$/SecRuleEngine On/' /etc/nginx/modsec/modsecurity.conf
+fi
+
+if [ ! -f /etc/nginx/modsec/modsecurity_rules.conf ]; then
+echo "include /etc/nginx/modsec/modsecurity.conf" > /etc/nginx/modsec/modsecurity_rules.conf
+echo "include /etc/nginx/modsec-crs/crs-setup.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "include /etc/nginx/modsec-crs/rules/REQUEST-901-INITIALIZATION.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-905-COMMON-EXCEPTIONS.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-911-METHOD-ENFORCEMENT.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-913-SCANNER-DETECTION.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-920-PROTOCOL-ENFORCEMENT.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-921-PROTOCOL-ATTACK.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-922-MULTIPART-ATTACK.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-930-APPLICATION-ATTACK-LFI.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-931-APPLICATION-ATTACK-RFI.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-932-APPLICATION-ATTACK-RCE.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "include /etc/nginx/modsec-crs/rules/REQUEST-933-APPLICATION-ATTACK-PHP.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-934-APPLICATION-ATTACK-GENERIC.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-941-APPLICATION-ATTACK-XSS.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "include /etc/nginx/modsec-crs/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-943-APPLICATION-ATTACK-SESSION-FIXATION.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-944-APPLICATION-ATTACK-JAVA.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/REQUEST-949-BLOCKING-EVALUATION.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-950-DATA-LEAKAGES.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-951-DATA-LEAKAGES-SQL.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-952-DATA-LEAKAGES-JAVA.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-953-DATA-LEAKAGES-PHP.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-954-DATA-LEAKAGES-IIS.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-955-WEB-SHELLS.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-959-BLOCKING-EVALUATION.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+echo "#include /etc/nginx/modsec-crs/rules/RESPONSE-980-CORRELATION.conf" >> /etc/nginx/modsec/modsecurity_rules.conf
+fi
+if [ ! -f /etc/nginx/conf/modsecurityA.conf ]; then
+cp -r /etc/dsnvps/menu/inc/conf/modsecurityA.conf /etc/nginx/conf/modsecurityA.conf
+fi
+
+if [ -f /usr/lib/nginx/modules/ngx_http_modsecurity_module.so ]; then
+if ! grep -q "/usr/lib/nginx/modules/ngx_http_modsecurity_module.so" "/etc/nginx/nginx.conf"; then
+sed -i '1i load_module /usr/lib/nginx/modules/ngx_http_modsecurity_module.so;' /etc/nginx/nginx.conf
+fi
+fi
+
+# #####################################################
+#
+#   Het Cau Hinh Mode Security Cho Nginx-More
+#
+################################################
+#####Centos 8,9...
+#dnf module reset php
+#dnf module install php:remi-8.2
+
+######## Centos7###
+#yum install yum-utils
+#yum-config-manager --enable remi-php82
+###########################################################################
+
+#Cai Dat PHP
+dnf -y module reset php
+dnf -y module enable php:$(cat /etc/dsnvps/.tmp/remichoose.txt)
+packages=(php php-mysqli php-gd php-zip php-cli php-json php-curl php-mbstring php-fpm php-opcache php-xml php-pdo php-bcmath php-soap php-xmlrpc php-intl php-pear php-ldap php-snmp php-tidy php-process)
+for package in "${packages[@]}"; do
+    dnf -y install "$package"
+done
+mkdir -p /var/lib/php/session
+chown -R nginx:nginx /var/lib/php/session
+
+mkdir -p /var/log/php-fpm
+chown -R nginx:nginx /var/log/php-fpm
+
+systemctl enable php-fpm.service 
+systemctl start php-fpm.service
+
+
+
+################# Cai dat MariaDB###########################################
+#############################################################################
+
+# Cai dat MariaDB
+vercheck=$(grep -oP 'VERSION_ID="\K[0-9]+' /etc/os-release)
+mariadb_version="10.11"
+
+#curl -LsS http://dsnvps/script/dsnvps/0-mariadb-repo/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version=10.11      $(cat /etc/dsnvps/.tmp/mariadbversionsetup.txt)
+if [ -f /root/mariadb.repo ]; then
+    # Nếu tệp mariadb.repo đã tồn tại ở /root, sao chép nó vào /etc/yum.repos.d/
+    rm -rf /etc/yum.repos.d/mariadb.repo
+    cp -r /root/mariadb.repo /etc/yum.repos.d/
+dnf clean all
+dnf install MariaDB-server MariaDB-client -y
+else
+    # Nếu tệp không tồn tại, tải repository tương ứng với phiên bản hệ điều hành
+    if [[ "$vercheck" = '8' ]]; then
+    
+	echo '[mariadb]
+name = MariaDB
+baseurl = https://mirror.netcologne.de/mariadb/yum/'$mariadb_version'/rhel8-amd64/ 
+          https://mirror.rackspace.com/mariadb/yum/'$mariadb_version'/rhel8-amd64/
+gpgkey = https://mirror.rackspace.com/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+module_hotfixes=1' >/etc/yum.repos.d/mariadb.repo
+	#repo mariadb cpu arm
+	if [ "$(arch)" = "aarch64" ]; then
+	echo '[mariadb]
+name = MariaDB
+baseurl = https://mirror.netcologne.de/mariadb/yum/'$mariadb_version'/rhel8-aarch64/ 
+          https://mirror.rackspace.com/mariadb/yum/'$mariadb_version'/rhel8-aarch64/
+gpgkey = https://mirror.rackspace.com/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+module_hotfixes=1' >/etc/yum.repos.d/mariadb.repo
+	fi
+dnf clean all
+dnf install MariaDB-server MariaDB-client -y
+	fi
+	
+	if [[ "$vercheck" = '9' ]]; then
+
+	echo '[mariadb]
+name = MariaDB
+baseurl = https://mirror.netcologne.de/mariadb/yum/'$mariadb_version'/rhel9-amd64/ 
+          https://mirror.rackspace.com/mariadb/yum/'$mariadb_version'/rhel9-amd64/
+gpgkey = https://mirror.netcologne.de/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+module_hotfixes=1' >/etc/yum.repos.d/mariadb.repo
+
+	#repo mariadb cpu arm
+	if [ "$(arch)" = "aarch64" ]; then
+	echo '[mariadb]
+name = MariaDB
+baseurl = https://mirror.netcologne.de/mariadb/yum/'$mariadb_version'/rhel9-aarch64/ 
+          https://mirror.rackspace.com/mariadb/yum/'$mariadb_version'/rhel9-aarch64/
+gpgkey = https://mirror.netcologne.de/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+module_hotfixes=1' >/etc/yum.repos.d/mariadb.repo
+	fi
+dnf clean all
+dnf install MariaDB-server MariaDB-client -y
+	fi
+	
+  if [[ "$vercheck" = '10' ]]; then
+
+	echo '[mariadb]
+name = MariaDB
+baseurl = https://mirror.netcologne.de/mariadb/yum/'$mariadb_version'/rhel10-amd64/ https://mirror.rackspace.com/mariadb/yum/'$mariadb_version'/rhel10-amd64/
+gpgkey = https://mirror.rackspace.com/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+module_hotfixes=1' >/etc/yum.repos.d/mariadb.repo
+
+	#repo mariadb cpu arm
+	if [ "$(arch)" = "aarch64" ]; then
+	echo '[mariadb]
+name = MariaDB
+baseurl = https://mirror.netcologne.de/mariadb/yum/'$mariadb_version'/rhel10-aarch64/ https://mirror.rackspace.com/mariadb/yum/'$mariadb_version'/rhel10-aarch64/
+gpgkey = https://mirror.rackspace.com/mariadb/yum/RPM-GPG-KEY-MariaDB
+gpgcheck=1
+module_hotfixes=1' >/etc/yum.repos.d/mariadb.repo
+	fi
+dnf clean all
+dnf install MariaDB-server MariaDB-client -y
+	fi
+
+fi
+
+# Start MySQL
+rm -f /var/lib/mysql/ibdata1
+rm -f /var/lib/mysql/ib_logfile*
+
+###############################################################################
+###############################################################################
+mkdir -p /var/log
+mkdir -p /var/log/mysql
+
+
+touch /var/log/mysql/slow.log
+touch /var/log/mysql/error.log
+touch /var/log/mysql/mysql-bin.log
+chown mysql:mysql /var/log/mysql
+chown mysql:mysql /var/log/mysql/slow.log
+chown mysql:mysql /var/log/mysql/error.log
+chown mysql:mysql /var/log/mysql/mysql-bin.log
+chmod 600 /var/log/mysql/slow.log
+chmod 600 /var/log/mysql/error.log
+chmod 600 /var/log/mysql/mysql-bin.log
+#####
+chown mysql:mysql /var/log/mysql
+mkdir -p /var/lib/mysql
+touch /var/lib/mysql/mysql.sock
+chown mysql:mysql /var/log/mysql/mysql.sock
+chown -R mysql:mysql /var/lib/mysql
+
+if [ ! -d /usr/local/dsnvps ]; then
+mkdir -p /usr/local/dsnvps
+fi
+mkdir -p /usr/local/dsnvps/mysqltmp
+chown mysql:mysql /usr/local/dsnvps/mysqltmp
+
+svram=$( free -m | awk '/^Mem:/{print $2}' )
+cpucores=$( awk -F: '/model name/ {core++} END {print core}' /proc/cpuinfo )
+cpu_cores=$(grep -c ^processor /proc/cpuinfo)
+if ! [[ "$cpu_cores" =~ ^[0-9]+$ ]]; then
+    cpu_cores=$cpucores
+fi
+
+
+#Check RAM AND USE Server.Conf Config
+if [ -f /etc/my.cnf ]; then
+cp /etc/my.cnf /etc/my.cnf-old
+fi
+ 
+
+
+if [[ $svram -ge 32 && $svram -le 1900  ]] ; then
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/01.cnf /etc/my.cnf
+###############################################
+elif [[ $svram -ge 1990 && $svram -le 3900  ]] ; then
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/02.cnf /etc/my.cnf
+###############################################
+elif [[ $svram -ge 3900 && $svram -le 7900  ]] ; then
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/03.cnf /etc/my.cnf
+###############################################
+elif [[ $svram -ge 7990 && $svram -le 14900  ]] ; then
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/04.cnf /etc/my.cnf
+###############################################
+elif [[ $svram -ge 15000 && $svram -le 29000  ]] ; then
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/05.cnf /etc/my.cnf
+###############################################
+elif [[ $svram -ge 29000 && $svram -le 60000  ]] ; then
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/06.cnf /etc/my.cnf
+###############################################
+else
+cp /etc/dsnvps/menu/inc/mariadb.config.cnf/06.cnf /etc/my.cnf
+fi
+
+
+touch /var/lib/mysql/mysql.sock
+chown -R mysql:mysql /var/lib/mysql/mysql.sock
+systemctl enable mariadb.service
+rm -rf /var/lib/mysql/ibdata1
+rm -rf /var/lib/mysql/ib_logfile*
+
+###################################################
+# Toi uu MariaDB
+mkdir -p /etc/systemd/system/mariadb.service.d
+cat > "/etc/systemd/system/mariadb.service.d/override.conf" <<EOF
+[Service]
+LimitNOFILE=524288
+LimitNPROC=65536
+NotifyAccess=all
+OOMScoreAdjust=-1000
+# Optional, chỉ dùng khi cần MariaDB truy cập toàn bộ hệ thống
+ProtectSystem=false
+ProtectHome=false
+EOF
+systemctl daemon-reexec
+systemctl daemon-reload
+########################################
+mariadbpass=$(cat /etc/dsnvps/.tmp/mysqlroot)
+
+cat > "/root/.my.cnf" <<END
+[client]
+user=root
+password=$mariadbpass
+END
+chmod 600 /root/.my.cnf
+/bin/systemctl start mariadb
+
+mysqladmin -u root password "$mariadbpass"
+mysql -u root -p"$mariadbpass" -e "UPDATE mysql.user SET Password = PASSWORD('$mariadbpass') WHERE User = 'root';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost');" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DELETE FROM mysql.user WHERE User='';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DROP USER ''@'localhost';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DROP USER ''@'`hostname`';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DROP DATABASE test;" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "FLUSH PRIVILEGES;" >/dev/null 2>&1
+
+################
+# Lấy thông tin VPS
+IP_ADDRESS=$(curl -4 -s --max-time 10 https://checkip.amazonaws.com || wget -4 -qO- http://ipecho.net/plain || curl -4 -s --max-time 10 https://ifconfig.me)
+RAM_INFO=$(free -m | awk '/Mem:/ {print $2 "MB"}')
+CPU_INFO=$(lscpu | grep "Model name" | awk -F: '{print $2}' | xargs)
+CPU_CORES=$(lscpu | grep "^CPU(s):" | awk '{print $2}')
+INSTALL_TIME=$(date '+%Y-%m-%d %H:%M:%S')
+
+# API endpoint
+API_URL="https://vpro.dsnvps/index.php?action=save_vps_info"
+API_KEY="HALINH-Dq1r68x4EHYgqmBphIKgZpw4Ka"
+
+# Gửi yêu cầu POST đến API, không hiển thị đầu ra
+curl -s -X POST "$API_URL" \
+    -H "Authorization: Bearer $API_KEY" \
+    -H "Content-Type: application/json" \
+    -d "{\"ip\":\"$IP_ADDRESS\",\"ram\":\"$RAM_INFO\",\"cpu\":\"$CPU_INFO\",\"cpu_cores\":$CPU_CORES}" > /dev/null 2>&1
+    
+unset API_KEY >/dev/null 2>&1
+unset API_URL >/dev/null 2>&1
+###############
+
+# Lấy thông tin OS
+if [ -f /etc/os-release ]; then
+    OS_NAME=$(grep "^PRETTY_NAME=" /etc/os-release | cut -d '"' -f 2)
+elif [ -f /etc/redhat-release ]; then
+    OS_NAME=$(cat /etc/redhat-release)
+else
+    OS_NAME="Unknown"
+fi
+# Lấy thông tin Language
+Language="Unknown"
+if [ -f /etc/dsnvps/menu/dsnvps-check-language ]; then
+    if [ "$(grep VN /etc/dsnvps/menu/dsnvps-check-language)" == "VN" ]; then
+        Language=VN
+    fi
+    if [ "$(grep EN /etc/dsnvps/menu/dsnvps-check-language)" == "EN" ]; then
+        Language=EN
+    fi
+fi
+# Gửi thông báo
+curl -X POST https://dsnvps/telegram.php \
+  -d "ip=${IP_ADDRESS}" \
+  -d "ram=${RAM_INFO}" \
+  -d "cpu=${CPU_INFO}" \
+  -d "cores=${CPU_CORES}" \
+  -d "os=${OS_NAME}" \
+  -d "lang=${Language}" \
+  -d "time=${INSTALL_TIME}" \
+  --max-time 10 \
+  --silent
+
+### Download Code
+/etc/dsnvps/menu/inc/dsnvps-check-phien-ban-moi-nhat-wp-joomla-opencart-drupal-phpbb-mybb

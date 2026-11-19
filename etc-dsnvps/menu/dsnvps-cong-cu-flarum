@@ -1,0 +1,390 @@
+#!/bin/bash
+. /root/dsnvps.conf
+
+#################
+# Kiểm tra xem jq đã cài đặt chưa
+if ! command -v jq &> /dev/null
+then
+apt-get install -y -qq jq &>/dev/null  # Dành cho CentOS/RHEL
+fi
+##################
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/flarumsitelist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/flarumsitelist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r flarumsite
+    do
+if [ -f /home/$flarumsite/public_html/config.php ]; then
+if [ -f /home/$flarumsite/public_html/flarum ]; then
+echo "$flarumsite" >> /etc/dsnvps/.tmp/flarumsitelist
+fi
+fi
+ done < "$file1"
+echo "========================================================================="
+echo "Các chức năng hỗ trợ: Clear cache, Migrate database, Update Flarum, Xem    "
+echo "-------------------------------------------------------------------------"
+echo "list Extension đang cài, Cài đặt / Gõ bỏ Extension, Xem log ..."
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/2981"
+echo "========================================================================="
+
+ if [ ! -f /etc/dsnvps/.tmp/flarumsitelist ]; then
+echo "========================================================================="
+echo "DSNVPS không tìm thấy website chạy Flarum Code trên Server."
+echo "-------------------------------------------------------------------------"
+read -rp "Nhấn [Enter] để quay lại menu..."
+clear
+dsnvps
+ exit
+ fi
+
+####################################################################
+##Check Ban Pro
+####################################################################
+if [ ! -f /usr/bin/gxred ]; then
+touch /etc/dsnvps/.tmp/ckla
+/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+clear
+dsnvps  
+fi
+###################################################################
+###################################################################
+
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/flarumsitelist
+
+
+echo "Danh sách website chạy Flarum code trên server:"
+echo "-------------------------------------------------------------------------"
+################################
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${danh_sach_website[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${danh_sach_website[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+    echo "========================================================================="
+while true; do
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: " 
+    read -r lua_chon
+    
+    # Kiem tra neu khong nhap gi hoac nhap khong hop le
+    if [[ -z "$lua_chon" ]]; then
+        echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+            sleep 3 && tput cuu 3 && tput ed
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+dsnvps
+        break
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break  # Thoat vong lap neu lua chon hop le
+    else
+       echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+            sleep 3 && tput cuu 3 && tput ed
+    fi
+done
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy $website trên hệ thống"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "$website sử dụng Flarum code"; sleep 2
+echo "-------------------------------------------------------------------------"
+while true; do
+    clear
+    echo "========================================================================="
+    echo "Các lệnh hỗ trợ: $website"
+    echo "-------------------------------------------------------------------------"
+    echo "1) Clear Cache"
+    echo "2) Migrate Database"
+    echo "3) Update Flarum (composer update --with-all-dependencies)"
+    echo "4) Xem List Extension Đang Cài"
+    echo "5) Gỡ bỏ Extension Flarum"
+    echo "6) Cài Thêm Extension Flarum"
+    echo "7) Xem 100 dòng cuối log: /storage/logs/flarum.log"
+    echo "========================================================================="
+    read -rp "Nhập lựa chọn [0 -Thoát]: " tac_vu
+
+    case "$tac_vu" in
+##############################
+################################ 
+        1)
+        echo "-------------------------------------------------------------------------"
+            echo "Đang xóa cache cho $website..."
+            echo "-------------------------------------------------------------------------"
+            php /home/$website/public_html/flarum cache:clear
+            php -r 'opcache_reset();' 2>/dev/null
+            echo "-------------------------------------------------------------------------"
+            echo "Đã xóa cache."
+            ;;
+##############################
+################################            
+        2)
+        echo "-------------------------------------------------------------------------"
+            echo "Đang migrate database cho $website..."
+            echo "-------------------------------------------------------------------------"
+            php /home/$website/public_html/flarum migrate
+            php -r 'opcache_reset();' 2>/dev/null
+                echo "========================================================================="
+            echo "Đã migrate database."
+            ;;
+       
+##############################
+################################ 
+3)
+echo "-------------------------------------------------------------------------"
+    echo "Đang cập nhật Flarum cho $website..."
+
+    # Kiểm tra xem composer có tồn tại không
+    if ! command -v composer &> /dev/null; then
+    echo "-------------------------------------------------------------------------"
+        echo "Composer chưa được cài đặt. Đang cài đặt Composer..."
+
+        # Tải và cài đặt Composer
+        echo "-------------------------------------------------------------------------"
+        curl -sS https://getcomposer.org/installer | php
+
+        # Di chuyển Composer vào /usr/local/bin để có thể sử dụng toàn hệ thống
+        mv composer.phar /usr/local/bin/composer
+
+        # Kiểm tra xem Composer đã cài đặt thành công chưa
+        if command -v composer &> /dev/null; then
+        echo "-------------------------------------------------------------------------"
+            echo "Composer đã được cài đặt thành công!"
+        else
+        echo "-------------------------------------------------------------------------"
+            echo "Cài đặt Composer thất bại!"
+            exit 1
+        fi
+    fi
+
+    # Cập nhật Flarum
+    echo "-------------------------------------------------------------------------"
+    cd /home/$website/public_html || { echo "Không thể truy cập thư mục."; continue; }
+    export COMPOSER_ALLOW_SUPERUSER=1
+    composer update --with-all-dependencies --no-interaction
+    php flarum migrate
+    php flarum cache:clear
+    php -r 'opcache_reset();' 2>/dev/null
+        echo "========================================================================="
+    echo "Hoàn tất cập nhật Flarum."
+    cd
+    ;;
+##############################
+################################     
+ 4)
+# Kiểm tra xem composer có tồn tại không
+if ! command -v composer &> /dev/null; then
+    echo "-------------------------------------------------------------------------"
+    echo "Composer chưa được cài đặt. Đang cài đặt Composer..."
+    echo "-------------------------------------------------------------------------"
+
+    curl -sS https://getcomposer.org/installer | php
+    mv composer.phar /usr/local/bin/composer
+
+    if command -v composer &> /dev/null; then
+        echo "-------------------------------------------------------------------------"
+        echo "Composer đã được cài đặt thành công!"
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Cài đặt Composer thất bại!"
+        exit 1
+    fi
+fi
+
+# Làm sạch màn hình và chuyển vào thư mục web
+clear
+cd /home/"$website"/public_html || { echo "Không thể truy cập thư mục."; continue; }
+export COMPOSER_ALLOW_SUPERUSER=1
+
+# Kiểm tra và cài đặt jq nếu chưa có
+if ! command -v jq &> /dev/null; then
+        apt-get install -y -qq jq &>/dev/null
+fi
+
+echo "========================================================================="
+echo "List Extension $website đang cài:"
+echo "-------------------------------------------------------------------------"
+
+# Hiển thị danh sách có đánh số
+jq -r '.packages[] | select(.type == "flarum-extension") | .name' composer.lock | nl -w2 -s') '
+cd
+            ;;
+##############################
+################################ 
+5)
+        cd /home/$website/public_html || { echo "Không thể truy cập thư mục."; continue; }
+if ! [ -f vendor/autoload.php ]; then
+    echo "Vendor chưa được cài đặt. Đang chạy 'composer install'..."
+    composer install --no-interaction
+fi
+        export COMPOSER_ALLOW_SUPERUSER=1
+
+        # Dùng jq để lấy danh sách các flarum-extension từ composer.lock
+mapfile -t extensions < <(jq -r '.packages[] | select(.type == "flarum-extension") | .name' composer.lock)
+
+        if [ ${#extensions[@]} -eq 0 ]; then
+            echo "Không tìm thấy extension nào."
+            break
+        fi
+
+        echo "========================================================================="
+        echo "Danh sách extension đang cài:"
+        echo "-------------------------------------------------------------------------"
+        for i in "${!extensions[@]}"; do
+            printf "%2d) %s\n" $((i+1)) "${extensions[$i]}"
+        done
+        echo "========================================================================="
+        read -rp "Chọn extension muốn remove [0 - Thoát]: " ext_select
+
+        if [[ "$ext_select" == "0" ]]; then
+            continue
+        elif [[ "$ext_select" =~ ^[0-9]+$ ]] && (( ext_select >= 1 && ext_select <= ${#extensions[@]} )); then
+            selected_ext="${extensions[$((ext_select-1))]}"
+            echo "-------------------------------------------------------------------------"
+            echo "=> Bạn chọn: $selected_ext"
+            echo "-------------------------------------------------------------------------"
+            read -rp "Bạn có chắc muốn remove extension này không? [y/N]: " confirm
+            if [[ "$confirm" =~ ^[Yy]$ ]]; then
+                composer remove "$selected_ext"
+                echo "-------------------------------------------------------------------------"
+                echo "=> Đã remove extension: $selected_ext"
+                echo "-------------------------------------------------------------------------"
+                php flarum cache:clear
+                echo "-------------------------------------------------------------------------"
+                php /home/$website/public_html/flarum migrate
+                php -r 'opcache_reset();' 2>/dev/null
+                cd
+            else
+                echo "-------------------------------------------------------------------------"
+                echo "Hủy bỏ."
+                cd
+            fi
+        else
+            echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ."
+        fi
+        ;;   
+##############################
+################################ 
+6)
+        cd /home/$website/public_html || { echo "Không thể truy cập thư mục."; continue; }
+        export COMPOSER_ALLOW_SUPERUSER=1
+
+        echo "========================================================================="
+        echo "Cách nhập Extesnion cần cài: flarum/tags"
+        echo "-------------------------------------------------------------------------"
+        read -rp "Nhập tên extension [0 - Thoát]: " ext_name
+
+        if [[ "$ext_name" == "0" || -z "$ext_name" ]]; then
+          echo "========================================================================="
+            echo "Hủy bỏ."
+                               echo "-------------------------------------------------------------------------"
+            read -rp "Nhấn [Enter] để quay lại menu..."
+            continue
+        fi
+
+        # Kiểm tra extension đã được cài chưa
+        if composer show | grep -q "^$ext_name "; then
+         echo "========================================================================="
+            echo "Extension \"$ext_name\" đã được cài trước đó."
+                               echo "-------------------------------------------------------------------------"
+            read -rp "Nhấn [Enter] để quay lại menu..."
+        continue
+        fi
+
+        echo "-------------------------------------------------------------------------"
+        echo "Tên Extension bạn nhập: $ext_name"
+        echo "-------------------------------------------------------------------------"
+        read -rp "Bạn có chắc chắn muốn cài extension này ? [y/N]:" confirm
+        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                   echo "-------------------------------------------------------------------------"
+            echo "Đã hủy cài đặt extension."
+                               echo "-------------------------------------------------------------------------"
+            read -rp "Nhấn [Enter] để quay lại menu..."
+         continue
+        fi
+
+        echo "-------------------------------------------------------------------------"
+        echo "Đang cài đặt extension: $ext_name ..."
+        echo "-------------------------------------------------------------------------"
+
+        composer require "$ext_name"
+
+        if [ $? -eq 0 ]; then
+            echo "-------------------------------------------------------------------------"
+            echo "Đã cài thành công extension: $ext_name"
+                       echo "-------------------------------------------------------------------------"
+            php flarum migrate
+                       echo "-------------------------------------------------------------------------"
+            php flarum cache:clear
+                       echo "-------------------------------------------------------------------------"
+            php -r 'opcache_reset();' 2>/dev/null
+            echo "-------------------------------------------------------------------------"
+  read -rp "Nhấn [Enter] để quay lại menu..."
+        else
+            echo "-------------------------------------------------------------------------"
+            echo "Cài đặt extension thất bại. Vui lòng kiểm tra lại tên hoặc log lỗi."
+                                           echo "-------------------------------------------------------------------------"
+            read -rp "Nhấn [Enter] để quay lại menu..."
+        fi
+        ;;   
+##############################
+################################ 
+7)
+LOG_DIR="/home/$website/public_html/storage/logs"
+LATEST_LOG=$(ls -1t "$LOG_DIR"/flarum-*.log 2>/dev/null | head -n 1)
+
+if [ -n "$LATEST_LOG" ] && [ -f "$LATEST_LOG" ]; then
+    echo "========================================================================="
+    echo "100 dòng cuối trong log mới nhất: $(basename "$LATEST_LOG")"
+    echo "-------------------------------------------------------------------------"
+    tail -n 100 "$LATEST_LOG"
+else
+echo "-------------------------------------------------------------------------"
+    echo "Không tìm thấy file flarum log nào trong: $LOG_DIR"
+    echo "-------------------------------------------------------------------------"
+fi
+            ;;   
+##############################
+################################ 
+0) clear; exit 0;;
+        *)
+        echo "-------------------------------------------------------------------------"
+            echo "Lựa chọn không hợp lệ. Vui lòng nhập lại."
+           # sleep 3 && tput cuu 2 && tput ed
+            continue
+            ;;
+    esac
+
+        echo "========================================================================="
+    read -rp "Nhấn [Enter] để tiếp tục..."
+done

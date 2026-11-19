@@ -1,0 +1,165 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/php.ini ]; then
+phpsetup=`command -v php >/dev/null 2>&1 && echo php-common`
+    if [ -z "$phpsetup" ]; then
+    /etc/dsnvps/menu/dsnvps-fix-loi-chua-cai-php
+    else
+	clear
+	echo "========================================================================="
+	#echo "Xin lỗi, PHP-FPM đã dừng. Hãy BẬT lại trước khi sử dụng chức năng này!"
+	echo "Sorry, PHP-FPM dang stopped. Hay bat len truoc khi dung chuc nang nay!"
+	dsnvps
+     fi
+fi
+if [ ! -f /etc/redis/redis.conf ]; then
+echo "=========================================================================="
+echo "Redis Cache chưa được cài đặt trên server. Bạn phải cài đặt Redis trước"
+echo "--------------------------------------------------------------------------"
+echo "Khi chạy chức năng này. Để không lãng phí tài nguyên CPU & RAM server,  "
+echo "--------------------------------------------------------------------------"
+echo "bạn không nên cài đặt Redis Cache nếu không sử dụng nó."
+echo "--------------------------------------------------------------------------"
+echo "Nếu server có lượng RAM thấp (< 1GB), bạn không nên cài đặt Redis Cache"
+echo "--------------------------------------------------------------------------"
+echo "Recommended: RAM từ 2 GB trở lên để mang lại trải nghiệm tốt nhất."
+echo "=========================================================================="
+read -r -p "Bạn muốn cài đặt Redis Cache cho server? [y/N] " response
+if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
+#
+phpver=$(php -r "echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;"); apt-get update -qq && apt-get install -y -qq php${phpver}-redis
+apt-get install -y -qq redis-server && mkdir -p /var/lib/redis && chown -R redis:redis /var/lib/redis /etc/redis
+rm -rf /etc/redis
+mkdir -p /etc/redis
+rm -rf /etc/redis/redis.conf
+cat > "/etc/redis/redis.conf" <<END
+dir /var/lib/redis
+dbfilename dump.rdb
+maxmemory 128mb
+maxmemory-policy allkeys-lru
+protected-mode yes
+appendonly no
+bind 127.0.0.1
+END
+
+##########################################################################
+if [ -f /lib/systemd/system/redis-server.service ]; then
+# Đường dẫn đến file dịch vụ Redis
+SERVICE_FILE="/lib/systemd/system/redis-server.service"
+# Kiểm tra xem dòng TimeoutStartSec đã tồn tại chưa
+# Kiểm tra xem dòng TimeoutStartSec đã tồn tại trong [Service] chưa
+if ! grep -A100 '^[[:space:]]*\[Service\]' "$SERVICE_FILE" | grep -q '^[[:space:]]*TimeoutStartSec='; then
+    # Nếu chưa tồn tại, thêm cả hai dòng vào cuối phần [Service]
+    sed -i '/^\[Service\]/,/^\[/ s/^\(\[Service\]\)\(.*\)/\1\nTimeoutStartSec=300\nTimeoutStopSec=300\2/' "$SERVICE_FILE"
+else
+echo ""
+fi
+
+
+# Nạp lại cấu hình systemd để áp dụng thay đổi
+systemctl daemon-reload
+fi
+##############################################################
+##################################################################
+if [ -f /etc/systemd/system/redis-server.service ]; then
+# Đường dẫn đến file dịch vụ Redis
+SERVICE_FILE="/etc/systemd/system/redis-server.service"
+
+# Kiểm tra xem dòng TimeoutStartSec đã tồn tại trong [Service] chưa
+if ! grep -A100 '^[[:space:]]*\[Service\]' "$SERVICE_FILE" | grep -q '^[[:space:]]*TimeoutStartSec='; then
+    # Nếu chưa tồn tại, thêm cả hai dòng vào cuối phần [Service]
+    sed -i '/^\[Service\]/,/^\[/ s/^\(\[Service\]\)\(.*\)/\1\nTimeoutStartSec=300\nTimeoutStopSec=300\2/' "$SERVICE_FILE"
+else
+echo ""
+fi
+
+# Nạp lại cấu hình systemd để áp dụng thay đổi
+systemctl daemon-reload
+fi
+##############################################################
+#################################################
+if [ -f /lib/systemd/system/redis-server.service ]; then
+# Đường dẫn đến file dịch vụ Redis
+SERVICE_FILE="/lib/systemd/system/redis-server.service"
+
+# Kiểm tra xem dòng TimeoutStartSec đã tồn tại trong [Service] chưa
+if ! grep -A100 '^[[:space:]]*\[Service\]' "$SERVICE_FILE" | grep -q '^[[:space:]]*TimeoutStartSec='; then
+    # Nếu chưa tồn tại, thêm cả hai dòng vào cuối phần [Service]
+    sed -i '/^\[Service\]/,/^\[/ s/^\(\[Service\]\)\(.*\)/\1\nTimeoutStartSec=300\nTimeoutStopSec=300\2/' "$SERVICE_FILE"
+else
+echo ""
+fi
+# Nạp lại cấu hình systemd để áp dụng thay đổi
+systemctl daemon-reload
+fi
+###############################################################
+else
+clear
+echo "=========================================================================="
+echo "Hủy bỏ!"
+dsnvps
+fi
+fi
+echo "=========================================================================="
+echo "Bạn vui lòng đợi ...."
+
+##
+#redis-cli CONFIG SET dir /var/lib/redis
+##
+if [ ! -d /var/lib/redis ]; then
+sudo mkdir -p /var/lib/redis
+fi
+sudo chown redis:redis /var/lib/redis
+sudo chmod 755 /var/lib/redis
+
+##
+if [ -f /var/lib/redis/dump.rdb ]; then
+sudo chown redis:redis /var/lib/redis/dump.rdb
+sudo chmod 644 /var/lib/redis/dump.rdb
+fi
+##
+redis-cli CONFIG SET dbfilename dump.rdb
+sudo systemctl restart redis
+
+systemctl enable redis-server.service
+chown -R redis:redis /etc/redis /var/lib/redis; systemctl enable --now redis-server.service
+
+if [ -f /etc/redis/redis.conf ]; then
+# Tên dịch vụ Redis
+service_name="redis"
+
+# Kiểm tra tình trạng Redis
+status=$(systemctl is-active "$service_name")
+
+if [[ "$status" == "active" ]]; then
+clear && /etc/dsnvps/menu/dsnvps-redis-menu
+else
+echo "=========================================================================="
+echo "Redis không hoạt động hoặc bị lỗi. Đang khởi động lại Redis..."; sleep 2
+    systemctl restart "$service_name"
+
+    # Kiểm tra lại sau khi khởi động
+    new_status=$(systemctl is-active "$service_name")
+    if [[ "$new_status" == "active" ]]; then
+    echo "=========================================================================="
+echo "Khởi động lại Redis thành công."; sleep 2
+/etc/dsnvps/menu/dsnvps-redis-menu
+else
+clear
+echo "Khởi động lại Redis thất bại. Vui lòng kiểm tra lại."
+        echo "=========================================================================="
+        /etc/dsnvps/menu/dsnvps-redis-menu
+    fi
+fi
+fi
+
+clear && /etc/dsnvps/menu/dsnvps-redis-menu
+
+
+

@@ -1,0 +1,34 @@
+#!/bin/bash
+dsnvpsroot=/etc/dsnvps/menu
+dsnvpsrootchild=/etc/dsnvps/menu/childmenu/
+echo "========================================================================="
+while true; do
+
+printf "%-40s %s\n" "1) Tiện ích Cho WordPress Website |""2) Tiện Ích Cho Flarum Website       |"
+#printf "%-40s %s\n" "2) Tiện Ích Cho Flarum Website    |""-------------------------------------|"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in   
+    1) $dsnvpsrootchild/dsnvps-wordpress-tools-menu;;
+    2) $dsnvpsroot/dsnvps-cong-cu-flarum;;
+    #3) $dsnvpsroot/dsnvps-cong-cu-yourls;;  
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+
+ 

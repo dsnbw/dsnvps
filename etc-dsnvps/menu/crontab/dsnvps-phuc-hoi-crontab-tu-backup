@@ -1,0 +1,81 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -d /home/$mainsite/private_html ]; then
+clear
+echo "========================================================================= "
+echo "DSNVPS không tìm thấy thư mục private_html"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi
+if [ ! -d /home/$mainsite/private_html/crobak ]; then
+mkdir -p /home/$mainsite/private_html/crobak
+fi
+chmod -R 755 /home/$mainsite/private_html/crobak
+echo "========================================================================="
+echo "Sử dụng chức năng này để phục hồi cronjob từ file backup cho server"
+echo "-------------------------------------------------------------------------"
+echo "Để phục hồi cronjob, bạn hãy upload file backup cronjob.baxk được tạo bởi"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS vào /home"
+echo "-------------------------------------------------------------------------"
+read -p "Sau khi upload xong, hãy nhấn [Enter] để phục hồi cronjob."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang tìm kiếm file backup .... "; sleep 3
+
+if [ ! -f /home/cronjob.baxk ]; then 
+  echo "-------------------------------------------------------------------------"
+  echo "Bạn chưa upload file backup vào /home"
+  echo "-------------------------------------------------------------------------"
+  read -p "Hãy upload cronjob.baxk vào /home nhấn [Enter] để phục hồi."
+fi
+
+
+if [ ! -f /home/cronjob.baxk ]; then 
+echo "-------------------------------------------------------------------------"
+echo "Không tìm thấy file cronjob.baxk ..."; sleep 3
+clear
+echo "========================================================================="
+echo "Bạn hãy upload file backup vào /home để phục hồi cronjob."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi
+echo "-------------------------------------------------------------------------"
+echo "Tìm thấy file cronjob.baxk"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ kiểm tra tính hợp lệ của file backup"; sleep 2
+echo "-------------------------------------------------------------------------"
+echo "Nếu đây là file backup do DSNVPS tạo ra, DSNVPS sẽ tiến hành phục hồi."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ...."; sleep 6
+rm -rf /etc/dsnvps/.tmp/cronbak/
+mkdir -p /etc/dsnvps/.tmp/cronbak
+unzip -q /home/cronjob.baxk -d /etc/dsnvps/.tmp/cronbak/
+if [ ! -f /etc/dsnvps/.tmp/cronbak/cronjob.check ]; then
+rm -rf /etc/dsnvps/.tmp/cronbak
+clear
+echo "========================================================================="
+echo "File backup không hợp lệ."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS không thể chạy chức năng này."
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
+fi
+echo "-------------------------------------------------------------------------"
+echo "File backup hợp lệ."
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 6
+crontab /etc/dsnvps/.tmp/cronbak/cronjob.baxk
+rm -rf /etc/dsnvps/.tmp/cronbak
+clear
+echo "========================================================================="
+echo "Phục hồi crontab hoàn tất."
+echo "-------------------------------------------------------------------------"
+echo "Danh sách crontab hiện tại:"
+echo "-------------------------------------------------------------------------"
+crontab -l
+/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu

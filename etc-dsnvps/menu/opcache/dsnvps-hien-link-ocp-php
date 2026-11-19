@@ -1,0 +1,25 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+if [ ! -f /etc/php.d/opcache.ini ]; then
+clear
+echo "========================================================================="
+echo "Zend Opcache đang được TẮT"
+echo "-------------------------------------------------------------------------"
+echo "Hãy bật Zend Opcache lên để sử dụng chức năng này"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+else
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."; sleep 2
+clear
+echo "========================================================================="
+echo "Sử dụng link dưới đây để xem trạng thái Zend Opcache:"
+echo "-------------------------------------------------------------------------"
+echo "http://$serverip_priport/ocp.php"
+/etc/dsnvps/menu/opcache/dsnvps-before-opcache
+fi

@@ -1,0 +1,44 @@
+#!/bin/bash
+services=("nginx" "php-fpm" "mysqld")
+log_file="/etc/dsnvps/log-auto-start-nginx-mysql-php.txt"
+log_check_file="/etc/dsnvps/log-auto-check-last-run.txt"
+if [[ -f "$log_file" && $(stat -c%s "$log_file") -gt 302400 ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Log file $log_file exceeds 300KB. Deleting and recreating it." > "$log_file"
+fi
+
+last_log_time=""
+if [[ -f "$log_check_file" ]]; then
+    last_log_time=$(cat "$log_check_file")
+fi
+current_time=$(date '+%Y-%m-%d %H:%M:%S')
+if [[ -z "$last_log_time" || $(date -d "$current_time" +%s) -gt $(date -d "$last_log_time" +%s) ]]; then
+    log_no_error=true
+    for service in "${services[@]}"; do
+        systemctl is-active --quiet "$service"
+        if [[ $? -ne 0 ]]; then
+            log_no_error=false
+            break
+        fi
+    done
+    if [[ "$log_no_error" == true ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] All services (nginx, php-fpm, mysqld) are running perfectly." >> "$log_file"
+    fi
+    echo "$current_time" > "$log_check_file"
+fi
+check_and_restart_service() {
+    local service=$1
+    systemctl is-active --quiet "$service"
+    if [[ $? -ne 0 ]]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Service $service is stopped. Attempting to start it..." >> "$log_file"
+        systemctl start "$service" 2>> "$log_file"
+        if [[ $? -eq 0 ]]; then
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Service $service started successfully." >> "$log_file"
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] Failed to start service $service. Reason:" >> "$log_file"
+            systemctl status "$service" -n 5 | sed 's/^/    /' >> "$log_file"
+        fi
+    fi
+}
+for service in "${services[@]}"; do
+    check_and_restart_service "$service"
+done

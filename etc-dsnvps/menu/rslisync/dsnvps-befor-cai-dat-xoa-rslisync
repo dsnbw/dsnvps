@@ -1,0 +1,6 @@
+#!/bin/bash
+if [ ! -f /etc/systemd/system/resilio-sync.service ]; then
+/etc/dsnvps/menu/rslisync/dsnvps-cai-dat-rslisync
+else
+/etc/dsnvps/menu/rslisync/dsnvps-xoa-remove-rslisync
+fi

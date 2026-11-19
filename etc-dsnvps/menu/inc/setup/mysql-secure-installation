@@ -1,0 +1,26 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+sleep 6
+UP=$(systemctl status mysql | grep running | grep -v not | wc -l);
+if [ ! "$UP" -ne 1 ];
+then
+/etc/dsnvps/menu/inc/start-mysql-fix-error
+fi
+
+/usr/bin/mariadb-admin -u root password "$mariadbpass"
+mysql -u root -p"$mariadbpass" -e "UPDATE mysql.user SET Password = PASSWORD('$mariadbpass') WHERE User = 'root';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost');" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DELETE FROM mysql.user WHERE User='';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DROP USER ''@'localhost';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DROP USER ''@'`hostname`';" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "DROP DATABASE test;" >/dev/null 2>&1
+mysql -u root -p"$mariadbpass" -e "FLUSH PRIVILEGES;" >/dev/null 2>&1
+
+cat > "/root/.my.cnf" <<END
+[client]
+user=root
+password=$mariadbpass
+END
+chmod 600 /root/.my.cnf
+# Fix Error On MariaDB 10.0 when setup server

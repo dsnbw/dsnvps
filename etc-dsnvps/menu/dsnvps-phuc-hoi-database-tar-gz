@@ -1,0 +1,314 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+echo "========================================================================="
+echo "Database cần phục hồi phải tồn tại trên hệ thống ! "
+echo "========================================================================="
+echo -n "Nhập tên Database cần phục hồi: " 
+
+read dataname
+if [ "$dataname" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập chính xác!"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+exit
+fi
+if [ ! -f /var/lib/mysql/$dataname/db.opt ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy database $dataname trên server "
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+exit
+fi
+echo "-------------------------------------------------------------------------"
+echo -n "Nhập tên website cần phục hồi Database: "
+read website
+website=`echo $website | tr '[A-Z]' '[a-z]'`
+if [ "$website" = "" ]; then
+clear
+echo "========================================================================="
+echo "Bạn nhập sai, vui lòng nhập lại !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+exit
+fi
+kiemtradomain3="^([[:alnum:]]([[:alnum:]\-]{0,61}[[:alnum:]])?\.)+[[:alpha:]]{2,14}$";
+if [[ ! "$website" =~ $kiemtradomain3 ]]; then
+	website=`echo $website | tr '[A-Z]' '[a-z]'`
+clear
+echo "========================================================================="
+echo "$website có lẽ không phải domain!"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+exit
+fi
+if [ ! -f /etc/nginx/conf.d/$website.conf ]; then
+clear
+echo "========================================================================="
+echo "Không tìm thấy $website !"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng thử lại !"
+/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+exit
+fi
+date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps1
+if [ ! -f /home/$mainsite/private_html/backup/$dataname/*.gz ]; then
+randomcode=`date |md5sum |cut -c '1-13'`
+	if [ -f /home/$website/public_html/DSNVPS-DATABASE.tar.gz ]; then
+	echo "-------------------------------------------------------------------------"
+	echo "Tìm thấy file backup DSNVPS-DATABASE.tar.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Chuẩn bị phục hồi .... "
+	echo "-------------------------------------------------------------------------"
+	sleep 2
+	gunzip < /home/$website/public_html/DSNVPS-DATABASE.tar.gz | mysql -u root -p$mariadbpass -f $dataname
+	date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+	check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+	check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+		if [ "$check1" == "$check2" ]; then
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thất bại "
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng kiểm tra file backup và thử lại !"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		else	
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		mv /home/$website/public_html/DSNVPS-DATABASE.tar.gz /home/$website/public_html/DSNVPS-DATABASE.tar.gz.$randomcode
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thành công !"
+		echo "-------------------------------------------------------------------------"
+		echo "File backup được đổi tên thành DSNVPS-DATABASE.tar.gz.$randomcode"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		exit
+		fi
+	else
+	clear
+	echo "========================================================================="
+echo "CÁCH PHỤC HỒI DATABASE"
+echo "========================================================================="
+echo "Chức năng này hỗ trợ phục hồi database từ backup định dạng TAR.GZ"
+echo "-------------------------------------------------------------------------"
+echo "Đổi tên file backup thành DSNVPS-DATABASE.tar.gz sau đó upload vào: "
+echo "-------------------------------------------------------------------------"
+echo "/home/$website/public_html/"
+echo "========================================================================="
+read -p "Khi upload hoàn thành. Nhấn [Enter] để phục hồi..."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang tìm kiếm file backup .... "
+
+	echo "-------------------------------------------------------------------------"
+	sleep 4
+		if [ -f /home/$website/public_html/DSNVPS-DATABASE.tar.gz ]; then
+		echo "-------------------------------------------------------------------------"
+	echo "Tìm thấy file backup DSNVPS-DATABASE.tar.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Chuẩn bị phục hồi .... "
+	echo "-------------------------------------------------------------------------"
+	sleep 2
+	gunzip < /home/$website/public_html/DSNVPS-DATABASE.tar.gz | mysql -u root -p$mariadbpass $dataname
+	date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+	check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+	check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+		if [ "$check1" == "$check2" ]; then
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thất bại "
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng kiểm tra file backup và thử lại !"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		else	
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		mv /home/$website/public_html/DSNVPS-DATABASE.tar.gz /home/$website/public_html/DSNVPS-DATABASE.tar.gz.$randomcode
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thành công !"
+		echo "-------------------------------------------------------------------------"
+		echo "File backup được đổi tên thành DSNVPS-DATABASE.tar.gz.$randomcode"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		exit
+		fi
+	else
+	clear
+		echo "========================================================================="
+		echo "Khong tim thay website DSNVPS-DATABASE.tar.gz !"
+		echo "-------------------------------------------------------------------------"
+		echo "Hãy upload file backup lên server rồi thử lại."
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		exit
+		fi
+		fi
+
+else
+find /home/$mainsite/private_html/backup/$dataname -type f -exec basename {} \;  > /etc/dsnvps/.tmp/backupname
+filename=`cat /etc/dsnvps/.tmp/backupname`
+rm -rf /etc/dsnvps/.tmp/backupname
+echo "========================================================================="
+echo "Tìm thấy file backup của $dataname: $filename"
+echo "-------------------------------------------------------------------------"
+echo "File backup được tạo vào: $(date -r /home/$mainsite/private_html/backup/$dataname/$filename +%H:%M/%F)"
+echo "========================================================================="
+prompt="Nhập lựa chọn của bạn [0 -Thoát]: "
+options=( "Phục hồi database từ file backup $filename" "Phục hồi database từ file backup khác")
+printf "CHỌN CÁCH PHỤC HỒI DATABASE\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) luachonphuchoi="phuchoitufilebackup"; break;;
+    2) luachonphuchoi="uploadsaudophuchoi"; break;;
+    0) luachonphuchoi="cancle"; break;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo danh sách";continue;;
+    esac  
+done
+###################################
+#phuchoitufilebackup
+###################################
+if [ "$luachonphuchoi" = "phuchoitufilebackup" ]; then
+echo "--------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "--------------------------------------------------------------------------"
+echo "DSNVPS đang phục hồi $dataname.........."
+gunzip < /home/$mainsite/private_html/backup/$dataname/$filename | mysql -u root -p$mariadbpass $dataname
+date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+	if [ "$check1" == "$check2" ]; then
+	rm -rf /etc/dsnvps/.tmp/dsnvps1
+	rm -rf /etc/dsnvps/.tmp/dsnvps2
+	clear
+	echo "========================================================================="
+	echo "Phục hồi database $dataname thất bại "
+	echo "-------------------------------------------------------------------------"
+	echo "Vui lòng kiểm tra file backup và thử lại !"
+	/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+	else	
+	rm -rf /etc/dsnvps/.tmp/dsnvps1
+	rm -rf /etc/dsnvps/.tmp/dsnvps2
+	clear
+	echo "========================================================================="
+	echo "Phục hồi database $dataname thành công !"
+	/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+	fi
+###################################
+#Upload file backup len va Restore tu file nay
+###################################
+elif [ "$luachonphuchoi" = "uploadsaudophuchoi" ]; then
+randomcode=`date |md5sum |cut -c '1-18'`
+	if [ -f /home/$website/public_html/DSNVPS-DATABASE.tar.gz ]; then
+	echo "-------------------------------------------------------------------------"
+	echo "Tìm thấy file backup DSNVPS-DATABASE.tar.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Chuẩn bị phục hồi .... "
+	echo "-------------------------------------------------------------------------"
+	sleep 2
+	gunzip < /home/$website/public_html/DSNVPS-DATABASE.tar.gz | mysql -u root -p$mariadbpass $dataname
+	date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+	check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+	check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+		if [ "$check1" == "$check2" ]; then
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thất bại "
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng kiểm tra file backup và thử lại !"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		else	
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+        mv /home/$website/public_html/DSNVPS-DATABASE.tar.gz /home/$website/public_html/DSNVPS-DATABASE.tar.gz.$randomcode
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thành công !"
+		echo "-------------------------------------------------------------------------"
+		echo "File backup được đổi tên thành DSNVPS-DATABASE.tar.gz.$randomcode"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		exit
+		fi
+		
+	else
+	clear
+	echo "========================================================================="
+echo "CÁCH PHỤC HỒI DATABASE"
+echo "========================================================================="
+echo "Chức năng này hỗ trợ phục hồi database từ backup định dạng TAR.GZ"
+echo "-------------------------------------------------------------------------"
+echo "Đổi tên file backup thành DSNVPS-DATABASE.tar.gz sau đó upload vào: "
+echo "-------------------------------------------------------------------------"
+echo "/home/$website/public_html/"
+echo "========================================================================="
+read -p "Khi upload hoàn thành. Nhấn [Enter] để phục hồi..."
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS đang tìm kiếm file backup .... "
+
+	echo "-------------------------------------------------------------------------"
+	sleep 4
+		if [ -f /home/$website/public_html/DSNVPS-DATABASE.tar.gz ]; then
+		echo "-------------------------------------------------------------------------"
+	echo "Tìm thấy file backup DSNVPS-DATABASE.tar.gz"
+	echo "-------------------------------------------------------------------------"
+	echo "Chuẩn bị phục hồi .... "
+	echo "-------------------------------------------------------------------------"
+	sleep 2
+	gunzip < /home/$website/public_html/DSNVPS-DATABASE.tar.gz | mysql -u root -p$mariadbpass $dataname
+	date -r /var/lib/mysql/$dataname +%H%M%S> /etc/dsnvps/.tmp/dsnvps2
+	check1=`cat /etc/dsnvps/.tmp/dsnvps1`
+	check2=`cat /etc/dsnvps/.tmp/dsnvps2`
+		if [ "$check1" == "$check2" ]; then
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thất bại "
+		echo "-------------------------------------------------------------------------"
+		echo "Vui lòng kiểm tra file backup và thử lại !"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		else	
+		rm -rf /etc/dsnvps/.tmp/dsnvps1
+		rm -rf /etc/dsnvps/.tmp/dsnvps2
+		mv /home/$website/public_html/DSNVPS-DATABASE.tar.gz /home/$website/public_html/DSNVPS-DATABASE.tar.gz.$randomcode
+		clear
+		echo "========================================================================="
+		echo "Phục hồi database $dataname thành công !"
+		echo "-------------------------------------------------------------------------"
+		echo "File backup được đổi tên thành DSNVPS-DATABASE.tar.gz.$randomcode"
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		exit
+		fi
+
+	else
+	clear
+		echo "========================================================================="
+		echo "Không tìm thấy DSNVPS-DATABASE.tar.gz !"
+		echo "-------------------------------------------------------------------------"
+		echo "Hãy upload file backup lên server rồi thử lại."
+		/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-database
+		exit
+		fi
+fi
+###################################
+#Huỷ bỏ phuchoi
+###################################
+else
+clear
+exit 0
+fi
+fi

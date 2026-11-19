@@ -1,0 +1,43 @@
+#!/bin/bash
+
+if [ ! -f /home/dsnvps.demo/logs/mysql-slow.log ]; then
+touch /home/dsnvps.demo/logs/mysql-slow.log
+chown -R mysql:mysql /home/dsnvps.demo/logs/mysql-slow.log
+else
+chown -R mysql:mysql /home/dsnvps.demo/logs/mysql-slow.log
+fi
+
+if [ ! -f /var/log/mysqld.log ]; then
+touch /var/log/mysqld.log
+chown -R mysql:mysql /var/log/mysqld.log
+else
+chown -R mysql:mysql /var/log/mysqld.log
+fi
+
+if [ ! -f /var/log/mysql.log ]; then
+touch /var/log/mysql.log
+chown -R mysql:mysql /var/log/mysql.log
+else
+chown -R mysql:mysql /var/log/mysql.log
+fi
+
+if [ ! -f /home/dsnvps.demo/logs/mysql.log ]; then
+touch /home/dsnvps.demo/logs/mysql.log
+chown -R mysql:mysql /home/dsnvps.demo/logs/mysql.log
+else
+chown -R mysql:mysql /home/dsnvps.demo/logs/mysql.log
+fi
+
+
+
+if [ ! -d /var/log/mysql ]; then
+mkdir -p /var/log/mysql
+touch /var/log/mysql/mysql-bin.log
+touch /var/log/mysql/error.log
+touch /var/log/mysql-slow.log
+chown -R mysql:mysql /var/log/mysql
+chown -R mysql:mysql /var/log/mysql/mysql-bin.log
+chown -R mysql:mysql /var/log/mysql/error.log
+chown -R mysql:mysql /var/log/mysql-slow.log
+fi
+

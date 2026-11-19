@@ -1,0 +1,27 @@
+#!/bin/bash
+#/etc/dsnvps/menu/inc/dsnvps-check-and-install-remi-repo
+yum -y install epel-release
+if [ "$(rpm -qf --queryformat="%{VERSION}" /etc/redhat-release)" == "6" ]; then 
+centosver=6
+else
+centosver=7
+fi
+rpm -Uvh /etc/dsnvps/menu/inc/remi/remi$centosver.rpm
+checkremirepo=$(curl -o /dev/null --silent --head --write-out '%{http_code}' "http://rpms.remirepo.net")
+if [[ "$checkremirepo" == "000" ]]; then
+sed -ri "s|rpms.remirepo.net|mirrors.mediatemple.net/remi|" /etc/yum.repos.d/remi*.repo
+fi
+#Fix error some mirror has error with https
+if [ -f /etc/yum.repos.d/epel.repo ]; then
+sudo sed -i "s/mirrorlist=https/mirrorlist=http/" /etc/yum.repos.d/epel.repo
+fi
+
+checkmariadbrepo=$(curl -o /dev/null --silent --head --write-out '%{http_code}' "http://yum.mariadb.org")
+if [[ "$checkmariadbrepo" == "000" ]]; then
+sed -ri "s|yum.mariadb.org|nyc2.mirrors.digitalocean.com/mariadb/yum|" /etc/yum.repos.d/mariadb*.repo
+sudo sed -i "s/https/http/" /etc/yum.repos.d/mariadb*.repo
+fi
+
+yum -y update
+
+# Repo MariaDB:  http://spenntur.askmonty.org/

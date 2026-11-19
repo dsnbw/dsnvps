@@ -1,0 +1,32 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
+options=("Re-config PHP (PHP.INI & WWW.CONF)" "Re-Config MySQL (my.cnf)" )
+/etc/dsnvps/menu/dsnvps-menu-all-function  
+echo "========================================================================="
+echo "                    Set Config PHP & MYSQL To Default                   "
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1150"
+echo "========================================================================="
+echo ""
+
+PS3="$prompt"
+select opt in "${options[@]}" ; do 
+
+    case "$REPLY" in
+
+    1) /etc/dsnvps/menu/dsnvps-re-config-php.ini-www.conf-cau-hinh-lai-vps;;
+    2) /etc/dsnvps/menu/dsnvps-re-config-database-cau-hinh-lai-mysql;;
+0) clear; exit 0;;  
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu";continue;;
+
+    esac
+done
+ 

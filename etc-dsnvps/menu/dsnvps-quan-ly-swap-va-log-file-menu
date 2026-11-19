@@ -1,0 +1,40 @@
+#!/bin/bash
+
+echo "========================================================================="
+echo "Với Server có ít RAM, nên tạo thêm Swap (RAM ảo) để server ổn định hơn."
+echo "========================================================================="
+echo "Khuyến nghị:|"
+echo "============|"
+echo "RAM < 2GB → Swap nên bằng RAM (VD: RAM 1GB → Swap 1GB)"
+echo "RAM 2GB - 4GB → Swap 2GB"
+echo "RAM 4GB - 8GB → Swap 4GB"
+echo "RAM > 8GB → Swap 2GB hoặc không cần nếu server chạy nhẹ."
+echo "========================================================================="
+while true; do
+
+printf "%-35s %s\n" "1) Quản Lý Swap" "2) Quản Lý Log File"
+echo "========================================================================="
+    # Lua chon cua nguoi dung
+    read -p "Lựa chọn của bạn [0 -Thoát]: " choice
+
+    case $choice in   
+    1) /etc/dsnvps/menu/dsnvps-them-xoa-swap-vps-menu;;
+    2) clear && /etc/dsnvps/menu/downloadlog/dsnvps-download-xem-log-files;; 
+0) clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";
+sleep 3
+########## XOA 4 DONG PHIA TREN ################
+tput cuu 4   # Di chuyển con trỏ lên 6 dòng
+for ((i=0; i<4; i++)); do
+    tput el  # Xóa dòng hiện tại
+    tput cud1 # Di chuyển con trỏ xuống 1 dòng
+done
+tput cuu 4   # Quay lại vị trí ban đầu (đầu tiên của 6 dòng)
+##############################################################
+        continue;;
+
+    esac
+
+done
+
+ 

@@ -1,0 +1,227 @@
+#!/bin/bash
+. /root/dsnvps.conf
+# Anti-debug removed
+
+read_proxy_info() {
+    local dom="$1"
+    proxy_scheme=""
+    proxy_forward_host=""
+    proxy_forward_port=""
+    if [ -f "/home/$dom/proxy.info" ]; then
+        proxy_scheme=$(grep "^scheme=" "/home/$dom/proxy.info" | cut -d= -f2)
+        proxy_forward_host=$(grep "^forward_host=" "/home/$dom/proxy.info" | cut -d= -f2)
+        proxy_forward_port=$(grep "^forward_port=" "/home/$dom/proxy.info" | cut -d= -f2)
+    fi
+    if [ -z "$proxy_scheme" ] || [ -z "$proxy_forward_host" ]; then
+        local vhost_file="/etc/nginx/conf.d/$dom.conf"
+        if [ -f "$vhost_file" ]; then
+            local proxy_line
+            proxy_line=$(grep -E "proxy_pass\s+" "$vhost_file" | head -1 | sed 's/.*proxy_pass\s*//' | tr -d ';' | tr -d ' ')
+            if [ -n "$proxy_line" ]; then
+                if [[ "$proxy_line" == https://* ]]; then proxy_scheme="https"; else proxy_scheme="http"; fi
+                proxy_line="${proxy_line#*://}"
+                proxy_forward_host="${proxy_line%%:*}"
+                proxy_forward_port="${proxy_line##*:}"
+            fi
+        fi
+    fi
+}
+
+get_reverse_proxy_domains_list() {
+    true > /etc/dsnvps/.tmp/reverse_proxy_domains_list
+    for vhost in /etc/nginx/conf.d/*.conf; do
+        [ -f "$vhost" ] || continue
+        domain=$(basename "$vhost" .conf)
+        if [ -d "/home/$domain/proxy_html" ]; then
+            echo "$domain" >> /etc/dsnvps/.tmp/reverse_proxy_domains_list
+        fi
+    done
+}
+
+get_reverse_proxy_domains_list
+
+if [ ! -s /etc/dsnvps/.tmp/reverse_proxy_domains_list ]; then
+    /etc/dsnvps/menu/dsnvps-menu-all-function
+    echo "========================================================================="
+    echo "                 Cài Đặt REVERSE PROXY (Website Proxy)"
+    echo "========================================================================="
+    echo "Chưa có domain Reverse Proxy nào trên server."
+    echo "========================================================================="
+    /etc/dsnvps/menu/dsnvps-reverse-proxy-menu
+    exit
+fi
+
+mapfile -t danh_sach < /etc/dsnvps/.tmp/reverse_proxy_domains_list
+echo "========================================================================="
+echo "EDIT REVERSE PROXY DOMAIN"
+echo "-------------------------------------------------------------------------"
+[ -f "/etc/dsnvps/menu/dsnvps-reverse-proxy-common" ] && . /etc/dsnvps/menu/dsnvps-reverse-proxy-common
+if type display_reverse_proxy_domains_2cols &>/dev/null; then
+    display_reverse_proxy_domains_2cols /etc/dsnvps/.tmp/reverse_proxy_domains_list
+else
+    for ((i=0; i<${#danh_sach[@]}; i++)); do printf "%s. %s\n" $((i+1)) "${danh_sach[i]}"; done
+fi
+echo "========================================================================="
+read -p "Chọn domain cần chỉnh sửa [0-${#danh_sach[@]}]: " lua_chon
+
+if [ "$lua_chon" = "0" ]; then
+    clear
+    exit
+fi
+if ! [[ "$lua_chon" =~ ^[0-9]+$ ]] || [ "$lua_chon" -lt 1 ] || [ "$lua_chon" -gt ${#danh_sach[@]} ]; then
+    echo "Lựa chọn không hợp lệ."
+    read -p "Nhấn [Enter] để quay lại menu..." dummy
+    clear
+    exit
+fi
+
+website="${danh_sach[lua_chon-1]}"
+read_proxy_info "$website"
+
+echo "========================================================================="
+echo "Thông tin cấu hình hiện tại của $website:"
+echo "-------------------------------------------------------------------------"
+echo "Scheme:            $proxy_scheme"
+echo "Forward Host/IP:   $proxy_forward_host"
+echo "Forward Port:      $proxy_forward_port"
+echo "========================================================================="
+read -p "Bạn muốn chỉnh sửa thông tin này? [y/N]: " xac_nhan
+xac_nhan=$(echo "$xac_nhan" | tr '[:upper:]' '[:lower:]')
+if [[ "$xac_nhan" != "y" && "$xac_nhan" != "yes" ]]; then
+    clear
+    exit
+fi
+
+#################################################################
+## Nhập thông tin mới
+#################################################################
+while true; do
+    echo "========================================================================="
+    echo "LỰA CHỌN SCHEME (Backend VPS gốc)"
+    echo "-------------------------------------------------------------------------"
+    echo "1. HTTP | 2. HTTPS"
+	echo "-------------------------------------------------------------------------"
+    read -p "Nhập lựa chọn [0- Thoát]: " scheme_choice
+    case $scheme_choice in
+        1) scheme="http"; break ;;
+        2) scheme="https"; break ;;
+0) clear; exit 0;;
+        *) echo "Lựa chọn không hợp lệ." ;;
+    esac
+done
+
+while true; do
+echo "-------------------------------------------------------------------------"
+    read -p "Nhập Forward Hostname / IP (VPS gốc) [0 -Thoát]: " forward_host
+    forward_host=$(echo "$forward_host" | tr -d ' ')
+    # Bỏ http:// hoặc https:// nếu người dùng nhập nhầm
+    forward_host="${forward_host#http://}"
+    forward_host="${forward_host#https://}"
+    forward_host="${forward_host%%/*}"
+    forward_host=$(echo "$forward_host" | tr -d ' ')
+    if [ "$forward_host" = "0" ]; then
+        clear && exit
+    fi
+    if [ -n "$forward_host" ]; then break; fi
+    echo "Vui lòng nhập giá trị."
+done
+
+while true; do
+echo "-------------------------------------------------------------------------"
+    echo "Chọn Forward Port: 1. Port 80 | 2. Port 443 | 3. Port Khác"
+    echo "-------------------------------------------------------------------------"
+    read -p "Nhập lựa chọn [0- Thoát]: " port_choice
+    case $port_choice in
+        1) forward_port="80"; break ;;
+        2) forward_port="443"; break ;;
+        3) 
+		echo "-------------------------------------------------------------------------"
+            read -p "Nhập số port: " forward_port
+            if [[ "$forward_port" =~ ^[0-9]+$ ]] && [ "$forward_port" -ge 1 ] && [ "$forward_port" -le 65535 ]; then
+                break
+            fi
+            echo "Port không hợp lệ."
+            ;;
+0) clear; exit 0;;
+        *) echo "Lựa chọn không hợp lệ." ;;
+    esac
+done
+
+if [[ "$forward_host" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]] || [[ "$forward_host" == *:* ]]; then
+    is_ip="yes"
+else
+    is_ip="no"
+fi
+
+echo "========================================================================="
+echo "Thông tin mới: Scheme=$scheme | Forward=$forward_host:$forward_port"
+echo "========================================================================="
+read -p "Bạn đồng ý áp dụng thay đổi này? [y/N]: " xac_nhan_cuoi
+xac_nhan_cuoi=$(echo "$xac_nhan_cuoi" | tr '[:upper:]' '[:lower:]')
+if [[ "$xac_nhan_cuoi" != "y" && "$xac_nhan_cuoi" != "yes" ]]; then
+echo "-------------------------------------------------------------------------"
+    echo "Đã hủy."
+    echo "-------------------------------------------------------------------------"
+/etc/dsnvps/menu/dsnvps-reverse-proxy-menu
+exit
+fi
+
+#################################################################
+## Backup và replace giá trị cũ → mới trong vhost hiện tại
+## (Giữ nguyên SSL, cache, cấu hình tùy chỉnh)
+#################################################################
+mkdir -p /etc/dsnvps/Backup.Vhost.ReverseProxy
+BACKUP_FILE="/etc/dsnvps/Backup.Vhost.ReverseProxy/$website.conf.bak.$(date +%Y%m%d_%H%M%S)"
+cp -f /etc/nginx/conf.d/$website.conf "$BACKUP_FILE"
+
+VHOST_FILE="/etc/nginx/conf.d/$website.conf"
+old_url="${proxy_scheme}://${proxy_forward_host}:${proxy_forward_port}"
+new_url="${scheme}://${forward_host}:${forward_port}"
+
+# 1. Replace URL cũ → mới (proxy_pass, set $proxy_backend)
+# Dùng delimiter # vì URL chứa / gây lỗi perl; \Q\E để match literal
+perl -i -pe 's#\Q'"$old_url"'\E#'"$new_url"'#g' "$VHOST_FILE"
+
+# 2. Replace proxy_set_header Host
+if [ "$is_ip" = "yes" ]; then
+    # Mới là IP: Host $host
+    sed -i 's/proxy_set_header Host [^;]*;/proxy_set_header Host \$host;/g' "$VHOST_FILE"
+else
+    # Mới là hostname: Host forward_host
+    # Escape / trong forward_host cho sed
+    fh_escaped=$(echo "$forward_host" | sed 's/[\/&]/\\&/g')
+    sed -i "s/proxy_set_header Host [^;]*;/proxy_set_header Host $fh_escaped;/g" "$VHOST_FILE"
+fi
+
+if ! nginx -t 2>/dev/null; then
+clear
+    echo "========================================================================="
+    echo "LỖI: Cấu hình Nginx không hợp lệ. Đang phục hồi vhost cũ..."
+    echo "-------------------------------------------------------------------------"
+    nginx -t
+    cp -f "$BACKUP_FILE" /etc/nginx/conf.d/$website.conf
+    echo "========================================================================="
+    echo "Đã phục hồi vhost cũ."
+    echo "========================================================================="
+/etc/dsnvps/menu/dsnvps-reverse-proxy-menu
+    exit 1
+fi
+
+# Cập nhật proxy.info chỉ khi edit thành công
+cat > "/home/$website/proxy.info" << END
+scheme=$scheme
+forward_host=$forward_host
+forward_port=$forward_port
+END
+
+/etc/dsnvps/menu/inc/re-start-nginx-service
+clear
+echo "========================================================================="
+echo "Đã cập nhật Reverse Proxy $website thành công."
+echo "-------------------------------------------------------------------------"
+echo "Scheme: $scheme | Forward: $forward_host:$forward_port"
+echo "-------------------------------------------------------------------------"
+echo "Đã thay thế thông số cũ bằng mới, giữ nguyên SSL và cấu hình khác."
+echo "========================================================================="
+/etc/dsnvps/menu/dsnvps-reverse-proxy-menu
+exit

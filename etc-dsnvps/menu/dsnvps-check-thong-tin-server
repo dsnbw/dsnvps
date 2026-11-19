@@ -1,0 +1,28 @@
+#!/bin/bash
+prompt="Lua chon cua ban (12-Thoat):"
+options=("Services dang chay va RAM dung" "RAM MySQL su dung" "Free Disc " "Uptime VPS" "CPU Load average" "Last YUM update" "Authenication Failures" "User dang nhat gan day" "Xem thong tin CPU" "Check I/O Speed" "Check download Speed")
+printf "=========================================================================\n"
+printf "                DSNVPS - Manage VPS/Server by dsnvps             \n"
+printf "=========================================================================\n"
+printf "                     Check VPS/Server information\n"
+printf "=========================================================================\n"
+PS3="$prompt"
+select opt in "${options[@]}" "Thoat"; do 
+
+    case "$REPLY" in
+    1) clear && echo "=========================================================================" && /etc/dsnvps/menu/dsnvps-tien-trinh-dang-chay-ram-use;;
+    2) /etc/dsnvps/menu/checkddos/dsnvps-ram-mysql-dung;;
+    3) /etc/dsnvps/menu/checkddos/dsnvps-dung-luong-disc-trong;;
+    4) /etc/dsnvps/menu/checkddos/dsnvps-uptime-vps;;
+    5) /etc/dsnvps/menu/checkddos/dsnvps-load-average;;
+    6) /etc/dsnvps/menu/checkddos/dsnvps-lan-cap-nhat-yum-cuoi;;
+    7) /etc/dsnvps/menu/checkddos/dsnvps-Authenication-Failures;;
+    8) /etc/dsnvps/menu/checkddos/dsnvps-user-dang-nhap-gan-day;;
+    9) echo "-------------------------------------------------------------------------" && cat /proc/cpuinfo && echo "-------------------------------------------------------------------------";;
+    10) echo "-------------------------------------------------------------------------" && dd if=/dev/zero of=test bs=64k count=16k conv=fdatasync; rm test && echo "-------------------------------------------------------------------------";;
+    11) clear && wget http://dsnvps/script/others/freeVPSbench.sh -O - -o /dev/null|bash;;
+$(( ${#options[@]}+1 )) ) echo "Bye!";  clear; exit 0;;
+    *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+
+    esac
+done

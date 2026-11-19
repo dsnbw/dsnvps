@@ -1,0 +1,32 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+dom="${1:-}"
+[[ -z "$dom" ]] && dom="$(dsnvps_pick_domain wp)" || true
+[[ -z "$dom" ]] && exit 0
+
+wp_path="/home/${dom}/public_html"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e "${C_YELLOW}       KHÁM SỨC KHỎE WORDPRESS & AUTOLOAD DB: ${dom}${C_RESET}"
+echo -e "${C_CYAN}=========================================================================${C_RESET}"
+echo -e " WP Core Version : $(dsnvps_wp "$dom" core version 2>/dev/null || echo 'N/A')"
+echo -e " Site URL        : $(dsnvps_wp "$dom" option get siteurl 2>/dev/null || echo 'N/A')"
+echo -e " Active Theme    : $(dsnvps_wp "$dom" theme list --status=active --field=name 2>/dev/null | tr '\n' ' ')"
+echo -e " Plugins Update  : $(dsnvps_wp "$dom" plugin list --update=available --format=count 2>/dev/null || echo 0) plugin cần cập nhật"
+echo -e " WP_DEBUG        : $(dsnvps_wp "$dom" config get WP_DEBUG 2>/dev/null || echo 'false')"
+echo -e " DISABLE_WP_CRON : $(dsnvps_wp "$dom" config get DISABLE_WP_CRON 2>/dev/null || echo 'false')"
+
+prefix="$(dsnvps_wp "$dom" db prefix 2>/dev/null || echo 'wp_')"
+autoload_bytes="$(dsnvps_wp "$dom" db query "SELECT COALESCE(SUM(LENGTH(option_value)),0) FROM ${prefix}options WHERE autoload IN ('yes','on','auto','auto-on');" --skip-column-names 2>/dev/null || echo 0)"
+autoload_kb=$((autoload_bytes / 1024))
+if ((autoload_kb > 800)); then
+    echo -e " Autoload Size   : ${C_RED}${autoload_kb} KB (CẢNH BÁO QUÁ LỚN > 800KB - gây chậm TTFB!)${C_RESET}"
+else
+    echo -e " Autoload Size   : ${C_GREEN}${autoload_kb} KB (Tốt)${C_RESET}"
+fi
+
+echo -e "${C_CYAN}Top 10 option autoload lớn nhất:${C_RESET}"
+dsnvps_wp "$dom" db query "SELECT option_name, ROUND(LENGTH(option_value)/1024,1) AS kb FROM ${prefix}options WHERE autoload IN ('yes','on','auto','auto-on') ORDER BY LENGTH(option_value) DESC LIMIT 10;" 2>/dev/null || true
+
+echo -e "${C_CYAN}Kiểm tra toàn vẹn WP Core Checksums:${C_RESET}"
+dsnvps_wp "$dom" core verify-checksums 2>&1 || true

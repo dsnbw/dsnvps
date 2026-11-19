@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DSNVPS - Website chưa có SSL hợp lệ</title>
+  <style>
+    body {
+      background: #f8f9fa;
+      font-family: Arial, sans-serif;
+      color: #333;
+      padding: 40px 20px;
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #ffffff;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 0 15px rgba(0,0,0,0.05);
+    }
+
+    h1 {
+      color: #d9534f;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+
+    h2 {
+      font-size: 20px;
+      color: #5a5a5a;
+      margin-top: 30px;
+    }
+
+    a {
+      color: #007bff;
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .notice {
+      background: #fff3cd;
+      color: #856404;
+      padding: 15px;
+      border-left: 5px solid #ffc107;
+      margin-top: 20px;
+      border-radius: 5px;
+    }
+
+    .instructions {
+      background: #e9ecef;
+      padding: 15px;
+      border-radius: 5px;
+      font-size: 15px;
+      margin-top: 20px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+    <h1>⚠️ Website chưa được cài chứng chỉ SSL hợp lệ</h1>
+    <p>
+      Để website chạy HTTPS bình thường khi bật Cloudflare proxy, thì website của bạn bắt buộc phải có <strong>chứng chỉ SSL hợp lệ</strong>.
+    </p>
+    <p>
+    	Bạn bật proxy (mây cam) trên Cloudflare là hoàn toàn bình thường. Tuy nhiên,<b> nếu website chưa cài SSL </b>thì kết nối giữa VPS và Cloudflare vẫn chưa được mã hóa, dẫn đến dữ liệu truyền đi không được bảo mật an toàn.
+     </p>
+
+    <div class="notice">
+      Nếu bạn đang bật CLoudflare cho website mà vẫn thấy thông báo này, nghĩa là <strong>Website chưa cài đặt chứng chỉ SSL</strong> hoặc <b>cài rồi nhưng bị lỗi</b>.
+    </div>
+
+    <h2>✅ Hướng dẫn cài SSL Cloudflare chính xác để không bị lỗi SSL khi bật Cloudflare</h2>
+    <p>
+      DSNVPS có sẵn chức năng cài SSL Cloudflare Origin hoàn toàn tự động. 
+      
+    </p>
+
+    <div class="instructions">
+      👉 <a href="" target="_blank">
+        Xem hướng dẫn cài chứng chỉ Cloudflare Origin SSL tại đây
+      </a>
+    </div>
+
+    <p>
+      Trang thông báo này sẽ biến mất và website của bạn sẽ truy cập bình thường ngay sau khi bạn cài đặt chứng chỉ SSL thành công cho website.
+    </p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,199 @@
+#!/bin/bash
+. /etc/dsnvps/pwprotect.default
+if [ ! -f /usr/local/bin/htpasswd.py ]; then
+cp -r /etc/dsnvps/menu/inc/htpasswd.py /usr/local/bin/htpasswd.py
+chmod +x /usr/local/bin/htpasswd.py
+fi
+if [ ! -d /etc/nginx/pwprotect ]; then
+mkdir -p /etc/nginx/pwprotect
+fi
+if [ -f /etc/nginx/.htpasswd ]; then
+echo "========================================================================="
+echo "Sử dụng User & Password mặc định để bảo vệ: phpMyAdmin, File Manager"
+echo "-------------------------------------------------------------------------"
+echo "Backup Files, Folder, WP-Login.php, status.php, File Manager ..."
+echo "-------------------------------------------------------------------------" 
+echo "Thông tin Username và Mật khẩu hiện tại:"
+echo "-------------------------------------------------------------------------"
+echo "Username: $userdefault | Mật khẩu: $passdefault"
+echo "========================================================================="
+prompt="Nhập Lựa chọn của bạn [0 -Thoát]:  "
+options=("Thay Username và Mật khẩu mới" "Giữ nguyên Username và Password hiện tại (thoát)")
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+    case "$REPLY" in
+    1) chooseacction="thaythongtindangnhapmacdinh"; break;;
+    0) chooseacction="thoat"; break;;
+    2) chooseacction="exit"; break;;
+    *) echo "Bạn nhập sai! Vui lòng chọn số trong danh sách.";continue;;
+    esac  
+done
+###################################
+#Thay Thong Tin Dang Nhap
+###################################
+if [ "$chooseacction" = "thaythongtindangnhapmacdinh" ]; then
+echo "========================================================================="
+while true; do
+    echo -n "Nhập username mới: "
+    read username
+    
+    if [ "$username" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập username. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$username" =~ $checkpass ]]; then
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái và số để đặt Username. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    break
+done
+    echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Nhập mật khẩu mới: "
+    read matkhau
+    
+    if [ "$matkhau" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập mật khẩu. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$matkhau" =~ $checkpass ]]; then
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái và số để đặt mật khẩu. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    break
+done
+echo "-------------------------------------------------------------------------"
+echo "Thông tin bạn nhập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ cấu hình đăng nhập mặc định mới theo thông tin này "
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+rm -rf /etc/nginx/.htpasswd
+htpasswd.py -c -b /etc/nginx/.htpasswd $username $matkhau
+if [ ! -f /etc/nginx/.htpasswd ]; then
+/etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/.htpasswd $username $matkhau
+fi
+if [ ! -f /etc/nginx/.htpasswd ]; then
+htpasswd -b -c /etc/nginx/.htpasswd $username $matkhau
+fi
+chmod -R 644 /etc/nginx/.htpasswd
+cat > "/etc/dsnvps/pwprotect.default" <<END
+userdefault="$username"
+passdefault="$matkhau"
+END
+####### Restart Nginx
+/etc/dsnvps/menu/inc/re-start-nginx-service
+#############
+clear
+echo "========================================================================="
+echo "Thay thông tin đăng nhập mặc định thành công."
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit
+elif [ "$chooseacction" = "exit" ]; then
+clear && /etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+else
+clear
+exit 0
+fi
+fi
+
+echo "========================================================================="
+echo "Sử dụng chức năng này để tạo thông tin User và Mật Khẩu mặc định, sử dụng"
+echo "-------------------------------------------------------------------------"
+echo "để bảo vệ folder, phpMyAdmin, Backup files, File Manager, Wp-login.php ..."
+echo "-------------------------------------------------------------------------"
+
+echo "========================================================================="
+while true; do
+    echo -n "Nhập username mới: "
+    read username
+    
+    if [ "$username" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập username. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$username" =~ $checkpass ]]; then
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái và số để đặt Username. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    break
+done
+    echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Nhập mật khẩu mới: "
+    read matkhau
+    
+    if [ "$matkhau" = "" ]; then
+        echo "========================================================================="
+        echo "Bạn chưa nhập mật khẩu. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    
+    checkpass="^[a-zA-Z0-9_][-a-zA-Z0-9_]{0,61}[a-zA-Z0-9_]$"
+    if [[ ! "$matkhau" =~ $checkpass ]]; then
+        echo "========================================================================="
+        echo "Bạn chỉ được dùng chữ cái và số để đặt mật khẩu. Vui lòng nhập lại!"
+        sleep 3;tput cuu 3; tput ed
+        #echo "-------------------------------------------------------------------------"
+        continue
+    fi
+    break
+done
+echo "-------------------------------------------------------------------------"
+echo "Thông tin bạn nhập: "
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Password: $matkhau"
+echo "-------------------------------------------------------------------------"
+echo "DSNVPS sẽ cấu hình đăng nhập mặc định theo thông tin này"
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."; sleep 3
+cat > "/etc/dsnvps/pwprotect.default" <<END
+userdefault="$username"
+passdefault="$matkhau"
+END
+rm -rf /etc/nginx/.htpasswd
+htpasswd.py -c -b /etc/nginx/.htpasswd $username $matkhau
+if [ ! -f /etc/nginx/.htpasswd ]; then
+/etc/dsnvps/menu/inc/htpasswd.py -c -b /etc/nginx/.htpasswd $username $matkhau
+fi
+if [ ! -f /etc/nginx/.htpasswd ]; then
+htpasswd -b -c /etc/nginx/.htpasswd $username $matkhau
+fi
+chmod -R 644 /etc/nginx/.htpasswd
+clear
+echo "========================================================================="
+echo "Tạo thông tin đăng nhập mặc định thành công."
+echo "-------------------------------------------------------------------------"
+echo "Username: $username | Mật khẩu: $matkhau"
+/etc/dsnvps/menu/dsnvps-phpmyadmin-menu
+exit

@@ -1,0 +1,27 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+printf "=========================================================================\n"
+prompt="Lựa chọn của bạn [0 -Thoát]:"
+options=("Nginx Log " "PHP-FPM Log "  "MySQL Log  "   "Secure Log "   "Exim Log " )
+PS3="$prompt"
+select opt in "${options[@]}"; do 
+
+    case "$REPLY" in
+    1) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-nginx;;
+    2) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-php-fpm;;
+    3) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-mysql;;
+    4) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-secure;;
+    5) /etc/dsnvps/menu/downloadlog/dsnvps-download-log-exim;;
+0) clear; exit 0;;
+     *) echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!";continue;;
+
+    esac
+
+done
+

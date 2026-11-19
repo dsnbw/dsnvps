@@ -1,0 +1,263 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+    serverip_priport=$domainquanly
+else
+    serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+file1="/etc/dsnvps/.tmp/dsnvps-websitelist"
+while read -r wpsite; do
+    if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+        echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+    fi
+done < "$file1"
+if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+echo "========================================================================="
+echo "Sử dụng chức năng này để phục hồi database cho Wordpress website "
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1107"
+mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
+echo "========================================================================="
+echo "Danh sách các website trên server:"
+echo "-------------------------------------------------------------------------"
+total=${#danh_sach_website[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))
+    right_index=$((half + i + 1))
+    left_db="${danh_sach_website[i]:- }"
+    if (( right_index <= total )); then
+        right_db="${danh_sach_website[right_index-1]}"
+        printf "%-1s %-25s %-1s %-25s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-25s\n" "$left_index." "$left_db"
+    fi
+done
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng với website [0 -Thoát]: "
+    read -r lua_chon
+    if [[ -z "$lua_chon" ]]; then
+        echo "Vui lòng nhập một số hợp lệ."
+        continue
+    elif [[ "$lua_chon" == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        exit
+    elif [[ "$lua_chon" =~ ^[0-9]+$ ]] && (( lua_chon >= 1 && lua_chon <= ${#danh_sach_website[@]} )); then
+        website=${danh_sach_website[lua_chon-1]}
+        break
+    else
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+    fi
+done
+if [ ! -f /usr/bin/gxred ]; then
+    touch /etc/dsnvps/.tmp/ckla
+    /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
+    clear
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi
+# Kiểm tra file wp-config.php và lấy tên database
+if [ ! -f /home/$website/public_html/wp-config.php ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file wp-config.php tại /home/$website/public_html/"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra website $website."
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+# Sử dụng biểu thức chính quy để khớp linh hoạt hơn
+dataname=$(grep -E "define\s*\(\s*'DB_NAME'" /home/$website/public_html/wp-config.php | grep -v '^ *//' | cut -d "'" -f 4)
+if [ -z "$dataname" ]; then
+    clear
+    echo "========================================================================="
+    echo "Không thể lấy tên database từ wp-config.php của website $website"
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra file wp-config.php có dòng define('DB_NAME', 'tên_database') hợp lệ."
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+if [ ! -f /var/lib/mysql/$dataname/db.opt ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy database: $dataname"
+    echo "-------------------------------------------------------------------------"
+    echo "trên VPS. Bạn hãy tạo database này trước khi chạy chức năng này."
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+randomwp=$(date | md5sum | cut -c '1-18')
+if [ ! -d /home/$mainsite/private_html/backup ]; then
+    mkdir -p /home/$mainsite/private_html/backup
+fi
+if [ ! -d /home/$mainsite/private_html/backup/$dataname ]; then
+    mkdir -p /home/$mainsite/private_html/backup/$dataname
+fi
+echo "$website" > /etc/dsnvps/.tmp/dsnvps-tensitephuchoi
+echo "$dataname" > /etc/dsnvps/.tmp/dsnvps-tendatabasephuchoi
+date -r /var/lib/mysql/$dataname +%H%M%S > /etc/dsnvps/.tmp/dsnvps1
+randomcode=$(date | md5sum | cut -c '1-12')
+# Tìm tất cả file backup
+find /home/$mainsite/private_html/backup/$dataname -type f \( -name "*.sql.gz" -o -name "*.sql.gz.*" \) -printf "%T@ %p\n" | sort -nr | cut -d' ' -f2- | xargs -I {} basename {} > /etc/dsnvps/.tmp/all_backups
+if [ ! -s /etc/dsnvps/.tmp/all_backups ]; then
+    clear
+    echo "========================================================================="
+    echo "Không tìm thấy file backup nào trong thư mục:"
+    echo "/home/$mainsite/private_html/backup/$dataname"
+    echo "-------------------------------------------------------------------------"
+    echo "CÁCH PHỤC HỒI DATABASE"
+    echo "========================================================================="
+    echo "Định dạng backup DSNVPS hỗ trợ phục hồi: .SQL, .ZIP, .SQL.GZ và .TAR.GZ"
+    echo "-------------------------------------------------------------------------"
+    echo "Tùy theo định dạng file backup mà bạn thực hiện:"
+    echo "-------------------------------------------------------------------------"
+    echo "Định dạng .SQL    => Đổi tên file backup thành DSNVPS-DATABASE.sql"
+    echo "-------------------------------------------------------------------------"
+    echo "Định dạng .ZIP    => Đổi tên file backup thành DSNVPS-DATABASE.zip"
+    echo "-------------------------------------------------------------------------"
+    echo "Định dạng .SQL.GZ => Đổi tên backup thành DSNVPS-DATABASE.sql.gz"
+    echo "-------------------------------------------------------------------------"
+    echo "Định dạng .TAR.GZ => Đổi tên backup thành DSNVPS-DATABASE.tar.gz"
+    echo "-------------------------------------------------------------------------"
+    echo "Sau đó upload lên:"
+    echo "-------------------------------------------------------------------------"
+    echo "/home/$website/public_html/"
+    echo "========================================================================="
+    read -p "Khi upload hoàn thành. Nhấn [Enter] để phục hồi..."
+    echo "-------------------------------------------------------------------------"
+    echo "DSNVPS đang tìm kiếm file backup .... "
+    echo "-------------------------------------------------------------------------"
+    sleep 4
+    if [ -f /home/$website/public_html/DSNVPS-DATABASE.tar.gz ]; then
+        /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-tar-gz-wordpress
+    elif [ -f /home/$website/public_html/DSNVPS-DATABASE.sql.gz ]; then
+        /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-sql-gz-wordpress
+    elif [ -f /home/$website/public_html/DSNVPS-DATABASE.zip ]; then
+        /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-zip-wordpress
+    elif [ -f /home/$website/public_html/DSNVPS-DATABASE.sql ]; then
+        /etc/dsnvps/menu/dsnvps-phuc-hoi-database-dsnvps-database-sql-wordpress
+    else
+        clear
+        echo "========================================================================="
+        echo "Không tìm thấy file backup của database $dataname !"
+        echo "-------------------------------------------------------------------------"
+        echo "Hãy upload file backup lên server rồi thử lại."
+        /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        exit
+    fi
+fi
+mapfile -t backup_files < /etc/dsnvps/.tmp/all_backups
+echo "========================================================================="
+echo "DANH SÁCH FILE BACKUP CỦA DATABASE: $dataname"
+echo "========================================================================="
+for i in "${!backup_files[@]}"; do
+    file="${backup_files[$i]}"
+    filepath="/home/$mainsite/private_html/backup/$dataname/$file"
+    file_time=$(date -r "$filepath" "+%H:%M %d/%m/%Y")
+    if [ $i -eq 0 ]; then
+        printf "%2d. Backup tạo lúc: %s (File mới nhất)\n" $((i+1)) "$file_time"
+    else
+        printf "%2d. Backup tạo lúc: %s\n" $((i+1)) "$file_time"
+    fi
+done
+echo "========================================================================="
+while true; do
+    echo -n "Chọn file backup để phục hồi [0 -Thoát]: "
+    read -r backup_choice
+    if [[ $backup_choice == "0" ]]; then
+        clear
+        /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        exit
+    fi
+    if [[ $backup_choice =~ ^[0-9]+$ ]] && (( backup_choice >= 1 && backup_choice <= ${#backup_files[@]} )); then
+        selected_file="${backup_files[$((backup_choice-1))]}"
+        break
+    else
+        echo "-------------------------------------------------------------------------"
+        echo "Lựa chọn không hợp lệ. Vui lòng thử lại."
+        sleep 2 && tput cuu 3 && tput ed
+    fi
+done
+source_file="/home/$mainsite/private_html/backup/$dataname/$selected_file"
+file_time=$(date -r "$source_file" "+%H:%M %d/%m/%Y")
+echo "========================================================================="
+echo "File backup được chọn: "
+echo "-------------------------------------------------------------------------"
+echo "=> $selected_file"
+echo "-------------------------------------------------------------------------"
+echo "Thời gian tạo: $file_time"
+restore_file="$source_file"
+echo "-------------------------------------------------------------------------"
+while true; do
+    echo -n "Bạn có chắc chắn muốn phục hồi database này? [y/Y]: "
+    read -r confirm_choice
+    if [[ "$confirm_choice" == "y" || "$confirm_choice" == "Y" ]]; then
+        break
+    else
+        clear
+        echo "========================================================================="
+        echo "Hủy phục hồi."
+        rm -rf /etc/dsnvps/.tmp/all_backups 2>/dev/null
+        sleep 1
+        /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        exit
+    fi
+done
+echo "--------------------------------------------------------------------------"
+echo "Vui lòng chờ ..."
+echo "--------------------------------------------------------------------------"
+echo "DSNVPS đang phục hồi $dataname ..."
+sleep 3
+gunzip < "$restore_file" | mysql -u root -p$mariadbpass -f $dataname
+date -r /var/lib/mysql/$dataname +%H%M%S > /etc/dsnvps/.tmp/dsnvps2
+check1=$(cat /etc/dsnvps/.tmp/dsnvps1)
+check2=$(cat /etc/dsnvps/.tmp/dsnvps2)
+if [[ "$selected_file" == *.sql.gz.* ]]; then
+    rm -rf "/tmp/dsnvps_restore_$randomcode" 2>/dev/null
+fi
+if [ "$check1" == "$check2" ]; then
+    rm -rf /etc/dsnvps/.tmp/*dsnvps*
+    rm -rf /etc/dsnvps/.tmp/all_backups
+    sleep 8
+    clear
+    echo "========================================================================="
+    echo "Phục hồi database $dataname thất bại "
+    echo "-------------------------------------------------------------------------"
+    echo "Vui lòng kiểm tra file backup và thử lại !"
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+else
+    rm -rf /etc/dsnvps/.tmp/*dsnvps*
+    rm -rf /etc/dsnvps/.tmp/all_backups
+    clear
+    echo "========================================================================="
+    echo "Phục hồi database $dataname thành công !"
+    echo "-------------------------------------------------------------------------"
+    echo "File backup sử dụng:"
+    echo "-------------------------------------------------------------------------"
+    echo "$selected_file"
+    echo "-------------------------------------------------------------------------"
+    echo "Thời gian backup: $file_time"
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+fi

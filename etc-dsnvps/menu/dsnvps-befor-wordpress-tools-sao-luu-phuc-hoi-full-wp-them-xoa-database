@@ -1,0 +1,47 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+clear
+echo "========================================================================="
+echo "Đây là chức năng dành riêng cho Wordpress Website."
+echo "-------------------------------------------------------------------------"
+echo "Đường dẫn:  Wordpress Website Tools  => [ Sao Lưu & Phục Hồi Full Website ]"
+echo "========================================================================="
+echo "** SAO LƯU FULL WEBSITE & DATABASE: **"
+echo "======================================-----------------------------------"
+echo "Chỉ cần chọn website, DSNVPS sẽ tự động tìm database, rồi sao lưu đồng "
+echo "-------------------------------------------------------------------------"
+echo "thời cả code & database của website và nén thành 1 file duy nhất."
+echo "========================================================================="
+echo "** PHỤC HỒI FULL WEBSITE & DATABASE: **"
+echo "=======================================----------------------------------"
+echo "Đổi tên file backup tạo bởi chức năng [ Sao lưu Full Website + Database ] "
+echo "-------------------------------------------------------------------------"
+echo "thành full_backup.zip sau đó upload vào /home/abc.com/ (với abc.com là"
+echo "-------------------------------------------------------------------------"
+echo "domain muốn phục hồi). Sau đó chạy chức năng :"
+echo "-------------------------------------------------------------------------"
+echo "[ Phục Hồi Full Website + Database ]. DSNVPS sẽ tìm và check file backup"
+echo "-------------------------------------------------------------------------"
+echo "này. Nếu hợp lệ, DSNVPS sẽ phục hồi abc.com từ file backup."
+echo "-------------------------------------------------------------------------"
+echo "Lưu ý: Không cần tạo database cho website trước khi phục hồi vì trong quá"
+echo "-------------------------------------------------------------------------"
+echo "trình phục hồi, DSNVPS sẽ tự động tạo database mới, config website sử"
+echo "-------------------------------------------------------------------------"
+echo "dụng database này và phục hồi dữ liệu cho database này luôn."
+
+echo "========================================================================="
+read -n1 -r -p "Nhấn [ Enter ] để vào [ Wordpress Blog Tools ], phím bất kỳ khác để thoát" key
+
+if [[ ! $key = "" ]]; then
+clear
+/etc/dsnvps/menu/dsnvps-them-xoa-database
+fi
+clear
+/etc/dsnvps/menu/dsnvps-wordpress-tools-menu

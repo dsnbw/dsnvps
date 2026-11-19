@@ -1,0 +1,54 @@
+#!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
+mode="${1:---auto}"
+php_ver="$(dsnvps_php_ver)"
+php_major="${php_ver%%.*}"
+php_confd="$(dsnvps_php_confd)"
+opcache_file="${php_confd}/opcache.ini"
+php_svc="$(dsnvps_php_service)"
+ram_mb="$(dsnvps_ram_mb)"
+
+if ((php_major < 8)); then
+    echo -e "${C_YELLOW}[SKIP] PHP ${php_ver} không hỗ trợ JIT (yêu cầu PHP 8.0+).${C_RESET}"
+    exit 0
+fi
+
+if [[ "$mode" == "off" ]]; then
+    if [[ -f "$opcache_file" ]]; then
+        sed -i '/^opcache\.jit/d' "$opcache_file"
+        echo "opcache.jit_buffer_size=0" >> "$opcache_file"
+        systemctl restart "$php_svc" >/dev/null 2>&1 || true
+    fi
+    echo -e "${C_YELLOW}[OK] Đã tắt PHP JIT Compiler cho PHP ${php_ver}.${C_RESET}"
+    exit 0
+fi
+
+if php -v 2>/dev/null | grep -qi "ionCube"; then
+    echo -e "${C_YELLOW}[SKIP] Phát hiện ionCube Loader -> không bật PHP JIT để tránh xung đột.${C_RESET}"
+    exit 0
+fi
+
+if ((ram_mb <= 1024)); then
+    echo -e "${C_YELLOW}[SKIP] RAM <= 1GB (${ram_mb}MB) -> giữ nguyên OPcache chuẩn để bảo vệ MariaDB.${C_RESET}"
+    exit 0
+fi
+
+jit_buf="64M"
+((ram_mb >= 3500)) && jit_buf="128M"
+((ram_mb >= 7500)) && jit_buf="256M"
+
+if [[ -f "$opcache_file" ]]; then
+    sed -i 's/^opcache\.enable=.*/opcache.enable=1/' "$opcache_file"
+    sed -i 's/^opcache\.revalidate_freq=.*/opcache.revalidate_freq=60/' "$opcache_file"
+    sed -i '/^opcache\.jit/d' "$opcache_file"
+    {
+        echo "opcache.jit=tracing"
+        echo "opcache.jit_buffer_size=${jit_buf}"
+    } >> "$opcache_file"
+    # Ensure CLI doesn't waste JIT memory unless enabled, keep fpm/conf.d clean
+    systemctl restart "$php_svc" >/dev/null 2>&1 || true
+    echo -e "${C_GREEN}[OK] PHP ${php_ver} OPcache + JIT (tracing, ${jit_buf}) đã kích hoạt.${C_RESET}"
+else
+    echo -e "${C_RED}[ERR] Không tìm thấy ${opcache_file}.${C_RESET}"
+fi

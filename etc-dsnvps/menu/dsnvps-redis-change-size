@@ -1,0 +1,100 @@
+#!/bin/bash 
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/checkredis
+upredis=$(/bin/systemctl status redis-server.service | grep running | grep -v not | wc -l);
+if [ "$upredis" -lt 1 ]; then
+redis-cli ping 2> /etc/dsnvps/.tmp/checkredis
+else
+redis-cli ping > /etc/dsnvps/.tmp/checkredis
+fi
+
+
+redistt=`cat /etc/dsnvps/.tmp/checkredis`
+if [ -f /etc/dsnvps/.tmp/checkredis ] && [ ! "$redistt" = "PONG" ]; then
+checkok=notokie
+fi
+
+
+
+if [  "$checkok" = "notokie" ]; then
+clear
+echo "========================================================================="
+echo "Redis Cache đang bị TẮT."
+echo "-------------------------------------------------------------------------"
+echo "Bạn phải BẬT Redis Cache trước khi sử dụng chức năng này."
+/etc/dsnvps/menu/dsnvps-redis-menu
+exit
+fi
+maxredisram=$(free -m | awk 'NR==2 {print $2}' | awk '{print int($1/5)}')
+if [ "$maxredisram" -lt 120 ]; then
+    maxredisram=200
+fi
+
+echo "========================================================================="
+echo "Chức năng này cấu hình lượng RAM lớn nhất (MAX RAM) Redis có thể sử dụng"
+echo "-------------------------------------------------------------------------"
+echo "Max RAM là số tự nhiên nằm trong khoảng (120 - $maxredisram)."
+echo "-------------------------------------------------------------------------"
+
+while true; do
+echo -n "Nhập lượng RAM lớn nhất cho Redis [0 -Thoát]: "  
+read maxredis
+if [ "$maxredis" = "0" ]; then
+clear
+/etc/dsnvps/menu/dsnvps-redis-menu
+exit
+elif ! [[ $maxredis -ge 120 && $maxredis -le $maxredisram  ]] ; then  
+        echo "========================================================================="
+echo "RAM cho Redis phải là số tự nhiên nằm trong khoảng (120 - $maxredisram)."
+        sleep 4  
+        tput cuu 3 
+        tput ed  
+    else
+        break
+    fi
+done
+echo "========================================================================="
+read -p "DSNVPS sẽ cấu hình Redis sử dụng tối đa $maxredis MB RAM? (y/n): " confirm
+# Kiểm tra phản hồi của người dùng
+if [ "$confirm" = "y" ] || [ "$confirm" = "Y" ]; then
+echo "-------------------------------------------------------------------------"
+echo "Vui lòng chờ..."; sleep 4
+rm -rf /etc/redis/redis.conf
+cat > "/etc/redis/redis.conf" <<END
+dir /var/lib/redis
+dbfilename dump.rdb
+maxmemory ${maxredis}mb
+maxmemory-policy allkeys-lru
+protected-mode yes
+appendonly no
+bind 127.0.0.1
+END
+
+systemctl restart redis
+else
+clear
+echo "========================================================================="
+echo "Huỷ bỏ !"
+/etc/dsnvps/menu/dsnvps-redis-menu
+    exit 0
+fi
+
+
+
+
+####### Restart PHP-FPM
+/etc/dsnvps/menu/inc/re-start-php-fpm-service
+clear
+echo "========================================================================="
+echo "Cấu hình Max RAM cho Redis thành công"
+echo "-------------------------------------------------------------------------"
+echo "Redis có thể sử dụng lượng RAM tối đa là: $maxredis MB "
+/etc/dsnvps/menu/dsnvps-redis-menu
+

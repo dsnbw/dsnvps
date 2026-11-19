@@ -1,0 +1,189 @@
+#!/bin/bash
+. /root/dsnvps.conf
+if [ -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
+serverip_priport=$domainquanly
+else
+serverip_priport="${serverip}:${priport}"
+fi
+# Anti-debug removed
+
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-websitelist
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+
+cd /etc/nginx/conf.d
+ls > /etc/dsnvps/.tmp/dsnvps-websitelist
+sed -i 's/\.conf//g' /etc/dsnvps/.tmp/dsnvps-websitelist
+cd
+
+cat > "/etc/dsnvps/.tmp/dsnvps-replace" <<END
+sed -i '/$mainsite/d' /etc/dsnvps/.tmp/dsnvps-websitelist
+END
+chmod +x /etc/dsnvps/.tmp/dsnvps-replace
+/etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/dsnvps-replace
+rm -rf /etc/dsnvps/.tmp/wordpresslist
+
+domainlist=$(cat /etc/dsnvps/.tmp/dsnvps-websitelist)
+for wpsite in $domainlist; do
+    if [ -f /home/$wpsite/public_html/wp-config.php ]; then
+        echo "$wpsite" >> /etc/dsnvps/.tmp/wordpresslist
+    fi
+done
+
+if [ ! -f /etc/dsnvps/.tmp/wordpresslist ]; then
+    clear
+    echo "========================================================================="
+    echo "DSNVPS không tìm thấy website chạy Wordpress Code trên Server."
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+rm -rf /etc/dsnvps/.tmp/op0axf.txt
+rm -rf /etc/dsnvps/.tmp/wordpresslist_with_status
+###########################################################################
+nginx_conf_folder="/etc/nginx/conf.d"
+home_folder="/home"
+output_file="/etc/dsnvps/.tmp/op0axf.txt"
+
+# Xóa nội dung cũ của file kết quả
+> "$output_file"
+
+# Duyệt qua tất cả các file vhost trong thư mục Nginx
+for vhost in "$nginx_conf_folder"/*.conf; do
+    # Lấy tên miền từ file vhost
+    domain=$(basename "$vhost" .conf)
+    website_home="$home_folder/$domain"
+
+    # Kiểm tra nếu tồn tại wp-config.php và chứa "DB_NAME"
+    if [[ -f "$website_home/wp-config.php" ]] && grep -q "DB_NAME" "$website_home/wp-config.php"; then
+        config_file="$website_home/wp-config.php"
+    elif [[ -f "$website_home/public_html/wp-config.php" ]] && grep -q "DB_NAME" "$website_home/public_html/wp-config.php"; then
+        config_file="$website_home/public_html/wp-config.php"
+    else
+        continue
+    fi
+
+    # Kiểm tra nếu không có dòng "DISALLOW_FILE_EDIT" trong wp-config.php
+    if ! grep -q "DISALLOW_FILE_EDIT" "$config_file"; then
+        echo "$domain" >> "$output_file"
+    fi
+done
+
+# Kiểm tra kết quả
+if [[ -s "$output_file" ]]; then
+ALL_WEBSITES_FILE="/etc/dsnvps/.tmp/wordpresslist"
+KLAND_FILE="/etc/dsnvps/.tmp/op0axf.txt"
+OUTPUT_FILE="/etc/dsnvps/.tmp/wordpresslist_with_status"
+> "$OUTPUT_FILE"
+while read -r domain; do
+    if grep -q "^$domain$" "$KLAND_FILE"; then
+        echo "$domain**" >> "$OUTPUT_FILE"
+    else
+        echo "$domain" >> "$OUTPUT_FILE"
+    fi
+done < "$ALL_WEBSITES_FILE"       
+else
+mv /etc/dsnvps/.tmp/wordpresslist /etc/dsnvps/.tmp/wordpresslist_with_status
+fi
+####################################################################################
+echo "========================================================================="
+echo "Dùng chức năng này để TẮT/BẬT edit file php Plugins/Themes trong WP-ADMIN"
+echo "========================================================================="
+echo "Hướng dẫn sử dụng: http://go.dsnvps/1323"
+echo "========================================================================="
+mapfile -t file_list < /etc/dsnvps/.tmp/wordpresslist_with_status
+echo "Danh sách Wordpress website trên server: | ** : Cấu hình BẬT edit"
+    echo "-------------------------------------------------------------------------"
+###############################################################
+total=${#file_list[@]}
+half=$(( (total + 1) / 2 ))  # Chia đôi, làm tròn lên nếu số lẻ
+for ((i = 0; i < half; i++)); do
+    left_index=$((i + 1))                         # Số thứ tự bên trái
+    right_index=$((half + i + 1))                 # Số thứ tự bên phải
+
+    left_db="${file_list[i]:- }"                    # Tên database bên trái
+
+    if (( right_index <= total )); then           # Hiển thị nếu bên phải còn giá trị
+        right_db="${file_list[right_index-1]}"      # Tên database bên phải
+        printf "%-1s %-30s %-1s %-30s\n" "$left_index." "$left_db" "$right_index." "$right_db"
+    else
+        printf "%-1s %-30s\n" "$left_index." "$left_db"
+    fi
+done
+###############################################################
+while true; do
+    echo "========================================================================="
+    echo -n "Nhập số tương ứng website [0 -Thoát]:  "
+    read -r choice
+    if [[ $choice == "0" ]]; then
+        clear
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+        exit 0 
+    fi
+
+    if [[ $choice =~ ^[0-9]+$ ]] && (( choice >= 1 && choice <= ${#file_list[@]} )); then
+        website=$(echo "${file_list[choice-1]}" | sed 's/**$//')
+        break 
+    else
+        echo "Bạn nhập sai, vui lòng nhập lại."
+    fi
+done
+
+if [ -f /home/$website/wp-config.php ] && grep -q "DB_NAME" /home/$website/wp-config.php; then
+config_file="/home/$website/wp-config.php"
+else
+config_file="/home/$website/public_html/wp-config.php"
+fi
+website_upper=$(echo "$website" | tr 'a-z' 'A-Z')
+if ! grep -q "DISALLOW_FILE_EDIT" "$config_file"; then
+    echo "========================================================================="
+echo "$website_upper hiện tại đang cho phép edit file Themes và Plugins"
+echo "-------------------------------------------------------------------------"
+echo "trong WP-ADMIN."
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn TẮT chức năng này ?  [y/N] " response
+    if [[ $response =~ ^[yY]$ ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ..."  		
+        sleep 2 
+sed -i "/define( 'DB_COLLATE', '' );/a define( 'DISALLOW_FILE_EDIT', true );\ndefine( 'DISALLOW_FILE_MODS', true );" "$config_file"
+        /etc/dsnvps/menu/inc/re-start-php-fpm-service 
+        clear
+        echo "========================================================================="
+echo "Tắt edit files trong WP-ADMIN của $website_upper thành công !"
+    else
+        clear
+        echo "========================================================================="
+        echo "Hủy bỏ!"
+    fi
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
+
+if grep -q "DISALLOW_FILE_EDIT" "$config_file"; then
+    echo "========================================================================="
+echo "$website_upper đang TẮT chức năng edit file Themes và Plugins"
+echo "-------------------------------------------------------------------------"
+echo "trong WP-ADMIN."
+echo "-------------------------------------------------------------------------"
+read -r -p "Bạn muốn BẬT chức năng này ?  [y/N] " response
+
+    if [[ $response =~ ^[yY]$ ]]; then
+        echo "-------------------------------------------------------------------------"
+        echo "Vui lòng chờ..."  		
+        sleep 2
+sed -i "/define( 'DISALLOW_FILE_EDIT', true );/d" "$config_file"
+sed -i "/define( 'DISALLOW_FILE_MODS', true );/d" "$config_file"
+
+        /etc/dsnvps/menu/inc/re-start-php-fpm-service 
+        clear
+        echo "========================================================================="
+echo "BẬT edit files trong WP-ADMIN của $website_upper thành công !"
+    else
+        clear
+        echo "========================================================================="
+        echo "Hủy bỏ!"
+    fi
+    /etc/dsnvps/menu/dsnvps-wordpress-tools-menu
+    exit
+fi
