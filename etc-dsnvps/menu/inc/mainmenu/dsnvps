@@ -28,7 +28,7 @@ while true; do
         dsnvps_menu_row " 4) Remove Website & Domain"     " 9) CloudFlare Dynamic DNS"
         dsnvps_menu_row " 5) WordPress / Flarum Tools"    "10) WordPress Multisite"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "DATABASE, BACKUP & MIGRATION"
         dsnvps_menu_sep
         dsnvps_menu_row "11) Database Manager"            "15) Cloud & Telegram Backup"
@@ -36,7 +36,7 @@ while true; do
         dsnvps_menu_row "13) Backup & Restore Database"   "17) Resilio Sync Manager"
         dsnvps_menu_row "14) phpMyAdmin & FileManager"    "18) FTP Account Manager"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "PERFORMANCE, CACHE & PHP"
         dsnvps_menu_sep
         dsnvps_menu_row "${C_GREEN}19) Server Turbo Optimizer${C_RESET}" "23) Redis / Memcached Manager"
@@ -44,14 +44,14 @@ while true; do
         dsnvps_menu_row "21) Zend OPcache Manager"        "25) PHP.INI Config Tuning"
         dsnvps_menu_row "22) Clear Server Caches"         "26) Anti-DDoS & ModSecurity"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "SECURITY & FIREWALL"
         dsnvps_menu_sep
         dsnvps_menu_row "${C_GREEN}27) Security Pro (YARA/7G/AI)${C_RESET}" "30) ${FWtables}tables Firewall Manager"
         dsnvps_menu_row "28) Server & Website Security"   "31) Country Access (GeoIP2)"
         dsnvps_menu_row "29) CSF Firewall Manager"        "32) Auto-Check & Telegram Alert"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "SYSTEM & UTILITIES"
         dsnvps_menu_sep
         dsnvps_menu_row "${C_CYAN}33) Realtime Monitor (WTOP)${C_RESET}" "39) VLESS VPN Setup"
@@ -72,7 +72,7 @@ while true; do
         dsnvps_menu_row " 4) Xóa Website, Domain, Sub"    " 9) Cài Đặt CloudFlare DDNS"
         dsnvps_menu_row " 5) Tiện Ích WordPress / Flarum" "10) Quản Lý WordPress Multisite"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "DATABASE, SAO LƯU & CHUYỂN SERVER"
         dsnvps_menu_sep
         dsnvps_menu_row "11) Quản Lý & Kiểm Tra DB"       "15) Sao Lưu Cloud & Telegram"
@@ -80,7 +80,7 @@ while true; do
         dsnvps_menu_row "13) Sao Lưu & Phục Hồi Database" "17) Quản Lý Resilio Sync"
         dsnvps_menu_row "14) phpMyAdmin & FileManager"    "18) Quản Lý Tài Khoản FTP"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "TĂNG TỐC, CACHE & PHP"
         dsnvps_menu_sep
         dsnvps_menu_row "${C_GREEN}19) Tối Ưu Tốc Độ (Turbo)${C_RESET}" "23) Quản Lý Redis / Memcached"
@@ -88,14 +88,14 @@ while true; do
         dsnvps_menu_row "21) Quản Lý Zend OPcache"        "25) Tùy Chỉnh Cấu Hình PHP.INI"
         dsnvps_menu_row "22) Clear VPS Caches (PHP...)"  "26) Chống DDoS Web & ModSec"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "BẢO MẬT & TƯỜNG LỬA"
         dsnvps_menu_sep
         dsnvps_menu_row "${C_GREEN}27) Security Pro (YARA/7G/AI)${C_RESET}" "30) Quản Lý ${FWtables}tables Firewall"
         dsnvps_menu_row "28) Bảo Mật Server & Website"    "31) Chặn Quốc Gia (GeoIP2)"
         dsnvps_menu_row "29) Quản Lý CSF Firewall"        "32) Auto-Check & Cảnh Báo Tele"
 
-        dsnvps_menu_sep
+        dsnvps_menu_full_sep
         dsnvps_menu_section "HỆ THỐNG & TIỆN ÍCH"
         dsnvps_menu_sep
         dsnvps_menu_row "${C_CYAN}33) Giám Sát Real-time (WTOP)${C_RESET}" "39) Cài Đặt & Cấu Hình VLESS VPN"

@@ -25,7 +25,7 @@ s_db="$(svc_badge DB mariadb)"
 
 dsnvps_menu_top
 printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \
-    "$(dsnvps_pad_col "${C_YELLOW}⚡ DSNVPS v${ver}${C_RESET}  ${C_WHITE}| Hệ Thống Quản Trị & Tối Ưu VPS Chuyên Nghiệp${C_RESET}" 73)"
+    "$(dsnvps_pad_col "${C_YELLOW}★ DSNVPS v${ver}${C_RESET}  ${C_WHITE}| Hệ Thống Quản Trị & Tối Ưu VPS Chuyên Nghiệp${C_RESET}" 73)"
 printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \
     "$(dsnvps_pad_col "IP: ${C_CYAN}${ip_addr}${C_RESET} | OS: ${os_short} | RAM: ${ram_info} | ${C_GREEN}${tcp_cc^^}${C_RESET}/${C_GREEN}${zram_tag}${C_RESET}" 73)"
 printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \

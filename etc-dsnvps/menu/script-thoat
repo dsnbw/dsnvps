@@ -2,7 +2,7 @@
 . /etc/dsnvps/menu/inc/dsnvps-common.sh
 clear
 echo -e " ${C_CYAN}╭───────────────────────────────────────────────────────────────────────────╮${C_RESET}"
-printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" "$(dsnvps_pad_col "${C_YELLOW}⚡ DSNVPS v$(cat /etc/dsnvps/menu/inc/dsnvps.version 2>/dev/null || echo 7.1.0)${C_RESET}  | Cảm ơn bạn đã sử dụng DSNVPS!" 73)"
+printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" "$(dsnvps_pad_col "${C_YELLOW}★ DSNVPS v$(cat /etc/dsnvps/menu/inc/dsnvps.version 2>/dev/null || echo 7.1.0)${C_RESET}  | Cảm ơn bạn đã sử dụng DSNVPS!" 73)"
 printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" "$(dsnvps_pad_col "Gõ lệnh ${C_GREEN}dsnvps${C_RESET} để mở lại menu, hoặc ${C_GREEN}dsnvps help${C_RESET} để xem lệnh CLI." 73)"
 echo -e " ${C_CYAN}╰───────────────────────────────────────────────────────────────────────────╯${C_RESET}"
 exit 0
