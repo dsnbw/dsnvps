@@ -250,7 +250,6 @@ fi
 #####################################################################
 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1134 "
 echo "========================================================================="
 echo "Dùng chức năng này để BẬT/TẮT/THAY MẬT-KHẨU bảo vệ Website trên server."
 echo "-------------------------------------------------------------------------"
@@ -699,12 +698,6 @@ if [ "$chooseacction" = "dungmacdinh" ]; then
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-fi
 ###################################################################
 ###################################################################
 if [ ! -d /etc/nginx/pwprotect/$website ]; then
@@ -801,12 +794,6 @@ echo "Vui lòng chờ ..."; sleep 2
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-fi
 ###################################################################
 ###################################################################
 sleep 2
@@ -1244,12 +1231,6 @@ sleep 3
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-fi
 ###################################################################
 ###################################################################
 if [ ! -d /etc/nginx/pwprotect/$website ]; then
@@ -1344,12 +1325,6 @@ echo "Vui lòng chờ ..."; sleep 3
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-fi
 ###################################################################
 ###################################################################
 sleep 2

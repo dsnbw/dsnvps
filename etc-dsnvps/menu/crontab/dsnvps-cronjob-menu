@@ -22,7 +22,6 @@ else
 printf "                            Cronjob đang chạy: $(wc -l /var/spool/cron/crontabs/root | awk '{print $1}') \n"
 fi
 printf "=========================================================================\n"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/5622"
 echo "========================================================================="
 }
 while true; do

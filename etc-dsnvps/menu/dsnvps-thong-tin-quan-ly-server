@@ -155,7 +155,6 @@ echo -e "${BOLD}\e[34m==========================================================
     echo "-------------------------------------------------------------------------"
     echo "Bạn có thể tăng khả năng chịu tải Website lên nhiều lần bằng cách:"
     echo "Tăng Chịu Tải & Bảo Mật Website => Tăng Khả Năng Chịu Tải Cho Website"
-    echo "Xem hướng dẫn: http://go.dsnvps/2891"
 else
 echo -e "${BOLD}\e[34m=========================================================================\e[0m${RESET}"
     echo -e "\033[1;31mdsnvps đã BẬT cấu hình [ Tăng Khả Năng Chịu Tải Cho Website ].\033[0m"

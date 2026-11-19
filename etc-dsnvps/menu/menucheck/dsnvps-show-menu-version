@@ -1,6 +1,32 @@
 #!/bin/bash
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
 clear
-echo -e "\e[1;32m=========================================================================\e[0m"
-echo -e "\e[1;33m               DSNVPS v$(cat /etc/dsnvps/menu/inc/dsnvps.version 2>/dev/null || echo 7.0.0) - ULTRA EDITION (VPSSIM + WPTangToc)       \e[0m"
-echo -e "\e[1;36m            He Thong Quan Ly & Toi Uu VPS Toan Dien (Ubuntu 24.04)       \e[0m"
-echo -e "\e[1;32m=========================================================================\e[0m"
+ver="$(cat /etc/dsnvps/menu/inc/dsnvps.version 2>/dev/null || echo '7.1.0')"
+ip_addr="${serverip:-$(hostname -I 2>/dev/null | awk '{print $1}')}"
+os_short="$(grep -oP '^PRETTY_NAME="\K[^"]+' /etc/os-release 2>/dev/null | sed 's/ LTS//' || echo Linux)"
+ram_info="$(free -m | awk '/^Mem:/ {printf "%s/%sMB", $3, $2}')"
+tcp_cc="$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo tcp)"
+zram_tag="OFF"; grep -q '/dev/zram' /proc/swaps 2>/dev/null && zram_tag="ZRAM"
+php_v="$(dsnvps_php_ver)"
+
+svc_badge() {
+    local name="$1" unit="$2"
+    if systemctl is-active --quiet "$unit" 2>/dev/null; then
+        printf "${C_GREEN}%s:ON${C_RESET}" "$name"
+    else
+        printf "${C_RED}%s:OFF${C_RESET}" "$name"
+    fi
+}
+
+s_ngx="$(svc_badge Nginx nginx)"
+s_php="$(svc_badge "PHP${php_v}" "$(dsnvps_php_service)")"
+s_db="$(svc_badge DB mariadb)"
+
+dsnvps_menu_top
+printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \
+    "$(dsnvps_pad_col "${C_YELLOW}⚡ DSNVPS v${ver}${C_RESET}  ${C_WHITE}| Hệ Thống Quản Trị & Tối Ưu VPS Chuyên Nghiệp${C_RESET}" 73)"
+printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \
+    "$(dsnvps_pad_col "IP: ${C_CYAN}${ip_addr}${C_RESET} | OS: ${os_short} | RAM: ${ram_info} | ${C_GREEN}${tcp_cc^^}${C_RESET}/${C_GREEN}${zram_tag}${C_RESET}" 73)"
+printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \
+    "$(dsnvps_pad_col "Services: ${s_ngx}  ${s_php}  ${s_db}  | CLI: ${C_YELLOW}dsnvps help${C_RESET}" 73)"

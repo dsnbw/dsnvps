@@ -7,7 +7,6 @@ if [ ! -d /etc/dsnvps/domainquanly ]; then
 mkdir -p /etc/dsnvps/domainquanly
 fi
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/7341"
 
 if [ ! -f /etc/dsnvps/domainquanly/domainquanly.conf ]; then
 echo "========================================================================="

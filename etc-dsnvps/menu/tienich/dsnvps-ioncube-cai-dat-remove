@@ -14,7 +14,6 @@ echo "Sử dụng chức năng này để Cài Đặt/Gỡ Cài Đặt Ioncube c
 echo "-------------------------------------------------------------------------"
 echo "Ioncube Loader đã được cài đặt trên server."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2978"
 echo "========================================================================="
 read -r -p "Bạn muốn Gỡ Cài Đặt Ioncube Loader?  [y/N] " response
 case $response in
@@ -52,7 +51,6 @@ echo "Sử dụng chức năng này để Cài Đặt/Gỡ Cài Đặt Ioncube c
 echo "-------------------------------------------------------------------------"
 echo "Ioncube Loader chưa được cài đặt trên server."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2978"
 echo "========================================================================="
 read -r -p "Bạn muốn Cài Đặt Ioncube Loader?  [y/N] " response
 case $response in

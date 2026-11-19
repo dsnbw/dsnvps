@@ -37,7 +37,6 @@ echo "cho website nếu cần thiết. Bạn không cần tạo database cho web
 echo "-------------------------------------------------------------------------"
 echo "khi chạy chức năng này."
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/bakrefull"
 echo "========================================================================="
 #prompt="Nhập lựa chọn của bạn: "
 prompt="Lựa chọn của bạn [0 -Thoát]: "

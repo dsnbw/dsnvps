@@ -198,7 +198,6 @@ echo "Dùng chức năng này để xóa Website, Parked & Redirect domain và S
 echo "-------------------------------------------------------------------------"
 echo "của Wordpress Multisite cài đặt dạng Sub-domain khỏi server."
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/xoaweb"
 echo "=========================================================================" 
 echo "Danh sách Website, Redirect & Park Domain, Subsite trên Server:"
 echo "-------------------------------------------------------------------------"

@@ -11,7 +11,6 @@ fi
 echo "========================================================================="
 echo "Sử dụng chức năng này để cập nhật Themes và Plugins cho wordpress website"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1102" 
 echo "========================================================================="
 #prompt="Nhap lua chon cua ban: "
 prompt="Lựa chọn của bạn [0 -Thoát]: "

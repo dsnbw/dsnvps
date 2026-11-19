@@ -36,7 +36,6 @@ echo "Dùng chức năng này để tạo tài khoản admin mới cho YourLS we
 echo "-------------------------------------------------------------------------"
 echo "cần biết thông tin tài khoản cũ."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2184"
 
 echo "========================================================================="
  if [ ! -f /etc/dsnvps/.tmp/yoursitelist ]; then
@@ -50,13 +49,6 @@ dsnvps
  fi
  ####################################################################
 ##Check Ban Pro
-####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-dsnvps  
-fi
 ###################################################################
 ###################################################################
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/yoursitelist

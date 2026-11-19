@@ -272,7 +272,7 @@ if [ -f "$CONFIG_A_FILE" ]; then
                 rm -f "$CONFIG_A_FILE"
             fi
             sed -i '/Businesscode/d' "$CONFIG_FILE"
-            error_exit "Key đã hết hạn. Vui lòng đăng ký mới tại http://go.dsnvps/6789"
+            error_exit "Key đã hết hạn. Vui lòng đăng ký mới tại https://github.com/dsnbw/dsnvps"
         fi
         key_info=$(check_key_info "$current_key")
         usage_count=$(parse_json_number "$key_info" "usage_count")
@@ -301,7 +301,7 @@ if [ -f "$CONFIG_A_FILE" ]; then
                     rm -f "$CONFIG_A_FILE"
                 fi
                 sed -i '/Businesscode/d' "$CONFIG_FILE"
-                error_exit "Key đã hết hạn. Vui lòng đăng ký mới tại http://go.dsnvps/6789"
+                error_exit "Key đã hết hạn. Vui lòng đăng ký mới tại https://github.com/dsnbw/dsnvps"
             else
                 remaining_text="$days_remaining ngày"
             fi
@@ -335,12 +335,8 @@ echo "Nâng cấp DSNVPS lên phiên bản Pro - Không giới hạn"
 echo "========================================================================="
 echo "Hướng dẫn Reset Key:"
 echo "-------------------------------------------------------------------------"
-echo "https://go.dsnvps/3824"
 echo "========================================================================="
-echo "Đăng ký/Gia hạn VPro365 Key:"
 echo "-------------------------------------------------------------------------"
-echo "=> Thanh toán qua Ngân Hàng: http://go.dsnvps/6789"
-echo "=> Thanh toán qua Paypal: http://go.dsnvps/3456"
 echo "========================================================================="
 read -p "Nhập VPro365 Key [0 -Thoát]: " key
 
@@ -386,7 +382,7 @@ case "$key_status" in
             current_epoch=$(date +%s)
             expiry_epoch=$((activation_epoch + valid_for * 86400))
             if [ "$current_epoch" -ge "$expiry_epoch" ]; then
-                error_exit "Key đã hết hạn. Vui lòng đăng ký key mới tại https://go.dsnvps/6789"
+                error_exit "Key đã hết hạn. Vui lòng đăng ký key mới tại https://github.com/dsnbw/dsnvps"
             fi
 
             if [ -n "$saved_ip" ] && [ "$current_ip" != "$saved_ip" ]; then

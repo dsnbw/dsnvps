@@ -88,7 +88,6 @@ function confirm_change {
 function prompt_for_compression {
     current_compression=$(get_current_compression)
     echo "========================================================================="
-    echo "Hướng dẫn sử dụng: http://go.dsnvps/1902"
     echo "========================================================================="
     echo "Sử dụng chức năng này để thiết lập nén dữ liệu Server"
     echo "-------------------------------------------------------------------------"

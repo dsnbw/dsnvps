@@ -46,27 +46,5 @@ fi
 
 
 
-if [ ! -f /usr/bin/gxred ]; then
-rm -rf /etc/dsnvps/.tmp/dsnvps_check_db
-ls -l /var/lib/mysql | grep "^d" | awk -F" " '{print $9}' | grep -Ev "(Database|information_schema|mysql|performance_schema|sys|dsnvpsCheckDB|dsnvpscheckauto)" > /etc/dsnvps/.tmp/dsnvps_check_db
-listdbnumber=`cat /etc/dsnvps/.tmp/dsnvps_check_db`
-rm -rf /etc/dsnvps/.tmp/dsnvps_listdbf
-for database in $listdbnumber
-do
-echo "/var/lib/mysql/$database" >> /etc/dsnvps/.tmp/dsnvps_listdbf
-done
-if [ -f /etc/dsnvps/.tmp/dsnvps_listdbf ]; then
-numberdb=$(cat /etc/dsnvps/.tmp/dsnvps_listdbf | wc -l)
-if [ "$numberdb" -gt "3" ]; then
-clear
-echo "========================================================================="
-echo "Bạn đã tạo $numberdb database trên server."
-echo "-------------------------------------------------------------------------"
-echo "Bản miễn phí của DSNVPS chỉ tạo được tối đa 2 database."
-echo "-------------------------------------------------------------------------"
-echo "Bạn hãy đăng ký VPro365 Key để sử dụng full chức năng của DSNVPS."
-sleep 1
-dsnvps
-fi
 fi
 fi

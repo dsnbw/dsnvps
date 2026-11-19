@@ -1,25 +1,6 @@
 #!/bin/bash
-. /root/dsnvps.conf
-# Anti-debug removed
-
-
-if [ -f /etc/cron.d/dsnvps-email-update.cron ]; then
-rm -rf /etc/cron.d/dsnvps-email-update.cron
-
-/bin/systemctl restart crond.service >/dev/null 2>&1
-fi 
-
-
-if [ ! -f /etc/cron.d/dsnvps-thong-bao-check-update.cron ]; then
- cat > "/etc/cron.d/dsnvps-thong-bao-check-update.cron" <<END
-#!/bin/bash 
-SHELL=/bin/sh
-# Khi DSNVPS co cap nhat phien ban moi. Neu tren server co cau hinh telegram - se gui thong bao toi telegram update 1 ngay 1 lan.
-0 9 * * * root /etc/dsnvps/menu/dsnvps-thong-bao-dsnvps-update >/dev/null 2>&1
-END
-
-/bin/systemctl restart crond.service >/dev/null 2>&1
-fi 
+rm -f /etc/cron.d/dsnvps-email-update.cron /etc/cron.d/dsnvps-thong-bao-check-update.cron
+systemctl restart cron >/dev/null 2>&1 || systemctl restart crond >/dev/null 2>&1 || true
 
 
 

@@ -67,7 +67,6 @@ echo "Sử dụng chức năng này để copy backup của website tới root f
 echo "-------------------------------------------------------------------------"
 echo "của domain. Bạn sẽ dễ dàng wget backup để di chuyển sang server khác."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/copybackuproot"
 echo "========================================================================="
 echo "Danh sách Website Có Backup Trên Server:"
 echo "-------------------------------------------------------------------------"

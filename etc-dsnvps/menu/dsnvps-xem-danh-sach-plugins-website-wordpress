@@ -40,7 +40,6 @@ rans=`date |md5sum |cut -c '1-5'`
   echo "========================================================================="
  echo "Sử dụng chức năng này để xem trạng thái Plugins & Themes"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1105"
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
 echo "========================================================================="
 echo "Danh sách các website trên server:"

@@ -121,7 +121,6 @@ fi
 echo "========================================================================="
 echo "Sử dụng chức năng này để Bật/Tắt mật khẩu truy cập wp-login.php"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1111"
 echo "========================================================================="
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist_with_status
 echo "Danh sách các WordPress Website trên server:  | ** : Config đang BẬT"
@@ -558,12 +557,6 @@ if [ "$chooseacction" = "dungmacdinh" ]; then
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
-fi
 
 
 ###################################################################
@@ -614,12 +607,6 @@ else
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-wordpress-tools-menu
-fi
 ###################################################################
 ###################################################################
     echo "-------------------------------------------------------------------------"

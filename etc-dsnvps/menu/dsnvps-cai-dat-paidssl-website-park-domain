@@ -84,7 +84,6 @@ echo "domain key & csr file và đã nhận chứng chỉ SSL cho domain từ nh
 echo "-------------------------------------------------------------------------"
 echo "chứng chỉ trước khi dùng chức năng này."
 echo "-------------------------------------------------------------------------"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1944"
 echo "========================================================================= "
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/klaoxcy
 echo "Danh sách các website & Park domains trên server:  | ** : Park Domains"

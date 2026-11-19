@@ -35,7 +35,6 @@ echo "Link Quản Lý: http://$serverip:$priport "
 #echo "========================================================================="
 #echo "File Manager => User: $uservsupload | MK: $passvsupload"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/howphpmyadmin"
 echo "========================================================================="	
 #echo ""
 }

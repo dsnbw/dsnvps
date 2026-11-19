@@ -8,7 +8,6 @@ fi
 # Anti-debug removed
 if [ ! -f /etc/cron.d/dsnvps-auto-check-3-service.cron ]; then
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/emailcanhbao"
 echo "========================================================================="
 echo "Su dung chuc nang nay de TAT/BAT chuc nang auto giam sat 3 dich vu: MySQL"
 echo "-------------------------------------------------------------------------"
@@ -35,13 +34,6 @@ if [[ $response == "y" || $response == "Y" || $response == "yes" || $response ==
 sleep 2
 ####################################################################
 ##Check Ban Pro
-####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-dsnvps
-fi
 
 ###################################################################
 ###################################################################
@@ -65,7 +57,6 @@ fi
 
 else
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/emailcanhbao"
 echo "========================================================================="
 echo "Su dung chuc nang nay de TAT/BAT chuc nang auto giam sat 3 dich vu: MySQL"
 echo "-------------------------------------------------------------------------"

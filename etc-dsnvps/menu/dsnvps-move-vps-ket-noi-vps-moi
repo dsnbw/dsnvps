@@ -167,12 +167,6 @@ echo "Kết nối tới $ipvpsmoicopy..."; sleep 3
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-move-du-lieu-vps-sang-vps-moi-menu
-fi
 ###################################################################
 ###################################################################
 

@@ -15,7 +15,6 @@ echo "Nếu website không có lỗi, DSNVPS khuyến nghị đặt [display_err
 echo "========================================================================="
 echo "Hiện tại: DISPLAY ERRORS = OFF "
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/onoffshowerror"
 echo "========================================================================="
 read -r -p "Bạn muốn đặt [display_errors = On] trong php.ini ?  [y/N] " response
 case $response in

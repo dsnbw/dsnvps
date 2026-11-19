@@ -129,13 +129,6 @@ if [[ $response == "y" || $response == "Y" || $response == "yes" || $response ==
     sleep 3
     ####################################################################
     ##Check Ban Pro
-    ####################################################################
-    if [ ! -f /usr/bin/gxred ]; then
-        touch /etc/dsnvps/.tmp/ckla
-        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-        clear
-        /etc/dsnvps/menu/dsnvps-them-xoa-database
-    fi
     ###################################################################
     cat > "/bin/auto-backupdb-$dataname" <<END
 #!/bin/bash

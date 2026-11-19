@@ -19,7 +19,6 @@ menu_dsnvps() {
         printf "=========================================================================\n"
         printf "               Tìm File/Folder Dung Lượng Lớn Nhất \n"
         printf "=========================================================================\n"
-        echo "Hướng dẫn sử dụng: http://go.dsnvps/1115 "
             printf "=========================================================================\n"    
         echo -e "${BOLD}1.${RESET} Tìm File Và Folder Trong 1 Website"
         echo -e "${BOLD}2.${RESET} Tìm File Và Folder Trong Folder /home"

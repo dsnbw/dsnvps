@@ -100,7 +100,7 @@ echo "Lưu ý: Bạn nên cài chứng chỉ SSL cho website sau khi thêm vào 
 echo "-------------------------------------------------------------------------"
 echo "Khuyến nghị: Cài Đặt CloudFlare SSL (15 Năm) => Cài đặt Free SSL"
 echo "-------------------------------------------------------------------------"
-printf "Phải đọc: http://go.dsnvps/6588 \n"
+printf "Phải đọc: https://github.com/dsnbw/dsnvps \n"
 printf "=========================================================================\n"
 }
 #"===> 16) Thêm Domain Nginx Vhost Traffic Status"

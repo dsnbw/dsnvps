@@ -21,7 +21,6 @@ text="PHP Timezone Hiện Tại: $timezone"
 # Căn giữa với chiều rộng 73 ký tự
 printf "%$(( (73 - ${#text}) / 2 ))s%s\n" "" "$text"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2144"
 printf "=========================================================================\n"
 while true; do
     printf "%-18s %-18s %-18s %-18s\n" "1) GMT" "8) GMT+6" "15) GMT+10" "22) GMT-1"

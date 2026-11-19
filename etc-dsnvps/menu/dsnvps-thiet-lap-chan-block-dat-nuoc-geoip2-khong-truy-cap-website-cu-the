@@ -222,7 +222,6 @@ if [[ -s "$output_file" ]]; then
 fi
 #####################################################################
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/4271 "
 echo "========================================================================="
 echo "Dùng chức năng này để chặn toàn bộ IP của một (nhiều) quốc gia không cho "
 echo "-------------------------------------------------------------------------"
@@ -466,7 +465,6 @@ echo "Mã quốc gia là 2 chữ cái in hoa. Nếu muốn nhập nhiều nướ
 echo "-------------------------------------------------------------------------"
 echo "cách nhau dấu [,]. Ví dụ: Muốn chặn China & Vietnam thì nhập: VN,CN"
 echo "-------------------------------------------------------------------------"
-echo "Xem danh sách mã quốc gia tại: http://go.dsnvps/5231"
 
 while true; do
   echo "-------------------------------------------------------------------------"
@@ -576,12 +574,6 @@ echo "Vui lòng chờ ..."; sleep 2 && tput cuu 2 && tput ed
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
-fi
 
 
 ###################################################################
@@ -1038,7 +1030,6 @@ echo "Mã quốc gia là 2 chữ cái in hoa. Nếu muốn nhập nhiều nướ
 echo "-------------------------------------------------------------------------"
 echo "cách nhau dấu [,]. Ví dụ: Muốn chặn China & Vietnam thì nhập: VN,CN"
 echo "-------------------------------------------------------------------------"
-echo "Xem danh sách mã quốc gia tại: http://go.dsnvps/5231"
 
 while true; do
   echo "-------------------------------------------------------------------------"
@@ -1096,12 +1087,6 @@ echo "Vui lòng chờ ..."; sleep 2 && tput cuu 2 && tput ed
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
-fi
 ###################################################################
 ###################################################################
 

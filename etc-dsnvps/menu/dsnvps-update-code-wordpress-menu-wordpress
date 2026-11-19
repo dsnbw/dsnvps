@@ -14,7 +14,6 @@ echo "Sử dụng chức năng này để update WordPress code lên phiên bả
 echo "-------------------------------------------------------------------------"
 echo "Trước khi update, DSNVPS tiến hành sao lưu database cho website"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1101"
 echo "========================================================================="
 #prompt="Nhập lựa chọn của bạn: "
 prompt="Lựa chọn của bạn [0 -Thoát]: "

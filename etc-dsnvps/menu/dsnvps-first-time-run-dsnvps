@@ -82,4 +82,3 @@ END
 /etc/dsnvps/menu/inc/re-start-php-fpm-service
 fi
 
-echo "Configured logrotate DONE !" > /etc/dsnvps/dsnvps.config.firstime

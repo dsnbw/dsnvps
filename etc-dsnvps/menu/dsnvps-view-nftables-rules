@@ -30,7 +30,6 @@ fi
 if [ -z "$mainsite" ]; then
     clear
     echo "========================================================================="
-    echo "Lỗi: Biến mainsite không được định nghĩa trong /root/dsnvps.conf."
     /etc/dsnvps/menu/dsnvps-NFtables-firewall-manager-menu
     exit 1
 fi

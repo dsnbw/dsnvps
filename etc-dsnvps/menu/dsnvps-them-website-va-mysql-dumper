@@ -29,7 +29,6 @@ echo "Day la phien ban cai tien MyOOSDumper cua MySQLDumper giup tuong thich"
 echo "-------------------------------------------------------------------------"
 echo "voi PHP 7. Moi chuc nang van giu nguyen nhu MySQLDumper nguyen ban."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1137"
 echo "========================================================================="
 echo -n "Nhập tên domain [ENTER]: " 
 read website

@@ -40,7 +40,6 @@ echo "${phpmyadmin_version}" > /etc/dsnvps/phpmyadmin.version
 echo "========================================================================="
 echo "Su dung chuc nang nay de cai dat phpMyAdmin phien ban tuy chon"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1123 "
 echo "========================================================================="
 rm -rf /etc/dsnvps/.tmp/check*
 read -r -p "Ban muon xem cac phien ban PhpMyAdmin hien tai ? [y/N] " response

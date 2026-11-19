@@ -422,12 +422,6 @@ if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
     echo "-------------------------------------------------------------------------"
     echo "OK, Vui lòng chờ ...."; sleep 3
     # Check Ban Pro
-    if [ ! -f /usr/bin/gxred ]; then
-        touch /etc/dsnvps/.tmp/ckla
-        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-        clear
-        /etc/dsnvps/menu/dsnvps-rclone-menu
-    fi
     # Tạo file cấu hình
     cat <<END > "/etc/dsnvps/backup.gdriver.conf"
 sobanbackup=$sobanbackup

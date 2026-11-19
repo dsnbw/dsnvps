@@ -6,7 +6,6 @@ options=("Sao Lưu FULL Database" "Phục Hồi FULL Database" "Link Download Ba
 printf "=========================================================================\n"
 printf "                   Sao Lưu & Phục Hồi FULL Database\n"
 printf "=========================================================================\n"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1133 "
 echo "========================================================================="
 echo ""
 

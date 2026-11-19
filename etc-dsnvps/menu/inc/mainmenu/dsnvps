@@ -1,9 +1,11 @@
 #!/bin/bash
-. /root/dsnvps.conf 2>/dev/null || true
+. /etc/dsnvps/menu/inc/dsnvps-common.sh
+
 if [ "$(id -u)" != "0" ]; then
     printf "Error! Bạn phải chạy DSNVPS dưới quyền root !\n"
     exit 1
 fi
+
 vercheck=$(grep -oP '^VERSION_ID="?(\d+)' /etc/os-release | grep -oP '\d+')
 if [ "${vercheck:-24}" -lt 10 ]; then
     FWtables=IP
@@ -17,55 +19,93 @@ while true; do
     /etc/dsnvps/menu/menucheck/dsnvps-show-menu-version
 
     if [ "$lang_mode" == "EN" ]; then
-        printf "%-36s %s\n" "1) Add Website & Code" "23) Migrate Old VPS to DSNVPS"
-        printf "%-36s %s\n" "2) Reverse Proxy Manager" "24) Resilio Sync Manager"
-        printf "%-36s %s\n" "3) Fix Permission & Chown" "25) Let's Encrypt SSL Manager"
-        printf "%-36s %s\n" "4) Remove Website & Domain" "26) CloudFlare Origin SSL (15y)"
-        printf "%-36s %s\n" "5) Backup & Restore Website" "27) Addons & Utilities"
-        printf "%-36s %s\n" "6) Database Manager" "28) Switch PHP Version"
-        printf "%-36s %s\n" "7) Backup & Restore Database" "29) Country Access Control (GeoIP2)"
-        printf "%-36s %s\n" "8) WordPress / Flarum Tools" "30) CloudFlare Dynamic DNS"
-        printf "%-36s %s\n" "9) WordPress Multisite" "31) VLESS VPN Setup"
-        printf "%-36s %s\n" "10) phpMyAdmin & FileManager" "32) Server Timezone"
-        printf "%-36s %s\n" "11) Zend OPcache Manager" "33) Server Info & Status"
-        printf "%-36s %s\n" "12) Redis / Memcache Manager" "34) DSNVPS Shortcut & System Update"
-        printf "%-36s %s\n" "13) FTP Account Manager" "35) Clear VPS Caches"
-        printf "%-36s %s\n" "14) Swap & Log File Manager" "36) Auto-Check Services & Telegram"
-        printf "%-36s %s\n" "15) Cronjob Manager" "37) Switch Language to Vietnamese"
-        printf "%-36s %s\n" "16) PHP.INI Config Tuning" "38) DSNVPS Status (Offline/Standalone)"
-        printf "%-36s %s\n" "17) Server & Website Security" "39) DSNVPS Pro Features (Unlocked)"
-        printf "%-36s %s\n" "18) CSF Firewall Manager" "40) Server Turbo & Optimization Suite"
-        printf "%-36s %s\n" "19) ${FWtables}tables Firewall Manager" "41) Realtime Monitor (WTOP)"
-        printf "%-36s %s\n" "20) Anti-DDoS & ModSecurity" "42) YARA Malware Scan, 7G WAF & AI Block"
-        printf "%-36s %s\n" "21) Purge CloudFlare Cache" "43) Nginx FastCGI Page Cache & Preload"
-        printf "%-36s %s\n" "22) Cloud & Telegram Backup" "44) DSNVPS CLI Commands Help"
-        echo "========================================================================="
-        read -r -p "Your choice [0 - Exit]: " choice
+        dsnvps_menu_full_sep
+        dsnvps_menu_section "WEBSITE, DOMAIN & SSL"
+        dsnvps_menu_sep
+        dsnvps_menu_row " 1) Add Website & Code"          " 6) Let's Encrypt SSL Manager"
+        dsnvps_menu_row " 2) Reverse Proxy Manager"       " 7) CloudFlare Origin SSL (15y)"
+        dsnvps_menu_row " 3) Fix Permission & Chown"      " 8) Purge CloudFlare Cache"
+        dsnvps_menu_row " 4) Remove Website & Domain"     " 9) CloudFlare Dynamic DNS"
+        dsnvps_menu_row " 5) WordPress / Flarum Tools"    "10) WordPress Multisite"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "DATABASE, BACKUP & MIGRATION"
+        dsnvps_menu_sep
+        dsnvps_menu_row "11) Database Manager"            "15) Cloud & Telegram Backup"
+        dsnvps_menu_row "12) Backup & Restore Website"    "16) Migrate Old VPS to DSNVPS"
+        dsnvps_menu_row "13) Backup & Restore Database"   "17) Resilio Sync Manager"
+        dsnvps_menu_row "14) phpMyAdmin & FileManager"    "18) FTP Account Manager"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "PERFORMANCE, CACHE & PHP"
+        dsnvps_menu_sep
+        dsnvps_menu_row "${C_GREEN}19) Server Turbo Optimizer${C_RESET}" "23) Redis / Memcached Manager"
+        dsnvps_menu_row "${C_GREEN}20) FastCGI Cache & Preload${C_RESET}" "24) Switch PHP Version"
+        dsnvps_menu_row "21) Zend OPcache Manager"        "25) PHP.INI Config Tuning"
+        dsnvps_menu_row "22) Clear Server Caches"         "26) Anti-DDoS & ModSecurity"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "SECURITY & FIREWALL"
+        dsnvps_menu_sep
+        dsnvps_menu_row "${C_GREEN}27) Security Pro (YARA/7G/AI)${C_RESET}" "30) ${FWtables}tables Firewall Manager"
+        dsnvps_menu_row "28) Server & Website Security"   "31) Country Access (GeoIP2)"
+        dsnvps_menu_row "29) CSF Firewall Manager"        "32) Auto-Check & Telegram Alert"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "SYSTEM & UTILITIES"
+        dsnvps_menu_sep
+        dsnvps_menu_row "${C_CYAN}33) Realtime Monitor (WTOP)${C_RESET}" "39) VLESS VPN Setup"
+        dsnvps_menu_row "34) Server Info & Status"        "40) Shortcut & System Update"
+        dsnvps_menu_row "35) Swap & Log File Manager"     "41) Update DSNVPS (GitHub)"
+        dsnvps_menu_row "36) Cronjob Manager"             "42) Language (VI / EN)"
+        dsnvps_menu_row "37) Server Timezone"             "43) CLI Commands (dsnvps help)"
+        dsnvps_menu_row "38) Addons & Utilities"          "${C_RED} 0) Exit DSNVPS${C_RESET}"
+        dsnvps_menu_bot
+        read -r -p " Select option [0-43]: " choice
     else
-        printf "%-36s %s\n" "1) Thêm Website & Code" "23) Chuyển VPS Cũ Tới DSNVPS"
-        printf "%-36s %s\n" "2) Quản Lý Reverse Proxy" "24) Quản Lý Resilio Sync"
-        printf "%-36s %s\n" "3) Fix Lỗi Permission & Chown" "25) Cài Đặt Let's Encrypt SSL"
-        printf "%-36s %s\n" "4) Xóa Web, Domain & Subsite" "26) Cài Đặt CloudFlare SSL (15 Năm)"
-        printf "%-36s %s\n" "5) Sao Lưu & Phục Hồi Website" "27) Công Cụ & Cài Đặt Khác"
-        printf "%-36s %s\n" "6) Quản Lý & Kiểm Tra Database" "28) Thay Đổi Phiên Bản PHP"
-        printf "%-36s %s\n" "7) Sao Lưu & Phục Hồi Database" "29) Quản Lý Truy Cập Theo Quốc Gia"
-        printf "%-36s %s\n" "8) Tiện Ích WordPress/Flarum" "30) Cài Đặt CloudFlare DDNS"
-        printf "%-36s %s\n" "9) Quản Lý Wordpress Multisite" "31) Cài Đặt & Cấu Hình VLESS VPN"
-        printf "%-36s %s\n" "10) Quản Lý phpMyAdmin, Filemanager" "32) Cài Đặt Múi Giờ Server Timezone"
-        printf "%-40s %b\n" "11) Quản Lý Zend OPcache" "33) \e[33mThông Tin Quản Lý VPS\e[0m ⚙ Status"
-        printf "%-36s %s\n" "12) Quản Lý Redis Cache/Memcache" "34) DSNVPS Shortcut / Cập Nhật System"
-        printf "%-36s %s\n" "13) Quản Lý Tài Khoản FTP" "35) Clear VPS Caches (PHP Cache...)"
-        printf "%-36s %s\n" "14) Quản Lý Swap / Log File" "36) Auto Check Login/Nginx/MySQL/PHP"
-        printf "%-36s %s\n" "15) Quản Lý Cronjob" "37) Chuyển Ngôn Ngữ (VI / EN)"
-        printf "%-36s %s\n" "16) Tùy Chỉnh Cấu Hình PHP" "38) Trạng Thái DSNVPS (Offline/Độc Lập)"
-        printf "%-40s %b\n" "17) Bảo Mật Server & Website" "\e[32m39) DSNVPS - Đã Mở Khóa Full Tính Năng\e[0m"
-        printf "%-40s %b\n" "18) Quản Lý CSF Firewall" "\e[36m40) Tối Ưu Tốc Độ Server (BBR/ZRAM/JIT)\e[0m"
-        printf "%-40s %b\n" "19) Quản Lý ${FWtables}tables Firewall" "\e[36m41) Giám Sát Real-time (DSNVPS WTOP)\e[0m"
-        printf "%-40s %b\n" "20) Tăng Chịu Tải Web & ModSec" "\e[36m42) Quét Mã Độc YARA, 7G WAF & Bot AI\e[0m"
-        printf "%-40s %b\n" "21) Xóa Cache CloudFlare Cho Domain" "\e[36m43) Nginx FastCGI Cache & Preload Sitemap\e[0m"
-        printf "%-40b %b\n" "\e[33m22) Sao Lưu VPS Tới Cloud & Tele\e[0m" "\e[36m44) Danh Sách Lệnh Nhanh CLI (dsnvps help)\e[0m"
-        echo "========================================================================="
-        read -r -p "Lựa chọn của bạn [0 -Thoát]: " choice
+        dsnvps_menu_full_sep
+        dsnvps_menu_section "WEBSITE, DOMAIN & SSL"
+        dsnvps_menu_sep
+        dsnvps_menu_row " 1) Thêm Website & Code"         " 6) Cài Đặt Let's Encrypt SSL"
+        dsnvps_menu_row " 2) Quản Lý Reverse Proxy"       " 7) Cài CloudFlare SSL (15 Năm)"
+        dsnvps_menu_row " 3) Fix Lỗi Permission & Chown"  " 8) Xóa Cache CloudFlare Domain"
+        dsnvps_menu_row " 4) Xóa Website, Domain, Sub"    " 9) Cài Đặt CloudFlare DDNS"
+        dsnvps_menu_row " 5) Tiện Ích WordPress / Flarum" "10) Quản Lý WordPress Multisite"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "DATABASE, SAO LƯU & CHUYỂN SERVER"
+        dsnvps_menu_sep
+        dsnvps_menu_row "11) Quản Lý & Kiểm Tra DB"       "15) Sao Lưu Cloud & Telegram"
+        dsnvps_menu_row "12) Sao Lưu & Phục Hồi Web"      "16) Chuyển VPS Cũ Tới DSNVPS"
+        dsnvps_menu_row "13) Sao Lưu & Phục Hồi Database" "17) Quản Lý Resilio Sync"
+        dsnvps_menu_row "14) phpMyAdmin & FileManager"    "18) Quản Lý Tài Khoản FTP"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "TĂNG TỐC, CACHE & PHP"
+        dsnvps_menu_sep
+        dsnvps_menu_row "${C_GREEN}19) Tối Ưu Tốc Độ (Turbo)${C_RESET}" "23) Quản Lý Redis / Memcached"
+        dsnvps_menu_row "${C_GREEN}20) FastCGI Cache & Preload${C_RESET}" "24) Đổi Phiên Bản PHP"
+        dsnvps_menu_row "21) Quản Lý Zend OPcache"        "25) Tùy Chỉnh Cấu Hình PHP.INI"
+        dsnvps_menu_row "22) Clear VPS Caches (PHP...)"  "26) Chống DDoS Web & ModSec"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "BẢO MẬT & TƯỜNG LỬA"
+        dsnvps_menu_sep
+        dsnvps_menu_row "${C_GREEN}27) Security Pro (YARA/7G/AI)${C_RESET}" "30) Quản Lý ${FWtables}tables Firewall"
+        dsnvps_menu_row "28) Bảo Mật Server & Website"    "31) Chặn Quốc Gia (GeoIP2)"
+        dsnvps_menu_row "29) Quản Lý CSF Firewall"        "32) Auto-Check & Cảnh Báo Tele"
+
+        dsnvps_menu_sep
+        dsnvps_menu_section "HỆ THỐNG & TIỆN ÍCH"
+        dsnvps_menu_sep
+        dsnvps_menu_row "${C_CYAN}33) Giám Sát Real-time (WTOP)${C_RESET}" "39) Cài Đặt & Cấu Hình VLESS VPN"
+        dsnvps_menu_row "34) Thông Tin VPS & Status"      "40) Shortcut & Cập Nhật System"
+        dsnvps_menu_row "35) Quản Lý Swap & Log File"     "41) Cập Nhật DSNVPS (GitHub)"
+        dsnvps_menu_row "36) Quản Lý Cronjob"             "42) Chuyển Ngôn Ngữ (VI / EN)"
+        dsnvps_menu_row "37) Cài Đặt Múi Giờ Timezone"    "43) Lệnh Nhanh CLI (dsnvps help)"
+        dsnvps_menu_row "38) Công Cụ & Cài Đặt Khác"      "${C_RED} 0) Thoát DSNVPS${C_RESET}"
+        dsnvps_menu_bot
+        read -r -p " Lựa chọn của bạn [0-43]: " choice
     fi
 
     case $choice in
@@ -73,51 +113,49 @@ while true; do
         2) clear && /etc/dsnvps/menu/dsnvps-reverse-proxy-menu;;
         3) /etc/dsnvps/menu/dsnvps-sua-loi-chown;;
         4) /etc/dsnvps/menu/dsnvps-befor-xoa-website;;
-        5) /etc/dsnvps/menu/childmenu/dsnvps-sao-luu;;
-        6) /etc/dsnvps/menu/dsnvps-befor-them-xoa-database-chi-them-xoa;;
-        7) /etc/dsnvps/menu/childmenu/dsnvps-befor-them-xoa-database;;
-        8) /etc/dsnvps/menu/dsnvps-cong-cu-wordpress-flarum-yourls;;
-        9) /etc/dsnvps/menu/dsnvps-setup-multisite-wordpress-menu-wordpress;;
-        10) /etc/dsnvps/menu/childmenu/dsnvps-phpmyadmin-menu;;
-        11) /etc/dsnvps/menu/childmenu/dsnvps-before-opcache;;
-        12) /etc/dsnvps/menu/dsnvps-quan-ly-redis-cache-va-memcache-menu;;
-        13) /etc/dsnvps/menu/childmenu/dsnvps-ftpserver-menu;;
-        14) /etc/dsnvps/menu/dsnvps-quan-ly-swap-va-log-file-menu;;
-        15) /etc/dsnvps/menu/crontab/dsnvps-cronjob-2-version-menu;;
-        16) /etc/dsnvps/menu/childmenu/dsnvps-befor-dsnvps-config-php.ini-menu;;
-        17) /etc/dsnvps/menu/childmenu/dsnvps-bao-mat-server-website-menu;;
-        18) clear && /etc/dsnvps/menu/childmenu/dsnvps-csf-firewall-before-menu;;
-        19) clear && /etc/dsnvps/menu/childmenu/dsnvps-${FWtables}tables-firewall-manager-menu;;
-        20) clear && /etc/dsnvps/menu/childmenu/dsnvps-kiem-tra-ddos;;
-        21) clear && /etc/dsnvps/menu/dsnvps-clear-cache-website-cloudflare;;
-        22) /etc/dsnvps/menu/dsnvps-befor-rclone-menu;;
-        23) /etc/dsnvps/menu/dsnvps-migration-menu.sh;;
-        24) /etc/dsnvps/menu/childmenu/dsnvps-rslisync-menu;;
-        25) /etc/dsnvps/menu/childmenu/dsnvps-letsencrypt-menu;;
-        26) /etc/dsnvps/menu/childmenu/dsnvps-tao-paidssl-menu;;
-        27) /etc/dsnvps/menu/childmenu/dsnvps-tien-ich;;
-        28) /etc/dsnvps/menu/dsnvps-thay-doi-php-version;;
-        29) clear && /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu;;
-        30) /etc/dsnvps/menu/childmenu/dsnvps-befor-ddns-cloudflare-menu;;
-        31) clear && /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn;;
-        32) clear && /etc/dsnvps/menu/dsnvps-thay-doi-thong-tin-thoi-gian;;
-        33) /etc/dsnvps/menu/dsnvps-kiem-tra-server-status-va-thong-tin-server-info;;
-        34) /etc/dsnvps/menu/dsnvps-shortcut-update-system-menu;;
-        35) /etc/dsnvps/menu/dsnvps-quan-ly-clear-cache-auto-run-dsnvps-va-log-file-menu;;
-        36) /etc/dsnvps/menu/dsnvps-auto-check-login-nginx-mysql-php-send-telegram;;
-        37) /etc/dsnvps/menu/dsnvps-thay-doi-ngon-ngu-menu;;
-        38) /etc/dsnvps/menu/dsnvps-nang-cap-scripts;;
-        39) /etc/dsnvps/menu/dsnvps-register-business-version;;
-        40) /etc/dsnvps/menu/dsnvps-optimize-suite-menu;;
-        41) /etc/dsnvps/menu/dsnvps-wtop;;
-        42) /etc/dsnvps/menu/dsnvps-security-pro-menu;;
-        43) /etc/dsnvps/menu/dsnvps-fastcgi-cache-menu;;
-        44) clear && /usr/bin/dsnvps help && read -r -p "Nhấn [Enter] để quay lại menu..." ;;
+        5) /etc/dsnvps/menu/dsnvps-cong-cu-wordpress-flarum-yourls;;
+        6) /etc/dsnvps/menu/childmenu/dsnvps-letsencrypt-menu;;
+        7) /etc/dsnvps/menu/childmenu/dsnvps-tao-paidssl-menu;;
+        8) clear && /etc/dsnvps/menu/dsnvps-clear-cache-website-cloudflare;;
+        9) /etc/dsnvps/menu/childmenu/dsnvps-befor-ddns-cloudflare-menu;;
+        10) /etc/dsnvps/menu/dsnvps-setup-multisite-wordpress-menu-wordpress;;
+        11) /etc/dsnvps/menu/dsnvps-befor-them-xoa-database-chi-them-xoa;;
+        12) /etc/dsnvps/menu/childmenu/dsnvps-sao-luu;;
+        13) /etc/dsnvps/menu/childmenu/dsnvps-befor-them-xoa-database;;
+        14) /etc/dsnvps/menu/childmenu/dsnvps-phpmyadmin-menu;;
+        15) /etc/dsnvps/menu/dsnvps-befor-rclone-menu;;
+        16) /etc/dsnvps/menu/dsnvps-migration-menu.sh;;
+        17) /etc/dsnvps/menu/childmenu/dsnvps-rslisync-menu;;
+        18) /etc/dsnvps/menu/childmenu/dsnvps-ftpserver-menu;;
+        19) /etc/dsnvps/menu/dsnvps-optimize-suite-menu;;
+        20) /etc/dsnvps/menu/dsnvps-fastcgi-cache-menu;;
+        21) /etc/dsnvps/menu/childmenu/dsnvps-before-opcache;;
+        22) /etc/dsnvps/menu/dsnvps-quan-ly-clear-cache-auto-run-dsnvps-va-log-file-menu;;
+        23) /etc/dsnvps/menu/dsnvps-quan-ly-redis-cache-va-memcache-menu;;
+        24) /etc/dsnvps/menu/dsnvps-thay-doi-php-version;;
+        25) /etc/dsnvps/menu/childmenu/dsnvps-befor-dsnvps-config-php.ini-menu;;
+        26) clear && /etc/dsnvps/menu/childmenu/dsnvps-kiem-tra-ddos;;
+        27) /etc/dsnvps/menu/dsnvps-security-pro-menu;;
+        28) /etc/dsnvps/menu/childmenu/dsnvps-bao-mat-server-website-menu;;
+        29) clear && /etc/dsnvps/menu/childmenu/dsnvps-csf-firewall-before-menu;;
+        30) clear && /etc/dsnvps/menu/childmenu/dsnvps-${FWtables}tables-firewall-manager-menu;;
+        31) clear && /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu;;
+        32) /etc/dsnvps/menu/dsnvps-auto-check-login-nginx-mysql-php-send-telegram;;
+        33) /etc/dsnvps/menu/dsnvps-wtop;;
+        34) /etc/dsnvps/menu/dsnvps-kiem-tra-server-status-va-thong-tin-server-info;;
+        35) /etc/dsnvps/menu/dsnvps-quan-ly-swap-va-log-file-menu;;
+        36) /etc/dsnvps/menu/crontab/dsnvps-cronjob-2-version-menu;;
+        37) clear && /etc/dsnvps/menu/dsnvps-thay-doi-thong-tin-thoi-gian;;
+        38) /etc/dsnvps/menu/childmenu/dsnvps-tien-ich;;
+        39) clear && /etc/dsnvps/menu/dsnvps-cai-dat-v2ray-vpn;;
+        40) /etc/dsnvps/menu/dsnvps-shortcut-update-system-menu;;
+        41) /etc/dsnvps/menu/dsnvps-nang-cap-scripts;;
+        42) /etc/dsnvps/menu/dsnvps-thay-doi-ngon-ngu-menu;;
+        43) clear && /usr/bin/dsnvps help && read -r -p "Nhấn [Enter] để quay lại menu..." ;;
         0)  /etc/dsnvps/menu/script-thoat; exit 0;;
         *)
-            echo "========================================================================="
-            echo "Bạn nhập sai, vui lòng nhập theo số thứ tự trên menu!"
-            sleep 2
+            echo -e " ${C_RED}[!] Bạn nhập sai, vui lòng nhập số từ 0 đến 43!${C_RESET}"
+            sleep 1.5
         ;;
     esac
 done

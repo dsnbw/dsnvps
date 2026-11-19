@@ -73,7 +73,6 @@ echo "Sử dụng chức năng này BẬT/TẮT tùy chỉnh trang báo lỗi 40
 echo "-------------------------------------------------------------------------"
 echo " 502... cho website, thay cho các trang thông báo lỗi mặc định của Nginx."
 echo "-------------------------------------------------------------------------"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/4944"
 echo "========================================================================= "
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/klaoxcy
 echo "Danh sách website & Park domains trên server:  | ** : Config đang BẬT"

@@ -46,7 +46,6 @@ echo "DSNVPS se tu dong config dua theo so thong so CPU & RAM cua Server."
 echo "-------------------------------------------------------------------------"
 echo "Khi nang hoac ha cap server, Ban nen chay chuc nang nay."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/reconfigmysql"
 echo "========================================================================="
 read -r -p "Ban muon re-config MySQL ? [y/N] " response
 if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
@@ -65,12 +64,6 @@ fi
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-re-config-cau-hinh-lai-vps-menu
-fi
 ###################################################################
 ###################################################################
 mv /etc/my.cnf /etc/my.cnf_bak_$time

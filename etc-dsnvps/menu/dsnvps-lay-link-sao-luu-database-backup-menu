@@ -39,7 +39,6 @@ echo "=> Link tải bản backup gần nhất sẽ hiển thị ngay trên màn 
 echo "-------------------------------------------------------------------------"
 echo "=> Link tải tất cả các bản sao lưu sẽ ở trong file text phía dưới cùng."
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/linkbackupdata"
 prompt="Lựa chọn của bạn [0 -Thoát]: "
 options=( "1 Database" "Tất Cả Database")
 printf "=========================================================================\n"

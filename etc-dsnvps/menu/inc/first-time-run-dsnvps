@@ -76,9 +76,3 @@ END
 ####### Restart PHP-FPM
 /etc/dsnvps/menu/inc/re-start-php-fpm-service
 fi
-
-echo "Configured logrotate DONE !" > /etc/dsnvps/dsnvps.config.firstime
-if [ ! -f /etc/cron.hourly/checkpaidversiondsnvps ]; then
-echo "/etc/dsnvps/menu/dsnvps-check-paid-version" > /etc/cron.hourly/checkpaidversiondsnvps
-chmod +x /etc/cron.hourly/checkpaidversiondsnvps
-fi

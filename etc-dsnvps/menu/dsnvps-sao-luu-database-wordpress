@@ -39,7 +39,6 @@ echo "========================================================================="
 echo "Sử dụng chức năng này để sao lưu database theo định dạng .sql.gz"
 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2581"
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
 echo "========================================================================="
 echo "Danh sách các website trên server:"

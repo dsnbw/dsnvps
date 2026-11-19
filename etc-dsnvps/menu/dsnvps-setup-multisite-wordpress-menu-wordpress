@@ -111,7 +111,6 @@ echo "Website đã cài Multisite => Chọn Website để quản lý (thêm/xóa
 #fi
 touch /etc/dsnvps/.tmp/90asdta 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1108"
 echo "========================================================================="
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
 echo "Danh sách WordPress Website trên server:"
@@ -179,7 +178,6 @@ done
 #echo "-------------------------------------------------------------------------"
 #echo "Hay dang nhap WP-Admin de Thêm Sub-Site cho Wordpress Multisite."
 #echo "-------------------------------------------------------------------------"
-#echo "Hướng dẫn sử dụng: http://go.dsnvps/1108"
 #dsnvps
 #exit
 #fi

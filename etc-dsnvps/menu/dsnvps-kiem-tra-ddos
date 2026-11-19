@@ -65,15 +65,9 @@ get_enabled_rules() {
     fi
 }
 
-# Function to check pro version
+# Function to check pro version (all features unlocked)
 check_pro_version() {
-    if [[ ! -f /usr/bin/gxred ]]; then
-        touch /etc/dsnvps/.tmp/ckla
-        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-        clear
-        /etc/dsnvps/menu/dsnvps-kiem-tra-ddos
-        exit
-    fi
+    return 0
 }
 
 # Function to backup current config

@@ -169,12 +169,6 @@ echo "Chuẩn bị phục hồi Database tu file Backup ..."; sleep 2
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-sao-luu-phuc-hoi-tat-ca-database-menu
-fi
 ###################################################################
 ###################################################################
 cd /etc/dsnvps/.tmp/alldbdsnvps

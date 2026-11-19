@@ -26,7 +26,6 @@ fi
 
 echo -e  "\e[31mVLess VPN Status: $v2raycai $v2raystatus $adblock_status\e[0m"
 echo "-------------------------------------------------------------------------"
-echo "Hướng dẫn sử dụng: https://go.dsnvps/5433"
 echo "========================================================================="
 while true; do
 printf "%-38s %s\n" "1) Cài Đặt & Cấu Hình VLess VPN      |" " 3) Tắt / Bật VLess VPN"

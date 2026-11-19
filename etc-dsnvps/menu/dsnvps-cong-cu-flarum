@@ -42,7 +42,6 @@ echo "Các chức năng hỗ trợ: Clear cache, Migrate database, Update Flarum
 echo "-------------------------------------------------------------------------"
 echo "list Extension đang cài, Cài đặt / Gõ bỏ Extension, Xem log ..."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2981"
 echo "========================================================================="
 
  if [ ! -f /etc/dsnvps/.tmp/flarumsitelist ]; then
@@ -57,13 +56,6 @@ dsnvps
 
 ####################################################################
 ##Check Ban Pro
-####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-dsnvps  
-fi
 ###################################################################
 ###################################################################
 

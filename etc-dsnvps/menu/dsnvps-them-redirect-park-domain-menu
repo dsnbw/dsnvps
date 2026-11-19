@@ -8,7 +8,6 @@ serverip_priport="${serverip}:${priport}"
 fi
 # Anti-debug removed
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/prdomain"
 prompt="Lựa chọn của bạn [0 -Thoát]: "
 options=( "Thêm Redirect Domain" "Thêm Park Domain")
 printf "=========================================================================\n"

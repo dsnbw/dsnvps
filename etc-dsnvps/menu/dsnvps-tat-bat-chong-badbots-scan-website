@@ -176,7 +176,6 @@ if [[ -s "$output_file" ]]; then
 fi
 #####################################################################
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1135 "
 echo "========================================================================="
 echo "Dùng chức năng này để config TẮT bad bots (spiders) scan Website"
 echo "========================================================================="
@@ -279,12 +278,6 @@ case $response in
    ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-fi
 ###################################################################
 ###################################################################
    cat > "/etc/dsnvps/.tmp/blockbadbot.sh" <<END
@@ -458,12 +451,6 @@ case $response in
    ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-fi
 ###################################################################
 ###################################################################
    cat > "/etc/dsnvps/.tmp/blockbadbot.sh" <<END

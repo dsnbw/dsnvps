@@ -22,7 +22,6 @@ echo "Sử dụng chức năng này để phục hồi database từ file backup
 echo "-------------------------------------------------------------------------"
 echo "Database cần phục hồi phải tồn tại trên hệ thống. "
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1107"
 rm -rf /etc/dsnvps/.tmp/check*
 #read -r -p "Ban muon xem danh sach Database tren server ? [y/N] " response
 #if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then
@@ -85,12 +84,6 @@ done
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-them-xoa-database
-fi
 ###################################################################
 ###################################################################
 

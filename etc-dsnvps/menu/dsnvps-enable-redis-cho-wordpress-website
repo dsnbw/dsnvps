@@ -69,7 +69,6 @@ echo "========================================================================="
 echo "========================================================================="
 echo "Su dung chuc nang nay de BAT Redis cho Wordpress Website"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1106"
 echo "========================================================================="
 read -r -p "Ban muon xem Danh sách WordPress Website trên server ? [y/N] " response
 if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then

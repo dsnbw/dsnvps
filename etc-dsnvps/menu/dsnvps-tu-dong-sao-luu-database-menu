@@ -40,7 +40,6 @@ echo "Không tìm thấy database có dữ liệu trên server"
 exit
 fi
  echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/autobackupdata"
 
 prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
 options=("Bật/Tắt Tự Động Backup Database" "Danh Sách Database Được Bật Tự Động Backup")

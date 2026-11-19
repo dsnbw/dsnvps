@@ -1,39 +1,3 @@
 #!/bin/bash
-curTime=$(date +%s)
-checktruenumber='^[0-9]+$'
-# Anti-debug removed
-if [ ! -d /etc/dsnvps/.tmp ]; then
 mkdir -p /etc/dsnvps/.tmp
-fi
-#####
-## 
-# Check ban quyen
-touch /etc/dsnvps/.tmp/ckla
-# # # # /etc/dsnvps/menu/dsnvps-tat-bat-chong-hai (Bypassed) (Bypassed) (Bypassed) (Bypassed)
-##
-###
-##
-############# Kiem tra va gioi thieu Dung Thu ######################################################################################
-if ! grep -q "Businesscode" /root/dsnvps.conf && [ ! -f /usr/bin/gxred ]; then
-	if [ ! -f /etc/dsnvps/.tmp/xzx ]; then
-	touch -a -m -t 201602180130.09 /etc/dsnvps/.tmp/xzx 
-	fi
-	fileTime2=$(date -r /etc/dsnvps/.tmp/xzx +%s);diff=$(($curTime-$fileTime2));
-	if [ "$diff" -gt 12600 ]; then
-	echo "========================================================================="
-	echo "Bạn đang sử dụng phiên bản miễn phí của DSNVPS."
-	echo "-------------------------------------------------------------------------"
-	echo "Hãy kích hoạt DSNVPS Pro để sử dụng không giới hạn chức năng."
-	echo "-------------------------------------------------------------------------"
-	echo "Đăng ký VPro365 Key tại: http://go.dsnvps.con/6789"	
-	echo "========================================================================="
-	echo "Sau khi bạn kích hoạt, thông báo này sẽ không xuất hiện nữa."
-	echo "========================================================================="
-	read -p "Nhấn [Enter] để tiếp tục ..."
-	touch /etc/dsnvps/.tmp/xzx
-	clear
-	fi
-fi
-######################################################################################################################################
 clear && /etc/dsnvps/menu/dsnvps-thay-doi-php-timezone-full-timezone
-

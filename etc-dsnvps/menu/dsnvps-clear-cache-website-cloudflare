@@ -399,7 +399,6 @@ while true; do
     echo "-------------------------------------------------------------------------"
     echo "thị nội dung cũ, hãy dùng chức năng này."
     echo "========================================================================="
-    echo "Hướng dẫn sử dụng: http://go.dsnvps/5361"
     echo "========================================================================="
     mapfile -t danh_sach_website < /etc/dsnvps/.tmp/klaoxcy
     echo "Danh sách các website & Park domains trên server:  | ** : Park Domains"

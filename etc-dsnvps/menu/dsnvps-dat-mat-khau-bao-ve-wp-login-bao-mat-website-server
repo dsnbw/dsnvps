@@ -121,7 +121,6 @@ echo "Sử dụng chức năng này để Bật/Tắt mật khẩu truy cập wp
 echo "-------------------------------------------------------------------------"
 echo "WordPress Website."
 echo "-------------------------------------------------------------------------"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/6192"
 echo "========================================================================="
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist_with_status
 echo "Danh sách các Wordpress website trên server: | ** : Cấu hình đang BẬT"

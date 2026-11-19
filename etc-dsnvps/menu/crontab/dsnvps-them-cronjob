@@ -197,12 +197,6 @@ read -p "DSNVPS sẽ thêm cronjob này vào server? (y/N): " confirm
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/crontab/dsnvps-cronjob-menu
-fi
 
 
 ###################################################################

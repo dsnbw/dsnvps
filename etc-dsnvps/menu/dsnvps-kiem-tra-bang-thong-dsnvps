@@ -39,7 +39,6 @@ fi
 #tput cuu 3 && tput ed
 /etc/dsnvps/menu/dsnvps-menu-all-function  
 echo "========================================================================="
-echo "Check Băng Thông UP/Down | Hướng dẫn: http://go.dsnvps/8620|"
 echo "========================================================================="
 
 while true; do

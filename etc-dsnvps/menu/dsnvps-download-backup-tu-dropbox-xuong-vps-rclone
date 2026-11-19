@@ -142,7 +142,6 @@ sleep 3 && tput cuu 2 && tput ed
 echo "========================================================================="
 echo "Sử dụng chức năng này để tải các file backup từ Dropbox về Server."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/3856"
 
 > /etc/dsnvps/.tmp/olaus.txt
 

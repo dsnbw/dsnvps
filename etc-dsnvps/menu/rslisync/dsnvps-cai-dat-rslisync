@@ -88,12 +88,6 @@ done
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/rslisync/dsnvps-rslisync-menu
-fi
 ###################################################################
 ###################################################################
 

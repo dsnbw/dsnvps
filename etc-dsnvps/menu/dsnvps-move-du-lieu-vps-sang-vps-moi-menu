@@ -13,7 +13,6 @@ if [ -f "$config_file" ] && grep -q "thanhcong" "$config_file"; then
 fi
 echo "Thứ Tự Thực Hiện => Lần Lượt Thực Hiện Các Bước: 1 => 3 => 4"
 printf "=========================================================================\n"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/3251"
 printf "=========================================================================\n"
 while true; do
 printf "%-40s %s\n" "1) Kết Nối Tới Server Mới" "3) Chuyển Dữ Liệu Sang Server Mới Ngay"

@@ -178,7 +178,6 @@ fi
 #####################################################################
 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1131 "
 echo "========================================================================="
 echo "Dùng chức năng này để BẬT/TẮT Mật Khẩu Truy Cập vào folder cho website."
 echo "========================================================================="
@@ -748,12 +747,6 @@ if [ "$chooseacction" = "thoatmenu" ]; then
     exit
 fi
 if [ "$chooseacction" = "dungmacdinh" ]; then
-    if [ ! -f /usr/bin/gxred ]; then
-        touch /etc/dsnvps/.tmp/ckla
-        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-        clear
-        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-    fi
     if [ ! -d /etc/nginx/pwprotect/$clean_website ]; then
         mkdir -p /etc/nginx/pwprotect/$clean_website
     fi
@@ -836,12 +829,6 @@ else
 
     echo "-------------------------------------------------------------------------"; sleep 2
     echo "Vui lòng chờ ..."; sleep 3
-    if [ ! -f /usr/bin/gxred ]; then
-        touch /etc/dsnvps/.tmp/ckla
-        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-        clear
-        /etc/dsnvps/menu/dsnvps-bao-mat-server-website-menu
-    fi
     if [ ! -d /etc/nginx/pwprotect/$clean_website ]; then
         mkdir -p /etc/nginx/pwprotect/$clean_website
     fi

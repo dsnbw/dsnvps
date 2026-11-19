@@ -62,7 +62,6 @@ fi
 echo "========================================================================="
 echo "Sử dụng chức năng này để phục hồi website từ file backup."
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/phoiweb"
 echo "=========================================================================" 
 echo "Nhập số tương ứng với Website bạn muốn phục hồi dữ liệu code."
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkallwebsites
@@ -111,12 +110,6 @@ done
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-sao-luu
-fi
 
 ###################################################################
 ###################################################################

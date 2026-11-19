@@ -9,7 +9,6 @@ fi
 # Anti-debug removed
 Show_menu () {
 	echo "========================================================================="
-	echo "Hướng dẫn sử dụng: http://go.dsnvps/1136 "
 prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
 options=( "BẬT/TẮT Chạy Script Trong Writable Folder" "List Websites TẮT Chạy Script Trong Writeable Folder" )
 echo "========================================================================="

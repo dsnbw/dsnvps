@@ -65,7 +65,6 @@ options=( "WP Super cache" "W3 Total Cache" "WP Optimize" "WP Fastest Cache" "Lo
 printf "=========================================================================\n"
 printf "Tùy thuộc vào cache bạn sử dụng mà DSNVPS cấu hình Vhost cho phù hợp.\n"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2566"
 printf "=========================================================================\n"
 PS3="$prompt"
 select opt in "${options[@]}"; do 

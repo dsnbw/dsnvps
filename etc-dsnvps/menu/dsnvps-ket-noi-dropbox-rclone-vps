@@ -38,7 +38,6 @@ fi
 echo "========================================================================="
 echo "Dùng chức năng này để kết nối VPS với tài khoản Dropbox"
 echo "-------------------------------------------------------------------------"
-echo "Xem hướng dẫn tại: http://go.dsnvps/3856"
 echo "========================================================================="
 read -r -p "Bạn đã đọc xong hướng dẫn sử dụng chức năng này ? [y/N] " response
 if [[ ! $response =~ ^(y|Y|yes|Yes)$ ]]; then
@@ -103,12 +102,6 @@ configure_rclone() {
     echo -e "\e[31mSau đó đăng nhập bằng tài khoản Dropbox và cho phép kết nối.\e[0m"
     echo "========================================================================="
     sleep 3
-    if [ ! -f /usr/bin/gxred ]; then
-        touch /etc/dsnvps/.tmp/ckla
-        /etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-        clear
-        /etc/dsnvps/menu/dsnvps-rclone-dropbox-menu
-    fi
     mkdir -p "$(dirname "$CONFIG_FILE")"
     timeout 600 rclone config create dropbox dropbox --config "$CONFIG_FILE" || {
         clear

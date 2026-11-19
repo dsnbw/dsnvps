@@ -43,7 +43,6 @@ echo "Dùng chức năng này TẮT/BẬT gửi thông báo Telegram sau hoàn t
 echo "-------------------------------------------------------------------------"
 echo "tất cả database trong chức năng [ Tự Động Sao Lưu Tất Cả Database ]."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/7781"
 telegram_toggle_file="/etc/dsnvps/auto.backup.all.databases.telegram.conf"
 
 if [ -f "$telegram_toggle_file" ]; then

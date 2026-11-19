@@ -20,7 +20,6 @@ mybbpb=$(cat /etc/dsnvps/.tmp/pbmybb)
 fi
 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/addwcode"
 echo "========================================================================="
 prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
 options=( "PhpBB $phpbb" "SMF $smfpb" "MyBB $mybbpb")

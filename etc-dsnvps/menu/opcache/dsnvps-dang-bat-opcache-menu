@@ -34,7 +34,6 @@ echo -e "\e[31mĐể hiệu suất website tốt nhất: Hãy luôn BẬT Zend O
 echo "========================================================================="
 #fi
 #touch /etc/dsnvps/.tmp/90addsdta 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/7519"
 echo "=========================================================================" 
 }
 while true; do

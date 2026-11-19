@@ -69,7 +69,6 @@ echo "-------------------------------------------------------------------------"
 echo "Sử dụng chức năng này để TẮT - BẬT tính năng tự động cập nhật này."
 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1103"
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
 echo "========================================================================="
 echo "Danh sách các website trên server:"

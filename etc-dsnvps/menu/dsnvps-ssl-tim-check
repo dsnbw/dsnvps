@@ -111,7 +111,6 @@ rm -rf "$TMP_DIR/dsnvps.newversio*"
 
 # Display checking message
 echo "========================================================================="
-echo "Đang lấy DSNVPS - FREE FOR ALL"
 echo "-------------------------------------------------------------------------"
 echo "Getting Current DSNVPS Version ..."; sleep 3
 tput cuu 4 && tput el

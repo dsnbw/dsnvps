@@ -38,7 +38,6 @@ fi
 echo "========================================================================="
 echo "Dùng chức năng này để kết nối VPS với tài khoản OneDrive"
 echo "-------------------------------------------------------------------------"
-echo "Xem hướng dẫn tại: http://go.dsnvps/1856"
 echo "========================================================================="
 read -r -p "Bạn đã đọc xong hướng dẫn sử dụng chức năng này ? [y/N] " response
 if [[ ! $response =~ ^(y|Y|yes|Yes)$ ]]; then

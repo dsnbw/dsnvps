@@ -138,7 +138,6 @@ sleep 3 && tput cuu 2 && tput ed
 echo "========================================================================="
 echo "Sử dụng chức năng này để tải các file backup từ OneDrive về Server."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1147"
 
 > /etc/dsnvps/.tmp/olaus.txt
 

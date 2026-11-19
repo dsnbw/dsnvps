@@ -24,7 +24,6 @@ fi
 echo "========================================================================="
 echo "Sử dụng chức năng này XÓA cài đặt DDNS Cloudflare cho website trên server"
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/ddns"
 echo "=========================================================================" 
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/checkallwebsites
 echo "Danh sách các website thiết lập DDNS Cloudflare:"

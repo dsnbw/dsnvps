@@ -17,7 +17,6 @@ echo "(CPU & RAM) của server."
 echo "-------------------------------------------------------------------------"
 echo "Sau khi sử dụng chức năng này, tất cả config bạn đã thiết lập sẽ bị mất."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/reconfigphpini"
 echo "========================================================================="
 read -r -p "Bạn muốn DSNVPS re-config PHP.INI & WWW.CONF ? [y/N] " response
 if [[ $response == "y" || $response == "Y" || $response == "yes" || $response == "Yes" ]]; then

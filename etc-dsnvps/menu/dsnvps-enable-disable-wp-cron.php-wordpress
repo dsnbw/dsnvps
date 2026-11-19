@@ -88,7 +88,6 @@ echo "Mặc định, WP-Cron.php luôn BẬT trên WordPress Website"
 echo "-------------------------------------------------------------------------"
 echo "Sử dụng chức năng này để TẮT - BẬT tính năng này."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1104"
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist_with_status
 echo "========================================================================="
 echo "Danh sách các website WordPress trên server: | ** : Wp-cron.php đang BẬT"

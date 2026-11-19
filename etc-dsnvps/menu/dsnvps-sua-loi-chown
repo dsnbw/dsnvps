@@ -49,7 +49,6 @@ echo "code trên server. Nếu không, website có thể bị lỗi khi hoạt �
 echo "-------------------------------------------------------------------------"
 echo "Lỗi upload file, lỗi không update được plugins/themes, trắng trang..."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/3566"
 echo "========================================================================="
 prompt="Nhập Lựa chọn của bạn [0 -Thoát]: "
 options=("Phân quyền 1 website" "Phân quyền tất cả website")

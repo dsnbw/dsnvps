@@ -244,7 +244,6 @@ fi
 
 
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/5261 "
 echo "========================================================================="
 echo "Sử dụng chức năng này để redirect một website sang website khác khi truy"
 echo "-------------------------------------------------------------------------"
@@ -666,7 +665,6 @@ echo "Mã quốc gia là 2 chữ cái in hoa. Nếu muốn nhập nhiều nướ
 echo "-------------------------------------------------------------------------"
 echo "cách nhau dấu [,]. Ví dụ: Muốn nhập China & Vietnam thì nhập: VN,CN"
 echo "-------------------------------------------------------------------------"
-echo "Xem danh sách mã quốc gia tại: http://go.dsnvps/5231"
 
 while true; do
   echo "-------------------------------------------------------------------------"
@@ -723,12 +721,6 @@ read -p "DSNVPS sẽ cài đặt chuyển hướng cho mã nước bạn nhập?
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
- /etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
-fi
 
 
 ###################################################################
@@ -1332,7 +1324,6 @@ echo "Mã quốc gia là 2 chữ cái in hoa. Nếu muốn nhập nhiều nướ
 echo "-------------------------------------------------------------------------"
 echo "cách nhau dấu [,]. Ví dụ: Muốn nhập China & Vietnam thì nhập: VN,CN"
 echo "-------------------------------------------------------------------------"
-echo "Xem danh sách mã quốc gia tại: http://go.dsnvps/5231"
 
 while true; do
   echo "-------------------------------------------------------------------------"
@@ -1387,12 +1378,6 @@ read -p "DSNVPS sẽ cài đặt chuyển hướng cho mã nước bạn nhập?
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-nginx-geoip2-menu
-fi
 ###################################################################
 ###################################################################
 

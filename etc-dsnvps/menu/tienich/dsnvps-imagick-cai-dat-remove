@@ -14,7 +14,6 @@ echo "Sử dụng chức năng này để Cài đặt / Gỡ bỏ Imagick cho se
 echo "-------------------------------------------------------------------------"
 echo "Server đã cài đặt Imagick"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/3721"
 echo "========================================================================="
 read -r -p "Bạn muốn gỡ bỏ Imagick? [y/N] " response
 case $response in
@@ -48,7 +47,6 @@ echo "Sử dụng chức năng này để Cài đặt/Gỡ bỏ PHP-Imagick cho 
 echo "-------------------------------------------------------------------------"
 echo "Server hiện chưa cài đặt PHP-Imagick"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/3721"
 echo "========================================================================="
 read -r -p "Bạn muốn cài đặt Imagick? [y/N] " response
 case $response in

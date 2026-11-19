@@ -16,7 +16,6 @@ echo "Màn hình Terminal này quá nhỏ. Kết quả chạy DSNVPS có thể k
 echo "-------------------------------------------------------------------------"
 echo "hết. Bạn hãy tăng kích thước cửa sổ Terminal lên để tắt thông báo này!"
 echo "========================================================================="
-echo "Xem cách fix: http://go.dsnvps/vterminal"
 echo "========================================================================="
 read -p "Nhấn [Enter] để tiếp tục ..."
 fi

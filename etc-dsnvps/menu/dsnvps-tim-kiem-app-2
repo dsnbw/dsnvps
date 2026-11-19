@@ -148,7 +148,6 @@ if [ "$LOCALVER" != "$remote_version" ]; then
     echo "-------------------------------------------------------------------------"
     echo "Phiên bản mới nhất: $remote_version - Thời gian update: $update_time"
     echo "-------------------------------------------------------------------------"
-    echo "Xem DSNVPS Update Log tại: https://go.dsnvps/3515"
     echo "========================================================================="
     read -r -n 1 -p "Nhấn phím bất kỳ bắt đầu cập nhật DSNVPS... "
     echo
@@ -166,7 +165,6 @@ if [ "$LOCALVER" != "$remote_version" ]; then
 else
     clear
     echo "========================================================================="
-    echo "Bạn đang sử dụng DSNVPS - FREE FOR ALL"
     echo "-------------------------------------------------------------------------"
     echo "Phiên bản hiện tại: $LOCALVER   |   Cập nhật lần cuối: $update_time"
     unset_api

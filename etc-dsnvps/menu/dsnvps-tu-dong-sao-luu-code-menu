@@ -38,7 +38,6 @@ echo "Không tìm thấy website có dữ liệu trên server"
 /etc/dsnvps/menu/dsnvps-sao-luu
 fi
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/autobackupcode"
 prompt="Nhập Lựa chọn của bạn [0 -Thoát]:"
 options=("BAT/TAT Tu Dong Backup Website" "List Website BAT Tu Dong Backup")
 printf "=========================================================================\n"

@@ -61,12 +61,12 @@ case "${1:-}" in
     help|-h|--help)
         cat <<'HELP'
 =========================================================================
-  DSNVPS v7.0.0 CLI (Ket hop VPSSIM + WPTangToc OLS)
+  DSNVPS v7.1.0 CLI - He Thong Quan Tri & Toi Uu VPS Chuyen Nghiep
 =========================================================================
 Su dung: dsnvps [lenh] [tham-so]
 
 Lenh quan tri nhanh (CLI):
-  dsnvps                  Mo Menu tuong tac chinh (44 nhom tinh nang)
+  dsnvps                  Mo Menu tuong tac chinh (43 nhom tinh nang)
   dsnvps status           Xem nhanh thong so server & trang thai toi uu
   dsnvps top              Giam sat tai nguyen Real-time (WTOP)
   dsnvps optimize         Chay 1-Click toi uu toan dien (BBR, ZRAM, Jemalloc, JIT...)

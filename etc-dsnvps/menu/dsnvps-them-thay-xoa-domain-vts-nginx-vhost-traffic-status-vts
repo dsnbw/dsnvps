@@ -63,7 +63,6 @@ grep -q 'GeoLite2-Country.conf' /etc/nginx/nginx.conf || \
   sed -i '/include \/etc\/nginx\/conf\.d\/\*\.conf;/i include /etc/nginx/conf/GeoLite2-Country.conf;' /etc/nginx/nginx.conf
 ############################
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/7371"
 if [ ! -f /etc/dsnvps/domainvts/domainvts.conf ]; then
 echo "========================================================================="
 echo "Với Domain VTS, bạn có thể kiểm tra theo thời gian thực các số liệu quan"

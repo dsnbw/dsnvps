@@ -121,7 +121,6 @@ echo "Tùy thuộc vào số lượng và dung lượng các website mà thời 
 echo "-------------------------------------------------------------------------"
 echo "thể nhanh hoặc chậm."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/backupcodeallweb"
 echo "========================================================================="
 read -r -p "Bạn muốn sao lưu tất cả website? [y/N] " response
 case $response in
@@ -131,12 +130,6 @@ case $response in
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-sao-luu
-fi
 ###################################################################
 ###################################################################
 rm -rf /home/dsnvps.demo/private_html/LUW-*.txt

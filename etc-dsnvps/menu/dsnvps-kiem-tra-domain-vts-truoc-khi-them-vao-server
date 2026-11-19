@@ -18,7 +18,6 @@ clear
 echo "========================================================================="
 echo "Bạn đã thêm rất nhiều domain vào server."
 echo "-------------------------------------------------------------------------"
-echo "Bạn vui lòng vào how.dsnvps để tìm cách fix lỗi này"
 /etc/dsnvps/menu/dsnvps-them-website-menu
 fi
 

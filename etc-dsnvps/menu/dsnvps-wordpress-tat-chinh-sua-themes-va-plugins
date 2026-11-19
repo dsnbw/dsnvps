@@ -89,7 +89,6 @@ fi
 echo "========================================================================="
 echo "Dùng chức năng này để TẮT/BẬT edit file php Plugins/Themes trong WP-ADMIN"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1323"
 echo "========================================================================="
 mapfile -t file_list < /etc/dsnvps/.tmp/wordpresslist_with_status
 echo "Danh sách Wordpress website trên server: | ** : Cấu hình BẬT edit"

@@ -12,9 +12,9 @@ while true; do
     noa_st="OFF"; findmnt -n -o OPTIONS / | grep -q "noatime" && noa_st="ON"
     bro_st="OFF"; grep -q "brotli.conf" /etc/nginx/nginx.conf 2>/dev/null && bro_st="ON"
 
-    echo -e "${C_CYAN}=========================================================================${C_RESET}"
-    echo -e "${C_YELLOW}      DSNVPS SERVER TURBO & OPTIMIZATION SUITE (WPTangToc + VPSSIM)${C_RESET}"
-    echo -e "${C_CYAN}=========================================================================${C_RESET}"
+    echo -e " ${C_CYAN}╭───────────────────────────────────────────────────────────────────────────╮${C_RESET}"
+    printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" "$(dsnvps_pad_col "${C_YELLOW}🚀 DSNVPS SERVER TURBO & 2026+ OPTIMIZATION SUITE${C_RESET}" 73)"
+    echo -e " ${C_CYAN}╰───────────────────────────────────────────────────────────────────────────╯${C_RESET}"
     echo -e " Trạng thái: TCP=${C_GREEN}${tcp_cc}${C_RESET} | ZRAM=${C_GREEN}${zram_st}${C_RESET} | Jemalloc=${C_GREEN}${jem_st}${C_RESET} | JIT=${C_GREEN}${jit_st}${C_RESET} | noatime=${C_GREEN}${noa_st}${C_RESET} | Brotli=${C_GREEN}${bro_st}${C_RESET}"
     echo "-------------------------------------------------------------------------"
     echo "  1) 🚀 1-Click Tối Ưu Toàn Diện Server (Chạy Tất Cả Tối Ưu)"

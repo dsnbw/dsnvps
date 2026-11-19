@@ -24,7 +24,6 @@ text="Thời Gian Hiện Tại Của Server: $ssi1 $ssi2"
 # Căn giữa với chiều rộng 73 ký tự
 printf "%$(( (73 - ${#text}) / 2 ))s%s\n" "" "$text"
 printf "=========================================================================\n"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1118 "
 echo "========================================================================="
 while true; do
     printf "%-18s %-18s %-18s %-18s\n" "1) GMT" "8) GMT+6" "15) GMT+10" "22) GMT-1"

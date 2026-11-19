@@ -159,7 +159,6 @@ echo "Tùy thuộc vào số lượng database và dung lượng từng database
 echo "-------------------------------------------------------------------------"
 echo "hoàn thành sao lưu tất cả database có thể nhanh hay chậm."
 echo "=========================================================================" 
-echo "Hướng dẫn sử dụng: http://go.dsnvps/backupalldata"
 echo "=========================================================================" 
 read -r -p "Bạn muốn DSNVPS lần lượt sao lưu tất cả database? [y/N] " response
 case $response in
@@ -175,12 +174,6 @@ sleep 2
 ####################################################################
 ##Check Ban Pro
 ####################################################################
-if [ ! -f /usr/bin/gxred ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-them-xoa-database
-fi
 
 ###################################################################
 ###################################################################

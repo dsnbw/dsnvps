@@ -136,7 +136,6 @@ if [ -f /etc/cron.d/dsnvps.rclone.backup.dropbox.cron ]; then
 echo "Xóa backup file trên VPS sau khi tải lên Dropbox: $autoxoa"
 echo "========================================================================="
 fi
-echo "Hướng dẫn sử dụng: http://go.dsnvps/3856"
 echo "========================================================================="
 }
 while true; do

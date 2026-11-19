@@ -9,7 +9,6 @@ echo -e " Phiên bản hiện tại : ${C_GREEN}${cur_ver}${C_RESET}"
 echo -e " Nguồn cập nhật     : ${C_CYAN}https://github.com/dsnbw/dsnvps${C_RESET}"
 echo "-------------------------------------------------------------------------"
 echo " Lưu ý: Quá trình cập nhật CHỈ cập nhật script DSNVPS, giữ nguyên toàn bộ"
-echo " website, database, chứng chỉ SSL và cấu hình /root/dsnvps.conf của bạn."
 echo "========================================================================="
 read -r -p "Bạn muốn kiểm tra và cập nhật DSNVPS ngay bây giờ? [y/N]: " ans
 if [[ "$ans" =~ ^[Yy]$ ]]; then

@@ -183,7 +183,6 @@ done
         
 if [ ! -f /etc/dsnvps/telegram.conf ]; then
     echo "========================================================================="
-    echo "Hướng dẫn tạo Telegram Bot Token: https://go.dsnvps/8911"
 while true; do
     echo "========================================================================="
 echo -n "Nhập Telegram Bot Token [0 -Thoát]: "
@@ -245,7 +244,6 @@ if [[ "$is_pro_version" == true && ! -f /etc/cron.d/check_and_restart_service.cr
 fi
 if [[ "$is_pro_version" == false &&  -f /etc/cron.d/check_and_restart_service.cron ]]; then
     echo "-------------------------------------------------------------------------"
-    echo "Bạn hãy đăng ký VPro365 Key để nhận thông báo khi server có Login SSH hoặc"; sleep 2
     echo "-------------------------------------------------------------------------"
     echo "có sự cố với Nginx/MYSQL/PHP."; sleep 2
 fi
@@ -339,7 +337,6 @@ if [[ "$is_pro_version" == true && ! -f /etc/cron.d/check_and_restart_service.cr
 fi
 if [[ "$is_pro_version" == false &&  -f /etc/cron.d/check_and_restart_service.cron ]]; then
     echo "-------------------------------------------------------------------------"
-    echo "Hãy đăng ký VPro365 Key để nhận thông báo khi server có Login SSH hoặc"; sleep 2
     echo "-------------------------------------------------------------------------"
     echo "có sự cố với Nginx/MySQL/PHP."; sleep 2
 fi

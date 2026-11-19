@@ -153,3 +153,43 @@ dsnvps_pkg_install() {
         dnf install -y -q "$@" 2>/dev/null || yum install -y -q "$@"
     fi
 }
+
+dsnvps_pad_col() {
+    local text="$1"
+    local width="${2:-35}"
+    local plain disp_len pad
+    plain="$(printf '%b' "$text" | sed -r 's/\x1B\[[0-9;]*[mK]//g')"
+    disp_len="$(printf '%s' "$plain" | wc -L)"
+    pad=$(( width - disp_len ))
+    ((pad < 0)) && pad=0
+    printf '%b%*s' "$text" "$pad" ""
+}
+
+dsnvps_menu_top() {
+    echo -e " ${C_CYAN}╭───────────────────────────────────────────────────────────────────────────╮${C_RESET}"
+}
+
+dsnvps_menu_sep() {
+    echo -e " ${C_CYAN}├─────────────────────────────────────┬─────────────────────────────────────┤${C_RESET}"
+}
+
+dsnvps_menu_full_sep() {
+    echo -e " ${C_CYAN}├───────────────────────────────────────────────────────────────────────────┤${C_RESET}"
+}
+
+dsnvps_menu_bot() {
+    echo -e " ${C_CYAN}╰─────────────────────────────────────┴─────────────────────────────────────╯${C_RESET}"
+}
+
+dsnvps_menu_section() {
+    local title="$1"
+    printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" "$(dsnvps_pad_col "${C_YELLOW}▸ ${title}${C_RESET}" 73)"
+}
+
+dsnvps_menu_row() {
+    local left="$1"
+    local right="$2"
+    printf " ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET} %s ${C_CYAN}│${C_RESET}\n" \
+        "$(dsnvps_pad_col "$left" 35)" \
+        "$(dsnvps_pad_col "$right" 35)"
+}

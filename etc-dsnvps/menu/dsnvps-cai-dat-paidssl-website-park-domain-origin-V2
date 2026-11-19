@@ -140,7 +140,6 @@ echo "Sử dụng chức năng này để cài đặt Free SSL Cloudflare cho we
 echo "-------------------------------------------------------------------------"
 echo "hạn chứng chỉ là 15 năm."
 echo "-------------------------------------------------------------------------"
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1948"
 
 if [ ! -f /etc/dsnvps/ssl-cloudflare-api-global.conf ]; then
 echo "========================================================================= "

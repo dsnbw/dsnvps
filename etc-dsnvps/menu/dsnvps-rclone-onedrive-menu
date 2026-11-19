@@ -136,7 +136,6 @@ if [ -f /etc/cron.d/dsnvps.rclone.backup.onedrive.cron ]; then
 echo "Xóa backup file trên VPS sau khi tải lên OneDrive: $autoxoa"
 echo "========================================================================="
 fi
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1856"
 echo "========================================================================="
 }
 while true; do

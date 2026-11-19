@@ -231,7 +231,6 @@ action_check_job() {
   echo "========================================================================="
   echo "                    Micro Cronjob đang chạy: $(count_running)"
   echo "========================================================================="
-  echo "Hướng dẫn sử dụng: http://go.dsnvps/5622"
   echo "========================================================================="
   printf "%-37s %-35s\n" "1) Thêm Cronjob" "5) Sao lưu tất cả Cronjob"
   printf "%-37s %-35s\n" "2) Xóa 1 Cronjob" "6) Phục hồi Cronjob"
@@ -408,7 +407,6 @@ main_menu() {
     banner
     echo "                       Micro Cronjob đang chạy: $(count_running)"
     echo "========================================================================="
-    echo "Hướng dẫn sử dụng: http://go.dsnvps/5623"
     echo "========================================================================="
     printf "%-37s %-35s\n" "1) Thêm Cronjob" "5) Sao lưu tất cả Cronjob"
     printf "%-37s %-35s\n" "2) Xóa 1 Cronjob" "6) Phục hồi Cronjob"

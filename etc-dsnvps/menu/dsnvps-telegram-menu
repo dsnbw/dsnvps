@@ -109,7 +109,6 @@ if [ -f /etc/cron.d/dsnvps.telegram.backup.cron ]; then
 echo "Xóa backup file trên server sau khi tải lên Telegram: $autoxoa"
 echo "========================================================================="
 fi
-echo "Hướng dẫn sử dụng: http://go.dsnvps/2856"
 echo "========================================================================="
 echo "========================================================================="
 echo ""

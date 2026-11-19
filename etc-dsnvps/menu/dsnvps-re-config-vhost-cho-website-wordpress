@@ -63,7 +63,6 @@ echo "sang plugin cache khac ( Vi du: muon chuyen tu W3 Total cache sang Redis) 
 echo "-------------------------------------------------------------------------"
 echo "Khi do chuc nang nay se config lai Vhost tuong thich voi plugin cache moi"
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1109"
 mapfile -t danh_sach_website < /etc/dsnvps/.tmp/wordpresslist
 echo "========================================================================="
 echo "Danh sách các website trên server:"

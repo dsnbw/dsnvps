@@ -24,7 +24,6 @@ echo "SSH Timeout BẬT: Kết nối SSH tới server thoát với cấu hình m
 echo "-------------------------------------------------------------------------"
 echo "SSH Timeout TẮT: Kết nối SSH tới server thoát sau 24 giờ không thao tác."
 echo "========================================================================="
-echo "Hướng dẫn sử dụng: http://go.dsnvps/1119 "
 echo "========================================================================="
 echo "SSH Timeout status: đang BẬT"
 echo "========================================================================="

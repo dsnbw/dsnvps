@@ -93,7 +93,6 @@ echo "========================================================================="
 echo "========================================================================="
 echo "Dung chuc nang nay de cai dat SSL cho Sub-Domain cua Wordpress multisite."  
 echo "-------------------------------------------------------------------------"
-echo "Xem huong dan tai: https://go.dsnvps/2588"
 mapfile -t website_list < /etc/dsnvps/.tmp/checkallwebsites
 echo "========================================================================="
 echo "Danh sach cac website tren server:"

@@ -283,16 +283,16 @@ body {
   <br>      
 <p>Đây là trang xác nhận rằng domain của bạn đã được thêm vào máy chủ thành công.</p>
 <p>Hãy upload code vào<b> /home/$website/public_html</b></p>
-<p>Sau khi upload hoặc unzip code xong, bạn cần <a href="http://go.dsnvps/3566" target="_blank">Fix Lỗi Permission & Chown</a> để website không bị lỗi khi hoạt động.</p>
+<p>Sau khi upload hoặc unzip code xong, bạn cần <a href="https://github.com/dsnbw/dsnvps" target="_blank">Fix Lỗi Permission & Chown</a> để website không bị lỗi khi hoạt động.</p>
 
-<br><p3> Hướng dẫn phục hồi website & Database từ file sao lưu: <a href="http://go.dsnvps/phoiweb" target="_blank">Phục hồi Code Từ Backup</a> | <a href="http://go.dsnvps/1107" target="_blank">Phục hồi Database từ Backup</a></p3><br>
+<br><p3> Hướng dẫn phục hồi website & Database từ file sao lưu: <a href="https://github.com/dsnbw/dsnvps" target="_blank">Phục hồi Code Từ Backup</a> | <a href="https://github.com/dsnbw/dsnvps" target="_blank">Phục hồi Database từ Backup</a></p3><br>
 
-<br><p3> Hướng dẫn cài chứng chỉ SSL: <a href="https://go.dsnvps/2178" target="_blank">Cài FreeSSL Cho Domain, Subsite (Cert 90 ngày)</a> | <a href="https://go.dsnvps/1947" target="_blank">Cài đặt Cloudflare Origin SLL Cho Website (Cert 15 Năm)</a></p3>
+<br><p3> Hướng dẫn cài chứng chỉ SSL: <a href="https://github.com/dsnbw/dsnvps" target="_blank">Cài FreeSSL Cho Domain, Subsite (Cert 90 ngày)</a> | <a href="https://github.com/dsnbw/dsnvps" target="_blank">Cài đặt Cloudflare Origin SLL Cho Website (Cert 15 Năm)</a></p3>
 
-<br><br><p3>Hướng dẫn xóa cache website: <a href="http://go.dsnvps/5361" target="_blank"> Xóa Domain Cache Trên CloudFlare.Com</a> | <a href="http://go.dsnvps/7519" target="_blank">Xóa (Clear) Cache Zend Opcache Khi Chỉnh Code PHP</a>         </p3>
+<br><br><p3>Hướng dẫn xóa cache website: <a href="https://github.com/dsnbw/dsnvps" target="_blank"> Xóa Domain Cache Trên CloudFlare.Com</a> | <a href="https://github.com/dsnbw/dsnvps" target="_blank">Xóa (Clear) Cache Zend Opcache Khi Chỉnh Code PHP</a>         </p3>
 
 <br><br><p2>Other Link:</p2><br><br>
-    <p2><b><a href="https://how.dsnvps/d/43" target="_blank">Lưu Ý Khi Thêm Website</a> | <a href="https://how.dsnvps/d/90" target="_blank">Tự Động Sao Lưu Tất Cả Website</a> | <a href="https://how.dsnvps/d/127" target="_blank">Cấu hình chống DoS VPS</a> | <a href="https://go.dsnvps/6789" target="_blank" style="color: red;">Đăng Ký DSNVPS Pro Key</a></b></p2>
+    <p2><b><a href="https://github.com/dsnbw/dsnvps" target="_blank">Lưu Ý Khi Thêm Website</a> | <a href="https://github.com/dsnbw/dsnvps" target="_blank">Tự Động Sao Lưu Tất Cả Website</a> | <a href="https://github.com/dsnbw/dsnvps" target="_blank">Cấu hình chống DoS VPS</a> | <a href="https://github.com/dsnbw/dsnvps" target="_blank" style="color: red;">Đăng Ký DSNVPS Pro Key</a></b></p2>
 
 
 

@@ -225,14 +225,6 @@ read -r -p "Bạn đồng ý với thiết lập này? [y/N] " response
 	##################################################
 ################################################
 file_count=$(ls /etc/dsnvps/ddns-cloudflare | wc -l)
-if [ ! -f /usr/bin/gxred ]; then
-if [ "$file_count" -ge 2 ]; then
-touch /etc/dsnvps/.tmp/ckla
-/etc/dsnvps/menu/dsnvps-dem-luot-su-dung-chuc-nang
-clear
-/etc/dsnvps/menu/dsnvps-ddns-cloudflare-menu
-fi
-fi
 #################################################
 ################################################
 	file_path="/etc/dsnvps/ddns-cloudflare/$website.conf"
